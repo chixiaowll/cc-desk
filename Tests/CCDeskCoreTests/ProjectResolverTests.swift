@@ -99,6 +99,21 @@ final class ProjectResolverTests: XCTestCase {
         XCTAssertEqual(calls, 1)
     }
 
+    func testMainRevParseCallUsesPinnedArgumentOrder() {
+        // Output lines are positional (git-dir, then git-common-dir, then show-toplevel);
+        // reordering the args without updating the line parsing below would silently
+        // misattribute paths, so the exact order is pinned here.
+        var capturedArgs: [String]?
+        let r = ProjectResolver { cwd, args in
+            if args.last == "--show-toplevel" { capturedArgs = args }
+            return nil
+        }
+        _ = r.resolve("/repo")
+        XCTAssertEqual(capturedArgs, [
+            "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel",
+        ])
+    }
+
     func testCanonicalResolvesRealSymlinkedTmpOnMacOS() {
         XCTAssertEqual(ProjectResolver.canonical("/tmp"), "/private/tmp")
     }
