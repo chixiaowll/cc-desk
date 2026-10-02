@@ -194,10 +194,12 @@ struct TerminalContainer: NSViewRepresentable {
 
 struct NewSessionSheet: View {
     @ObservedObject var model: AppModel
+    @State private var kind: AgentKind = .claude
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("新建 Claude Code Session").font(.headline)
+            Text("新建 \(kind.displayName) 会话").font(.headline)
+            AgentPicker(model: model, selection: $kind)
             if model.recentDirs.isEmpty {
                 Text("还没有最近使用的目录").foregroundStyle(.secondary)
             } else {
@@ -205,7 +207,7 @@ struct NewSessionSheet: View {
                 ForEach(Array(model.recentDirs.enumerated()), id: \.element) { index, dir in
                     Button {
                         model.showNewSession = false
-                        model.newSession(cwd: dir)
+                        model.newSession(cwd: dir, kind: kind)
                     } label: {
                         Text(dir.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -214,12 +216,71 @@ struct NewSessionSheet: View {
                 }
             }
             HStack {
-                Button("选择其他目录…") { model.chooseDirectoryAndCreate() }
+                Button("选择其他目录…") { model.chooseDirectoryAndCreate(kind: kind) }
                 Spacer()
                 Button("取消") { model.showNewSession = false }.keyboardShortcut(.cancelAction)
             }
         }
         .padding(20)
         .frame(width: 460)
+        .onAppear {
+            kind = model.lastAgent
+            model.probeAgents()
+        }
+    }
+}
+
+/// 新建会话的 agent 选择：Claude / Codex / pi；尚不能启动的选项置灰并标注原因（未安装 / 即将支持）。
+struct AgentPicker: View {
+    @ObservedObject var model: AppModel
+    @Binding var selection: AgentKind
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text("Agent").foregroundStyle(.secondary)
+            ForEach(AgentKind.launchable, id: \.self) { kind in
+                let availability = model.availability(of: kind)
+                Button {
+                    selection = kind
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(kind.displayName)
+                        if let hint = availability.hint {
+                            Text(hint).font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(
+                        selection == kind ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(
+                        selection == kind ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!availability.isEnabled)
+                .help(availability.hint.map { "\(kind.displayName)：\($0)" } ?? "使用 \(kind.displayName)")
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 12))
+    }
+}
+
+/// 目录行「+」的右键菜单：选择 agent 新建（直接点击「+」用上次使用的 agent）。
+struct AgentLaunchMenu: View {
+    @ObservedObject var model: AppModel
+    let cwd: String
+
+    var body: some View {
+        ForEach(AgentKind.launchable, id: \.self) { kind in
+            let availability = model.availability(of: kind)
+            Button {
+                model.newSession(cwd: cwd, kind: kind)
+            } label: {
+                Text(availability.hint.map { "\(kind.displayName)（\($0)）" } ?? "新建 \(kind.displayName) 会话")
+            }
+            .disabled(!availability.isEnabled)
+        }
     }
 }

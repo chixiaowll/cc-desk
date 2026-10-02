@@ -38,6 +38,13 @@ enum SystemProbe {
         ProcessTable.parse(run("/bin/ps", ["-axo", "pid=,ppid=,tty=,comm="], timeout: 5) ?? "")
     }
 
+    /// 在用户的登录交互 shell 里检测 codex / pi 是否安装（GUI App 的 PATH 不含用户目录，不能直接 which）。
+    /// 阻塞最多约 3 秒，只在后台队列调用；失败或超时返回空集合。
+    static func installedAgents() -> Set<AgentKind> {
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        return AgentProbe.parse(run(shell, ["-l", "-i", "-c", AgentProbe.script], timeout: 3) ?? "")
+    }
+
     static func git(cwd: String, args: [String]) -> String? {
         run("/usr/bin/git", ["-C", cwd] + args, timeout: 3)
     }

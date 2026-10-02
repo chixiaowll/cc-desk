@@ -15,6 +15,15 @@ final class AppModel: ObservableObject {
     @Published var collapsed: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsedGroups") ?? []) {
         didSet { UserDefaults.standard.set(Array(collapsed), forKey: "collapsedGroups") }
     }
+    /// 新建会话默认使用的 agent（上次使用的）；只会记住可启动的种类。
+    @Published private(set) var lastAgent: AgentKind = {
+        let stored = UserDefaults.standard.string(forKey: "lastAgent").flatMap(AgentKind.init(rawValue:))
+        return stored.flatMap { AgentAdapters.adapter(for: $0) != nil ? $0 : nil } ?? .claude
+    }()
+    /// 本机检测到的 codex / pi；nil 表示尚未检测完成。
+    @Published private(set) var installedAgents: Set<AgentKind>?
+    private var probingAgents = false
+    private var agentsProbedAt: Date?
     @Published private(set) var recentDirs: [String] = UserDefaults.standard.stringArray(forKey: "recentDirs") ?? []
     /// 历史会话（不含当前运行中的），按时间倒序；后台每 30 秒刷新，打开历史弹出层 / 搜索面板时立即刷新。
     @Published private var historyEntries: [HistoryEntry] = []
@@ -315,14 +324,44 @@ final class AppModel: ObservableObject {
         selectedID = rows[index].id
     }
 
-    func newSession(cwd rawCwd: String) {
+    func availability(of kind: AgentKind) -> AgentAvailability {
+        AgentAvailability.of(kind, installed: installedAgents)
+    }
+
+    /// 在后台检测 codex / pi 是否安装（新建面板打开、目录行操作出现时调用）；30 秒内不重复检测。
+    func probeAgents() {
+        guard !probingAgents else { return }
+        if let at = agentsProbedAt, Date().timeIntervalSince(at) < 30 { return }
+        probingAgents = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let found = SystemProbe.installedAgents()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.probingAgents = false
+                self.agentsProbedAt = Date()
+                self.installedAgents = found
+            }
+        }
+    }
+
+    /// 用 `kind`（默认上次使用的 agent）在目录中新建内嵌会话；暂只支持有适配器的种类（Claude）。
+    func newSession(cwd rawCwd: String, kind: AgentKind? = nil) {
+        let kind = kind ?? lastAgent
+        guard let launcher = AgentAdapters.adapter(for: kind) else {
+            alert("暂不支持 \(kind.displayName)", "目前只能新建 Claude 会话。")
+            return
+        }
         let cwd = ProjectResolver.canonical(rawCwd)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
             alert("目录不存在", cwd)
             return
         }
-        let terminal = makeTerminal(id: UUID(), cwd: cwd, command: adapter.launchCommand())
+        if lastAgent != kind {
+            lastAgent = kind
+            UserDefaults.standard.set(kind.rawValue, forKey: "lastAgent")
+        }
+        let terminal = makeTerminal(id: UUID(), cwd: cwd, command: launcher.launchCommand())
         selectedID = "term:\(terminal.id.uuidString)"
         rememberRecent(cwd)
         saveWorkspace()
@@ -460,14 +499,15 @@ final class AppModel: ObservableObject {
         poll()
     }
 
-    func chooseDirectoryAndCreate() {
+    func chooseDirectoryAndCreate(kind: AgentKind? = nil) {
+        let kind = kind ?? lastAgent
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "选择要启动 Claude Code 的目录"
+        panel.message = "选择要启动 \(kind.displayName) 的目录"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         showNewSession = false
-        newSession(cwd: url.path)
+        newSession(cwd: url.path, kind: kind)
     }
 
     // MARK: 退出与恢复

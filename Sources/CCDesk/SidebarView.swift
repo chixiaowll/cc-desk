@@ -155,9 +155,13 @@ struct GroupHeaderView: View {
                 }
             }
             if !allMissing {
-                SidebarIconButton(systemName: "plus", help: "在 \(group.title) 新建会话", theme: theme) {
+                SidebarIconButton(systemName: "plus",
+                                  help: "在 \(group.title) 新建 \(model.lastAgent.displayName) 会话（右键选择 agent）",
+                                  theme: theme) {
                     model.newSession(cwd: group.id)
                 }
+                .contextMenu { AgentLaunchMenu(model: model, cwd: group.id) }
+                .onAppear { model.probeAgents() }
             }
         }
         .padding(.leading, 18)

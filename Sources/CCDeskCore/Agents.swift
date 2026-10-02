@@ -20,6 +20,61 @@ public struct ClaudeAdapter: AgentAdapter {
     public func resumeCommand(sessionID: String) -> String { "claude --resume \(ShellQuote.quote(sessionID))" }
 }
 
+public enum AgentAdapters {
+    /// 可启动的 agent 适配器；v1.1 前只有 Claude，其他种类返回 nil。
+    public static func adapter(for kind: AgentKind) -> AgentAdapter? {
+        switch kind {
+        case .claude: return ClaudeAdapter()
+        case .codex, .pi, .other: return nil
+        }
+    }
+}
+
+/// 新建会话时 agent 选项的可用性。
+public enum AgentAvailability: Equatable, Sendable {
+    case available
+    /// 还在检测本机是否安装。
+    case checking
+    case notInstalled
+    /// 已安装，但 CC Desk 尚未支持启动。
+    case comingSoon
+
+    /// `installed` 为检测到的已安装 agent；nil 表示检测尚未完成。
+    public static func of(_ kind: AgentKind, installed: Set<AgentKind>?) -> AgentAvailability {
+        if AgentAdapters.adapter(for: kind) != nil { return .available }
+        guard let installed else { return .checking }
+        return installed.contains(kind) ? .comingSoon : .notInstalled
+    }
+
+    public var isEnabled: Bool { self == .available }
+
+    public var hint: String? {
+        switch self {
+        case .available: return nil
+        case .checking: return "检测中…"
+        case .notInstalled: return "未安装"
+        case .comingSoon: return "即将支持"
+        }
+    }
+}
+
+/// 检测本机安装了哪些 agent 命令：在登录 shell 里执行 `command -v`，输出找到的命令名，每行一个。
+public enum AgentProbe {
+    public static let commands = ["codex", "pi"]
+
+    public static var script: String {
+        "for c in \(commands.joined(separator: " ")); do command -v \"$c\" >/dev/null 2>&1 && echo \"$c\"; done; true"
+    }
+
+    public static func parse(_ output: String) -> Set<AgentKind> {
+        Set(output.split(whereSeparator: \.isNewline).compactMap { line in
+            let name = line.trimmingCharacters(in: .whitespaces)
+            guard commands.contains(name) else { return nil }
+            return AgentKind(rawValue: name)
+        })
+    }
+}
+
 public enum LaunchSpec {
     /// 登录交互 shell；有命令时先运行命令，命令结束后留在交互 shell 中。
     public static func shellArgs(command: String?) -> [String] {

@@ -133,4 +133,37 @@ final class AgentsTests: XCTestCase {
         XCTAssertEqual(payload, "\u{1b}[200~hi; rm -rf /\u{1b}[201~")
         XCTAssertEqual(payload.components(separatedBy: "\u{1b}[201~").count, 2, "end marker must appear exactly once")
     }
+
+    func testAgentAvailabilityClaudeAlwaysLaunchable() {
+        XCTAssertEqual(AgentAvailability.of(.claude, installed: nil), .available)
+        XCTAssertEqual(AgentAvailability.of(.claude, installed: []), .available)
+        XCTAssertTrue(AgentAvailability.available.isEnabled)
+        XCTAssertNil(AgentAvailability.available.hint)
+    }
+
+    func testAgentAvailabilityOthersDisabledWithHint() {
+        XCTAssertEqual(AgentAvailability.of(.codex, installed: nil), .checking)
+        XCTAssertEqual(AgentAvailability.of(.codex, installed: []), .notInstalled)
+        XCTAssertEqual(AgentAvailability.of(.pi, installed: [.pi]), .comingSoon)
+        XCTAssertEqual(AgentAvailability.notInstalled.hint, "未安装")
+        XCTAssertEqual(AgentAvailability.comingSoon.hint, "即将支持")
+        XCTAssertFalse(AgentAvailability.notInstalled.isEnabled)
+        XCTAssertFalse(AgentAvailability.comingSoon.isEnabled)
+        XCTAssertFalse(AgentAvailability.checking.isEnabled)
+    }
+
+    func testAgentProbeParsesFoundCommands() {
+        XCTAssertEqual(AgentProbe.parse("codex\npi\n"), [.codex, .pi])
+        XCTAssertEqual(AgentProbe.parse("pi\n"), [.pi])
+        XCTAssertEqual(AgentProbe.parse(" \nbogus\n"), [])
+        XCTAssertTrue(AgentProbe.script.contains("command -v"))
+        XCTAssertEqual(AgentProbe.commands, ["codex", "pi"])
+    }
+
+    func testAdapterOnlyForClaude() {
+        XCTAssertEqual(AgentAdapters.adapter(for: .claude)?.kind, .claude)
+        XCTAssertNil(AgentAdapters.adapter(for: .codex))
+        XCTAssertNil(AgentAdapters.adapter(for: .pi))
+        XCTAssertNil(AgentAdapters.adapter(for: .other))
+    }
 }
