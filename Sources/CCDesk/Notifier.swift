@@ -25,6 +25,22 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(request)
     }
 
+    /// 发一条测试通知；若通知权限被关闭，回调 false 以便提示用户去系统设置打开。
+    func sendTest(completion: @escaping (Bool) -> Void) {
+        guard available else { completion(false); return }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+            if allowed {
+                let content = UNMutableNotificationContent()
+                content.title = "CC Desk 通知测试"
+                content.body = "会话需要批准或本轮完成时，会像这样提醒你。"
+                content.sound = .default
+                UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+            }
+            DispatchQueue.main.async { completion(allowed) }
+        }
+    }
+
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         if let key = response.notification.request.content.userInfo["sessionKey"] as? String {

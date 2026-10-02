@@ -54,6 +54,25 @@ final class AppModel: ObservableObject {
     /// 最近一次 poll 的进程表，供「激活 .other 宿主」时查找宿主 App。
     private var lastProcesses: ProcessTable?
     private var tick = 0
+    /// 「测试通知与角标」期间暂时显示示例角标，到期后恢复真实计数。
+    private var badgePreviewUntil: Date?
+
+    func testNotificationAndBadge() {
+        badgePreviewUntil = Date().addingTimeInterval(5)
+        NSApp.dockTile.badgeLabel = "3"
+        notifier.sendTest { allowed in
+            guard !allowed else { return }
+            let alert = NSAlert()
+            alert.messageText = "通知已被关闭"
+            alert.informativeText = "请在「系统设置 → 通知 → CC Desk」中允许通知，才能在会话需要批准时收到提醒。"
+            alert.addButton(withTitle: "打开系统设置")
+            alert.addButton(withTitle: "取消")
+            if alert.runModal() == .alertFirstButtonReturn,
+               let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
 
     // MARK: 生命周期
 
@@ -149,7 +168,10 @@ final class AppModel: ObservableObject {
             notifier.post(event)
         }
         let waiting = rows.filter { $0.session.status.isWaiting }.count
-        NSApp.dockTile.badgeLabel = waiting > 0 ? "\(waiting)" : nil
+        if badgePreviewUntil.map({ $0 < now }) ?? true {
+            badgePreviewUntil = nil
+            NSApp.dockTile.badgeLabel = waiting > 0 ? "\(waiting)" : nil
+        }
 
         tick += 1
         if tick % 30 == 0 {
