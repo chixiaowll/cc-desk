@@ -247,6 +247,12 @@ final class AppModel: ObservableObject {
 
     // MARK: 查询
 
+    /// 会话行 / 历史行是否显示 agent 名：规则集中在 `AgentLabelPolicy`。
+    var showAgentLabel: Bool {
+        let kinds = Set(sessions.map(\.kind).filter(\.isAgent)).union(historyEntries.map(\.item.kind))
+        return AgentLabelPolicy.shows(presentKinds: kinds)
+    }
+
     var selectedTerminalID: UUID? {
         guard let id = selectedID, id.hasPrefix("term:") else { return nil }
         return UUID(uuidString: String(id.dropFirst("term:".count)))

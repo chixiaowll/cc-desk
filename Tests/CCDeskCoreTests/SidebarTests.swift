@@ -333,4 +333,9 @@ final class SidebarTests: XCTestCase {
                              statusChangedAt: Date())
         XCTAssertNil(build([m])[0].rows[0].agentLabel)
     }
+
+    func testAgentLabelPolicyAlwaysShowsForNow() {
+        XCTAssertTrue(AgentLabelPolicy.shows(presentKinds: [.claude]))
+        XCTAssertTrue(AgentLabelPolicy.shows(presentKinds: []))
+    }
 }

@@ -59,13 +59,15 @@ struct GroupSectionView: View {
         VStack(alignment: .leading, spacing: 0) {
             GroupHeaderView(model: model, group: group, collapsed: collapsed, theme: theme)
             if !collapsed {
+                let showAgentLabel = model.showAgentLabel
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(group.rows) { row in
                         SessionRowView(row: row, selected: row.id == model.selectedID, now: model.now,
                                        appIcon: HostApps.icon(appPath: model.hostAppPaths[row.id], host: row.session.host),
                                        theme: theme,
                                        onResume: row.session.host.isEmbedded && row.session.status == .ended
-                                           && !model.isResumingEnded(row) ? { model.resumeEnded(row) } : nil)
+                                           && !model.isResumingEnded(row) ? { model.resumeEnded(row) } : nil,
+                                       showAgentLabel: showAgentLabel)
                             .onTapGesture { model.activate(row) }
                             .contextMenu { RowMenu(model: model, row: row) }
                     }

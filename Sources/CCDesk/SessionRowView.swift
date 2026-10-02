@@ -11,6 +11,8 @@ struct SessionRowView: View {
     let theme: Theme
     /// 非 nil 时（已结束的内嵌会话）悬停用「↩ 恢复」按钮替换时间。
     var onResume: (() -> Void)? = nil
+    /// 是否在第二行显示 agent 名；由调用方按 `AgentLabelPolicy` 决定。
+    var showAgentLabel: Bool = AgentLabelPolicy.showAgentLabel
     @State private var hovering = false
 
     private var isWaiting: Bool { row.session.status.isWaiting }
@@ -87,24 +89,32 @@ struct SessionRowView: View {
         .help(row.tooltip)
     }
 
-    @ViewBuilder private var statusLine: some View {
+    /// 第二行：状态文字（状态色）+ 可选的「 · <agent>」（次要灰色）。目录缺失显示路径，不带 agent。
+    private var statusLine: Text {
         if isMissing {
-            (Text("目录缺失").fontWeight(.medium).foregroundColor(theme.pillMissFg)
-                + Text(" · \(row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~"))").foregroundColor(theme.fg2))
-        } else if row.showsUnread {
-            Text(row.statusLabel).fontWeight(.medium).foregroundStyle(theme.unread)
-        } else {
-            switch row.session.status {
-            case .waiting(let reason):
-                Text(reason.map { "等批准 · \($0)" } ?? "等批准")
-                    .fontWeight(.bold)
-                    .foregroundStyle(theme.pillWaitBg)
-            case .working:
-                Text("处理中").fontWeight(.medium).foregroundStyle(theme.pillWorkFg)
-            case .idle, .ended, .unknown:
-                Text(row.statusLabel).fontWeight(.medium).foregroundStyle(theme.fg3)
-            }
+            return Text("目录缺失").fontWeight(.medium).foregroundColor(theme.pillMissFg)
+                + Text(" · \(row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~"))").foregroundColor(theme.fg2)
         }
+        return statusText + agentSuffix
+    }
+
+    private var statusText: Text {
+        if row.showsUnread {
+            return Text(row.statusLabel).fontWeight(.medium).foregroundColor(theme.unread)
+        }
+        switch row.session.status {
+        case .waiting(let reason):
+            return Text(reason.map { "等批准 · \($0)" } ?? "等批准").fontWeight(.bold).foregroundColor(theme.pillWaitBg)
+        case .working:
+            return Text("处理中").fontWeight(.medium).foregroundColor(theme.pillWorkFg)
+        case .idle, .ended, .unknown:
+            return Text(row.statusLabel).fontWeight(.medium).foregroundColor(theme.fg3)
+        }
+    }
+
+    private var agentSuffix: Text {
+        guard showAgentLabel, let agent = row.agentLabel else { return Text("") }
+        return Text(" · \(agent)").fontWeight(.regular).foregroundColor(theme.fg2)
     }
 }
 

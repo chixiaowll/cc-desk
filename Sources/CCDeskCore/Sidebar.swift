@@ -53,6 +53,17 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
     public var notificationName: String { displayName }
 }
 
+/// 会话行 / 历史行上是否显示 agent 名（「处理中 · Claude」）的唯一开关。
+/// 目前始终显示；接入 Codex / pi 后可改为「本机同时出现两种及以上 agent 时才显示」（见设计 §11）。
+public enum AgentLabelPolicy {
+    public static let showAgentLabel = true
+
+    /// `kinds` 为当前出现的 agent 种类；目前忽略，始终返回 `showAgentLabel`。
+    public static func shows(presentKinds kinds: Set<AgentKind>) -> Bool {
+        showAgentLabel
+    }
+}
+
 public struct SessionGroup: Identifiable, Equatable, Sendable {
     /// 项目根路径。
     public let id: String

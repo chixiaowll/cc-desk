@@ -51,7 +51,8 @@ struct HistoryPopover: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(filtered) { entry in
-                            HistoryPopoverRow(item: entry.item, now: model.now, theme: theme)
+                            HistoryPopoverRow(item: entry.item, now: model.now, theme: theme,
+                                              showAgent: model.showAgentLabel)
                                 .onTapGesture { onResume(entry.item) }
                         }
                     }
@@ -84,6 +85,7 @@ struct HistoryPopoverRow: View {
     let item: HistoryItem
     let now: Date
     let theme: Theme
+    var showAgent: Bool = AgentLabelPolicy.showAgentLabel
     @State private var hovering = false
 
     var body: some View {
@@ -94,6 +96,7 @@ struct HistoryPopoverRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if showAgent { AgentTag(kind: item.kind, theme: theme) }
             if hovering {
                 ResumeLabel(theme: theme)
             } else {
@@ -183,7 +186,8 @@ struct HistoryPalette: View {
                                     .padding(.top, 10)
                                     .padding(.bottom, 4)
                                 ForEach(section.entries) { entry in
-                                    PaletteRow(entry: entry, active: entry.id == active, now: model.now, theme: theme)
+                                    PaletteRow(entry: entry, active: entry.id == active, now: model.now, theme: theme,
+                                               showAgent: model.showAgentLabel)
                                         .id(entry.id)
                                         .onHover { inside in
                                             if inside, let index = flat.firstIndex(where: { $0.id == entry.id }) {
@@ -256,6 +260,7 @@ struct PaletteRow: View {
     let active: Bool
     let now: Date
     let theme: Theme
+    var showAgent: Bool = AgentLabelPolicy.showAgentLabel
 
     var body: some View {
         HStack(spacing: 10) {
@@ -273,6 +278,7 @@ struct PaletteRow: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 1)
                 .background(RoundedRectangle(cornerRadius: 5).fill(theme.chip))
+            if showAgent { AgentTag(kind: entry.item.kind, theme: theme) }
             Group {
                 if active {
                     Text("↩ 恢复").fontWeight(.semibold).foregroundStyle(theme.action)
@@ -302,6 +308,20 @@ struct PaletteRow: View {
             prefix.append(ch)
         }
         return prefix + "…"
+    }
+}
+
+/// 历史行上的小号灰色 agent 名（如「Claude」）。
+struct AgentTag: View {
+    let kind: AgentKind
+    let theme: Theme
+
+    var body: some View {
+        Text(kind.displayName)
+            .font(.system(size: 10.5))
+            .foregroundStyle(theme.fg3)
+            .lineLimit(1)
+            .fixedSize()
     }
 }
 
