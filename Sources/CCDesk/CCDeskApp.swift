@@ -33,6 +33,7 @@ struct CCDeskApp: App {
             ContentView(model: delegate.model)
                 .frame(minWidth: 900, minHeight: 560)
         }
+        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("新建 Session") {

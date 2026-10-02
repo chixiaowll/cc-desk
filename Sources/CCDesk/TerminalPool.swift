@@ -10,13 +10,14 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     let view: LocalProcessTerminalView
     var onTerminated: ((UUID) -> Void)?
 
-    init(id: UUID, cwd: String, title: String, command: String?) {
+    init(id: UUID, cwd: String, title: String, command: String?, theme: TerminalTheme) {
         self.id = id
         self.cwd = cwd
         self.title = title
         self.view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         super.init()
         view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        apply(theme)
         view.processDelegate = self
         let shell = Self.userShell()
         view.startProcess(
@@ -27,6 +28,15 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     }
 
     var shellPID: Int32 { view.process.shellPid }
+
+    /// 跟随系统外观切换终端底色 / 前景色 / 光标色，并重绘已有内容。
+    func apply(_ theme: TerminalTheme) {
+        view.nativeBackgroundColor = theme.background
+        view.nativeForegroundColor = theme.foreground
+        view.caretColor = theme.cursor
+        view.getTerminal().updateFullScreen()
+        view.needsDisplay = true
+    }
 
     /// 写入文本（遵循 bracketed paste 模式），submit 时稍后补回车。为语音输入等后续功能预留。
     func send(text: String, submit: Bool) {
@@ -80,10 +90,19 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
 /// 只在主线程使用。
 final class TerminalPool {
     private(set) var terminals: [EmbeddedTerminal] = []
+    /// 当前终端配色；nil 时按 App 当前外观取。
+    private var theme: TerminalTheme?
+
+    /// 外观变化时由视图层调用，更新所有终端。
+    func apply(_ theme: TerminalTheme) {
+        self.theme = theme
+        for terminal in terminals { terminal.apply(theme) }
+    }
 
     @discardableResult
     func create(id: UUID = UUID(), cwd: String, title: String, command: String?) -> EmbeddedTerminal {
-        let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, command: command)
+        let theme = self.theme ?? TerminalTheme.of(NSApp.effectiveAppearance)
+        let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, command: command, theme: theme)
         terminals.append(terminal)
         return terminal
     }
