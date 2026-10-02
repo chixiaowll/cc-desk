@@ -135,7 +135,7 @@ struct RowMenu: View {
             }
             if !row.session.host.isEmbedded {
                 Button("在这里接管") { model.takeOver(row) }
-                    .disabled(row.session.sessionID == nil || row.session.pid == nil)
+                    .disabled(row.session.sessionID == nil || row.session.pid == nil || model.isTakingOver(row))
             }
             Divider()
             if row.session.host.isEmbedded {

@@ -27,6 +27,8 @@ final class AppModel: ObservableObject {
     private var missing: [WorkspaceEntry] = []
     /// 每个内嵌终端最近一次对应的 Claude sessionId，用于持久化恢复。
     private var knownSessionIDs: [UUID: String] = [:]
+    /// 正在接管中的外部进程 pid，防止同一进程被重复接管。
+    private var takingOver: Set<Int32> = []
     private var tick = 0
 
     // MARK: 生命周期
@@ -154,8 +156,14 @@ final class AppModel: ObservableObject {
         poll()
     }
 
+    func isTakingOver(_ row: SidebarRow) -> Bool {
+        guard let pid = row.session.pid else { return false }
+        return takingOver.contains(pid)
+    }
+
     func takeOver(_ row: SidebarRow) {
         guard let pid = row.session.pid, let sid = row.session.sessionID, !row.session.host.isEmbedded else { return }
+        guard !takingOver.contains(pid) else { return }
         if row.session.status.isActive,
            !confirm("接管「\(row.displayName)」？", "它还在\(row.session.status.label)，接管会先结束外部进程，中断当前这一轮。") { return }
         let cwd = ProjectResolver.canonical(row.session.cwd)
@@ -163,8 +171,9 @@ final class AppModel: ObservableObject {
             alert("目录不存在", cwd)
             return
         }
+        takingOver.insert(pid)
         kill(pid, SIGTERM)
-        queue.async { [weak self] in
+        DispatchQueue.global().async { [weak self] in
             var alive = true
             for _ in 0..<50 {
                 if kill(pid, 0) != 0 { alive = false; break }
@@ -172,6 +181,7 @@ final class AppModel: ObservableObject {
             }
             DispatchQueue.main.async {
                 guard let self else { return }
+                self.takingOver.remove(pid)
                 if alive {
                     self.alert("外部进程没有退出", "进程 \(pid) 在 5 秒内没有结束，请手动处理后重试。")
                     return
