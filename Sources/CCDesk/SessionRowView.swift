@@ -9,6 +9,8 @@ struct SessionRowView: View {
     let now: Date
     let appIcon: NSImage?
     let theme: Theme
+    /// 非 nil 时（已结束的内嵌会话）悬停用「↩ 恢复」按钮替换时间。
+    var onResume: (() -> Void)? = nil
     @State private var hovering = false
 
     private var isWaiting: Bool { row.session.status.isWaiting }
@@ -46,9 +48,22 @@ struct SessionRowView: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(RelativeTime.short(from: row.session.statusChangedAt, now: now))
-                        .font(.system(size: 10.5).monospacedDigit())
-                        .foregroundStyle(theme.fg3)
+                    if hovering, let onResume {
+                        Button(action: onResume) {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.uturn.left").font(.system(size: 9, weight: .semibold))
+                                Text("恢复").font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundStyle(theme.action)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("在这个终端里恢复会话")
+                    } else {
+                        Text(RelativeTime.short(from: row.session.statusChangedAt, now: now))
+                            .font(.system(size: 10.5).monospacedDigit())
+                            .foregroundStyle(theme.fg3)
+                    }
                 }
                 .frame(height: 17)
                 statusLine
@@ -205,6 +220,11 @@ struct RowMenu: View {
             Button("在其他目录打开…") { model.relocateMissing(row) }
             Button("移除") { model.removeMissing(row) }
         default:
+            if row.session.host.isEmbedded, row.session.status == .ended {
+                Button("恢复会话") { model.resumeEnded(row) }
+                    .disabled(model.isResumingEnded(row))
+                Divider()
+            }
             Button("在 Finder 中打开") { model.revealInFinder(row) }
             if row.session.sessionID != nil {
                 Button("复制恢复命令") { model.copyResumeCommand(row) }
@@ -215,7 +235,9 @@ struct RowMenu: View {
             }
             Divider()
             if row.session.host.isEmbedded {
-                Button("关闭") { model.close(row) }
+                Button(row.session.status == .ended || row.session.status == .unknown ? "关闭终端" : "关闭") {
+                    model.close(row)
+                }
             } else {
                 Button("结束进程") { model.killExternal(row) }
             }

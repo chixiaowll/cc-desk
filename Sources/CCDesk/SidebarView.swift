@@ -63,7 +63,9 @@ struct GroupSectionView: View {
                     ForEach(group.rows) { row in
                         SessionRowView(row: row, selected: row.id == model.selectedID, now: model.now,
                                        appIcon: HostApps.icon(appPath: model.hostAppPaths[row.id], host: row.session.host),
-                                       theme: theme)
+                                       theme: theme,
+                                       onResume: row.session.host.isEmbedded && row.session.status == .ended
+                                           && !model.isResumingEnded(row) ? { model.resumeEnded(row) } : nil)
                             .onTapGesture { model.activate(row) }
                             .contextMenu { RowMenu(model: model, row: row) }
                     }

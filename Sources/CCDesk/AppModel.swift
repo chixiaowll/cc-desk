@@ -49,6 +49,8 @@ final class AppModel: ObservableObject {
     private var endedSessionIDs: [UUID: (id: String, at: Date)] = [:]
     /// 最近一次拿到的 transcript 标题，供刚结束的会话在后台尚未补齐标题时沿用。
     private var titleCache: [String: TranscriptMeta] = [:]
+    /// 已发出原地恢复命令、claude 尚未注册的终端 -> 发出时间；期间隐藏恢复按钮，防止重复发送。
+    @Published private var resumingEnded: [UUID: Date] = [:]
     /// 最近一次 poll 的进程表，供「激活 .other 宿主」时查找宿主 App。
     private var lastProcesses: ProcessTable?
     private var tick = 0
@@ -169,6 +171,7 @@ final class AppModel: ObservableObject {
                 observedClaude.insert(tid)
                 if let sid = s.sessionID { knownSessionIDs[tid] = sid }
                 endedSessionIDs[tid] = nil
+                if resumingEnded[tid] != nil { resumingEnded[tid] = nil }
             } else if s.status == .unknown, observedClaude.contains(tid) {
                 // claude 已退出，只留下普通 shell：记下它以便原地恢复；但忘掉旧 sessionId，
                 // 下次启动 App 时不要再自动 resume。
@@ -257,6 +260,23 @@ final class AppModel: ObservableObject {
         rememberRecent(cwd)
         saveWorkspace()
         poll()
+    }
+
+    /// 已结束的内嵌会话：在同一个终端里执行 `claude --resume <id>` 并选中。
+    func resumeEnded(_ row: SidebarRow) {
+        guard case .embedded(let tid) = row.session.host, row.session.status == .ended,
+              let sid = row.session.sessionID, let terminal = pool.terminal(tid) else { return }
+        selectedID = row.id
+        guard !isResumingEnded(row) else { return }
+        resumingEnded[tid] = Date()
+        terminal.send(text: adapter.resumeCommand(sessionID: sid), submit: true)
+        terminal.view.window?.makeFirstResponder(terminal.view)
+    }
+
+    /// 刚发出恢复命令（10 秒内）且 claude 还没注册。
+    func isResumingEnded(_ row: SidebarRow) -> Bool {
+        guard let tid = row.session.host.terminalID, let at = resumingEnded[tid] else { return false }
+        return Date().timeIntervalSince(at) < 10
     }
 
     func close(_ row: SidebarRow) {
@@ -355,7 +375,7 @@ final class AppModel: ObservableObject {
     /// 在历史会话的原目录新建内嵌终端执行 `claude --resume <id>` 并选中；已在运行则直接跳过去。
     func resumeHistory(_ item: HistoryItem) {
         if let row = groups.lazy.flatMap(\.rows).first(where: { $0.session.sessionID == item.sessionID }) {
-            activate(row)
+            if row.session.status == .ended { resumeEnded(row) } else { activate(row) }
             return
         }
         let cwd = ProjectResolver.canonical(item.cwd)
@@ -440,6 +460,7 @@ final class AppModel: ObservableObject {
         knownSessionIDs[tid] = nil
         observedClaude.remove(tid)
         endedSessionIDs[tid] = nil
+        resumingEnded[tid] = nil
         if selectedTerminalID == tid { selectedID = nil }
         saveWorkspace()
         poll()
