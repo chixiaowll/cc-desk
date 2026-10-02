@@ -15,4 +15,6 @@ if [ -e "$SWIFTTERM_BUNDLE" ]; then
     cp -R "$SWIFTTERM_BUNDLE" "$APP/Contents/Resources/"
 fi
 codesign --force --sign - "$APP"
+# 刷新 LaunchServices 记录，让 Dock / 通知中心拿到最新图标。
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" || true
 echo "$APP"

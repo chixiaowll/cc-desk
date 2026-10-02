@@ -65,7 +65,7 @@ final class AppModel: ObservableObject {
 
     func testNotificationAndBadge() {
         badgePreviewUntil = Date().addingTimeInterval(5)
-        NSApp.dockTile.badgeLabel = "3"
+        notifier.setBadge(3)
         notifier.sendTest { allowed in
             guard !allowed else { return }
             let alert = NSAlert()
@@ -218,7 +218,7 @@ final class AppModel: ObservableObject {
         let waiting = groups.reduce(0) { $0 + $1.waitingCount }
         let unread = groups.reduce(0) { $0 + $1.unreadCount }
         let count = waiting + unread
-        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        notifier.setBadge(count)
     }
 
     /// 根据本轮内嵌终端的状态更新 observedClaude / knownSessionIDs / endedSessionIDs。

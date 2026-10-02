@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import UserNotifications
 import CCDeskCore
 
@@ -11,7 +12,20 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         guard available else { return }
         let center = UNUserNotificationCenter.current()
         center.delegate = self
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+            center.getNotificationSettings { st in
+                let line = "auth=\(st.authorizationStatus.rawValue) alert=\(st.alertSetting.rawValue) badge=\(st.badgeSetting.rawValue) sound=\(st.soundSetting.rawValue)\n"
+                let url = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".cc-desk/notify-diag.txt")
+                try? line.write(to: url, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+
+    /// 同时通过 NSDockTile 和 UserNotifications 设置角标（后者受系统「标记」设置控制）。
+    func setBadge(_ count: Int) {
+        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
+        guard available else { return }
+        UNUserNotificationCenter.current().setBadgeCount(count) { _ in }
     }
 
     func post(_ event: StatusEvent) {
