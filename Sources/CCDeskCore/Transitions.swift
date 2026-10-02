@@ -11,6 +11,13 @@ public struct StatusEvent: Equatable, Sendable {
     public let sessionKey: String
     public let title: String
     public let body: String
+
+    public init(kind: Kind, sessionKey: String, title: String, body: String) {
+        self.kind = kind
+        self.sessionKey = sessionKey
+        self.title = title
+        self.body = body
+    }
 }
 
 public enum TransitionDetector {

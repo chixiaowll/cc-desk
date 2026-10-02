@@ -6,6 +6,13 @@ public struct ProcInfo: Equatable, Sendable {
     /// 例如 "ttys007"；无终端时为 nil。
     public let tty: String?
     public let command: String
+
+    public init(pid: Int32, ppid: Int32, tty: String?, command: String) {
+        self.pid = pid
+        self.ppid = ppid
+        self.tty = tty
+        self.command = command
+    }
 }
 
 /// `ps -axo pid=,ppid=,tty=,comm=` 的解析结果。

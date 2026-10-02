@@ -6,12 +6,14 @@ public struct WorkspaceEntry: Codable, Equatable, Sendable {
     /// 最近一次在该终端中看到的 Claude sessionId；为 nil 时恢复为普通 shell。
     public var sessionID: String?
     public var name: String
+    public var kind: AgentKind?
 
-    public init(terminalID: UUID, cwd: String, sessionID: String?, name: String) {
+    public init(terminalID: UUID, cwd: String, sessionID: String?, name: String, kind: AgentKind? = nil) {
         self.terminalID = terminalID
         self.cwd = cwd
         self.sessionID = sessionID
         self.name = name
+        self.kind = kind
     }
 }
 
@@ -31,7 +33,13 @@ public enum WorkspaceStore {
 
     public static func load(from url: URL = defaultURL) -> WorkspaceFile? {
         guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(WorkspaceFile.self, from: data)
+        if let file = try? JSONDecoder().decode(WorkspaceFile.self, from: data) { return file }
+        // 文件存在但解码失败：先挪到一边保留现场，避免随后的 save() 把它悄悄覆盖丢失。
+        let seconds = Int(Date().timeIntervalSince1970)
+        let brokenName = "\(url.deletingPathExtension().lastPathComponent).broken-\(seconds).json"
+        let brokenURL = url.deletingLastPathComponent().appendingPathComponent(brokenName)
+        try? FileManager.default.moveItem(at: url, to: brokenURL)
+        return nil
     }
 
     public static func save(_ file: WorkspaceFile, to url: URL = defaultURL) throws {

@@ -28,6 +28,11 @@ final class RegistryReaderTests: XCTestCase {
         XCTAssertEqual(e.status, .waiting("input needed"))
     }
 
+    func testMissingTimestampFallsBackToDistantPastNotEpoch() throws {
+        let e = try XCTUnwrap(entry(#"{"pid":1,"sessionId":"s","cwd":"/a"}"#))
+        XCTAssertEqual(e.statusUpdatedAt, .distantPast)
+    }
+
     func testIdleAndUnknownStatus() throws {
         XCTAssertEqual(try XCTUnwrap(entry(#"{"pid":1,"sessionId":"s","cwd":"/a","status":"idle"}"#)).status, .idle)
         XCTAssertEqual(try XCTUnwrap(entry(#"{"pid":1,"sessionId":"s","cwd":"/a","status":"weird"}"#)).status, .unknown)

@@ -35,7 +35,10 @@ public enum SessionBuilder {
                 let lastComponent = proc.command.split(separator: "/").last.map(String.init) ?? proc.command
                 return lastComponent == "claude"
             }
-            .sorted { $0.statusUpdatedAt > $1.statusUpdatedAt }
+            .sorted {
+                if $0.statusUpdatedAt != $1.statusUpdatedAt { return $0.statusUpdatedAt > $1.statusUpdatedAt }
+                return $0.pid > $1.pid
+            }
 
         for entry in live {
             let tty = processes.tty(of: entry.pid)
@@ -46,11 +49,12 @@ public enum SessionBuilder {
                 claimedTerminals.insert(info.id)
                 host = .embedded(terminalID: info.id)
                 id = "term:\(info.id.uuidString)"
-            } else if entry.entrypoint == "claude-vscode" {
-                host = .vscode
-                id = "claude-pid:\(entry.pid)"
             } else if let tty, processes.hasAncestor(of: entry.pid, where: { $0.command.contains("/Terminal.app/") }) {
                 host = .terminalApp(tty: tty)
+                id = "claude-pid:\(entry.pid)"
+            } else if entry.entrypoint == "claude-vscode"
+                || processes.hasAncestor(of: entry.pid, where: { $0.command.contains("/Visual Studio Code.app/") || $0.command.contains("/Code Helper") }) {
+                host = .vscode
                 id = "claude-pid:\(entry.pid)"
             } else {
                 host = .other(tty: tty)
@@ -71,7 +75,8 @@ public enum SessionBuilder {
 
         for entry in missing {
             result.append(AgentSession(
-                id: "missing:\(entry.terminalID.uuidString)", kind: .claude, sessionID: entry.sessionID,
+                id: "missing:\(entry.terminalID.uuidString)", kind: entry.sessionID == nil ? .other : .claude,
+                sessionID: entry.sessionID,
                 pid: nil, tty: nil, cwd: entry.cwd, name: entry.name, nameIsDerived: false,
                 host: .missing(terminalID: entry.terminalID), status: .unknown,
                 statusChangedAt: .distantPast))

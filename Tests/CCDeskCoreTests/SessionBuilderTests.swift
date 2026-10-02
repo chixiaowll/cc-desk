@@ -97,5 +97,43 @@ final class SessionBuilderTests: XCTestCase {
         XCTAssertEqual(out.map(\.id), ["missing:\(tid.uuidString)"])
         XCTAssertEqual(out[0].host, .missing(terminalID: tid))
         XCTAssertEqual(out[0].sessionID, "s")
+        XCTAssertEqual(out[0].kind, .claude)
+    }
+
+    func testMissingEntryWithoutSessionIDBecomesOtherKindPlaceholder() {
+        let tid = UUID()
+        let out = SessionBuilder.build(
+            registry: [], processes: ps, embedded: [],
+            missing: [WorkspaceEntry(terminalID: tid, cwd: "/gone", sessionID: nil, name: "gone")])
+        XCTAssertEqual(out.map(\.kind), [.other])
+    }
+
+    func testClassifiesVSCodeByAncestryWhenEntrypointMissing() {
+        let psVSCodeNoEntrypoint = ProcessTable.parse("""
+            950     1 ??       /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+            951   950 ttys040  /Applications/Visual Studio Code.app/Contents/Resources/app/out/vs/platform/files/node/watcher/watcherMain
+            952   951 ttys040  Code Helper (Plugin)
+            953   952 ttys040  claude
+        """)
+        let out = SessionBuilder.build(
+            registry: [reg(953, "vsc", entrypoint: "cli")], processes: psVSCodeNoEntrypoint, embedded: [], missing: [])
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].host, .vscode)
+    }
+
+    func testTerminalAppTakesPriorityOverVSCodeAncestryCheck() {
+        // Even if a VS Code ancestor also happened to exist, Terminal.app ancestry wins when present.
+        let out = SessionBuilder.build(registry: [reg(700, "term")], processes: ps, embedded: [], missing: [])
+        XCTAssertEqual(out.first(where: { $0.id == "claude-pid:700" })?.host, .terminalApp(tty: "ttys007"))
+    }
+
+    func testSortTieBreaksOnHigherPIDWhenStatusUpdatedAtEqual() {
+        let out = SessionBuilder.build(
+            registry: [reg(901, "a", status: .idle, at: 100), reg(902, "b", status: .idle, at: 100)],
+            processes: ps, embedded: [], missing: [])
+        // Both pids are on the same tty; the first (sorted) live entry wins the embedded/claim race,
+        // but here there's no embedded terminal so both rows should appear, with the higher pid
+        // ordered first by the live-sort tie-break.
+        XCTAssertEqual(out.map(\.pid), [902, 901])
     }
 }

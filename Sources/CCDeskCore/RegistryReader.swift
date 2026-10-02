@@ -10,6 +10,18 @@ public struct RegistryEntry: Equatable, Sendable {
     public let status: AgentStatus
     public let statusUpdatedAt: Date
     public let entrypoint: String?
+
+    public init(pid: Int32, sessionID: String, cwd: String, name: String?, nameIsDerived: Bool,
+                status: AgentStatus, statusUpdatedAt: Date, entrypoint: String?) {
+        self.pid = pid
+        self.sessionID = sessionID
+        self.cwd = cwd
+        self.name = name
+        self.nameIsDerived = nameIsDerived
+        self.status = status
+        self.statusUpdatedAt = statusUpdatedAt
+        self.entrypoint = entrypoint
+    }
 }
 
 public enum RegistryReader {
@@ -36,7 +48,8 @@ public enum RegistryReader {
         let millis = ["statusUpdatedAt", "updatedAt", "startedAt"]
             .lazy
             .compactMap { (obj[$0] as? NSNumber)?.doubleValue }
-            .first ?? 0
+            .first
+        let statusUpdatedAt = millis.map { Date(timeIntervalSince1970: $0 / 1000) } ?? .distantPast
 
         return RegistryEntry(
             pid: pid,
@@ -45,7 +58,7 @@ public enum RegistryReader {
             name: obj["name"] as? String,
             nameIsDerived: (obj["nameSource"] as? String) == "derived",
             status: status,
-            statusUpdatedAt: Date(timeIntervalSince1970: millis / 1000),
+            statusUpdatedAt: statusUpdatedAt,
             entrypoint: obj["entrypoint"] as? String
         )
     }

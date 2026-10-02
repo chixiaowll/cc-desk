@@ -29,6 +29,12 @@ public struct SessionGroup: Identifiable, Equatable, Sendable {
     public let title: String
     public let rows: [SidebarRow]
     public var topStatus: AgentStatus { rows.first?.session.status ?? .unknown }
+
+    public init(id: String, title: String, rows: [SidebarRow]) {
+        self.id = id
+        self.title = title
+        self.rows = rows
+    }
 }
 
 public enum SidebarBuilder {
