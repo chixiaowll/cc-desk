@@ -7,14 +7,18 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
     public let groupTitle: String
     public let subtitle: String?
     public let sourceLabel: String?
+    /// 悬停提示：完整标题 + 运行位置 + （若有）最近一条 prompt。
+    public let tooltip: String
     public var id: String { session.id }
 
-    public init(session: AgentSession, displayName: String, groupTitle: String, subtitle: String?, sourceLabel: String?) {
+    public init(session: AgentSession, displayName: String, groupTitle: String, subtitle: String?,
+                sourceLabel: String?, tooltip: String = "") {
         self.session = session
         self.displayName = displayName
         self.groupTitle = groupTitle
         self.subtitle = subtitle
         self.sourceLabel = sourceLabel
+        self.tooltip = tooltip
     }
 
     /// 通知标题用的名字；仅当 displayName 被缩短为 "#xx" 形式时补上分组前缀，避免通知歧义。
@@ -28,17 +32,24 @@ public struct SessionGroup: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
     public let rows: [SidebarRow]
+    public let waitingCount: Int
+    public let workingCount: Int
+    public let idleCount: Int
     public var topStatus: AgentStatus { rows.first?.session.status ?? .unknown }
 
     public init(id: String, title: String, rows: [SidebarRow]) {
         self.id = id
         self.title = title
         self.rows = rows
+        self.waitingCount = rows.filter { $0.session.status.isWaiting }.count
+        self.workingCount = rows.filter { $0.session.status == .working }.count
+        self.idleCount = rows.filter { $0.session.status == .idle }.count
     }
 }
 
 public enum SidebarBuilder {
-    public static func build(sessions: [AgentSession], project: (String) -> ProjectRef) -> [SessionGroup] {
+    public static func build(sessions: [AgentSession], project: (String) -> ProjectRef,
+                             titles: (AgentSession) -> TranscriptMeta? = { _ in nil }) -> [SessionGroup] {
         var buckets: [String: [AgentSession]] = [:]
         var refs: [String: ProjectRef] = [:]
         for session in sessions {
@@ -47,20 +58,21 @@ public enum SidebarBuilder {
             buckets[ref.root, default: []].append(session)
         }
 
-        var titles: [String: String] = [:]
-        for root in buckets.keys { titles[root] = groupTitle(root) }
+        var titleByRoot: [String: String] = [:]
+        for root in buckets.keys { titleByRoot[root] = groupTitle(root) }
         var titleCounts: [String: Int] = [:]
-        for title in titles.values { titleCounts[title, default: 0] += 1 }
-        for root in titles.keys where (titleCounts[titles[root]!] ?? 0) > 1 {
+        for title in titleByRoot.values { titleCounts[title, default: 0] += 1 }
+        for root in titleByRoot.keys where (titleCounts[titleByRoot[root]!] ?? 0) > 1 {
             let parent = URL(fileURLWithPath: root).deletingLastPathComponent().lastPathComponent
-            if !parent.isEmpty { titles[root] = "\(parent)/\(titles[root]!)" }
+            if !parent.isEmpty { titleByRoot[root] = "\(parent)/\(titleByRoot[root]!)" }
         }
 
         let groups = buckets.map { root, members -> SessionGroup in
-            let title = titles[root] ?? groupTitle(root)
+            let title = titleByRoot[root] ?? groupTitle(root)
             let rows = members
                 .sorted(by: rowOrder)
-                .map { row(for: $0, ref: refs[$0.cwd] ?? ProjectRef(root: root, branch: nil, cwd: root), groupTitle: title) }
+                .map { row(for: $0, ref: refs[$0.cwd] ?? ProjectRef(root: root, branch: nil, cwd: root),
+                          groupTitle: title, meta: titles($0)) }
             return SessionGroup(id: root, title: title, rows: rows)
         }
 
@@ -86,28 +98,48 @@ public enum SidebarBuilder {
         return name.isEmpty ? root : name
     }
 
-    static func row(for s: AgentSession, ref: ProjectRef, groupTitle: String) -> SidebarRow {
-        SidebarRow(session: s,
-                   displayName: displayName(s, groupTitle: groupTitle),
-                   groupTitle: groupTitle,
-                   subtitle: subtitle(s, ref: ref),
-                   sourceLabel: sourceLabel(s.host))
+    static func row(for s: AgentSession, ref: ProjectRef, groupTitle: String, meta: TranscriptMeta?) -> SidebarRow {
+        let name = displayName(s, meta: meta)
+        return SidebarRow(session: s,
+                          displayName: name,
+                          groupTitle: groupTitle,
+                          subtitle: subtitle(s, ref: ref),
+                          sourceLabel: sourceLabel(s.host),
+                          tooltip: tooltip(s, displayName: name, meta: meta))
     }
 
-    static func displayName(_ s: AgentSession, groupTitle: String) -> String {
-        if s.name.isEmpty { return groupTitle }
-        if s.nameIsDerived, let dash = s.name.lastIndex(of: "-") {
-            let suffix = s.name[s.name.index(after: dash)...]
-            if isLowercaseHexSuffix(suffix) { return "#\(suffix)" }
+    /// 标题规则：customTitle → aiTitle → lastPrompt 前 20 字 → 非派生的会话名 → "新会话"。不再有 "#NN" 缩写。
+    static func displayName(_ s: AgentSession, meta: TranscriptMeta?) -> String {
+        (meta ?? TranscriptMeta()).displayTitle(fallbackName: s.name.isEmpty ? nil : s.name, fallbackIsDerived: s.nameIsDerived)
+    }
+
+    /// "<完整标题>\n<运行位置>"，若有 lastPrompt 再加一行 "最近：…"（单行化，最长 80 字）。
+    static func tooltip(_ s: AgentSession, displayName: String, meta: TranscriptMeta?) -> String {
+        var text = "\(displayName)\n\(whereText(s))"
+        if let prompt = meta?.lastPrompt {
+            let collapsed = singleLine(prompt, maxLength: 80)
+            if !collapsed.isEmpty { text += "\n最近：\(collapsed)" }
         }
-        return s.name
+        return text
     }
 
-    /// 真实的 Claude 派生名后缀形如 "4a"、"88"、"06"、"c7"：1-4 位小写十六进制字符。
-    /// 其它后缀（如 "my-app" 的 "app"）不应被当成短 id 缩写。
-    static func isLowercaseHexSuffix(_ s: Substring) -> Bool {
-        guard !s.isEmpty, s.count <= 4 else { return false }
-        return s.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
+    static func whereText(_ s: AgentSession) -> String {
+        switch s.host {
+        case .embedded: return "在 CC Desk 内运行"
+        case .terminalApp: return "在 Terminal 中运行，点击跳转"
+        case .vscode: return "在 VS Code 中运行，点击跳转"
+        case .other: return "在外部终端中运行"
+        case .missing: return "目录缺失：\(s.cwd)"
+        }
+    }
+
+    static func singleLine(_ text: String, maxLength: Int) -> String {
+        let collapsed = text
+            .components(separatedBy: .newlines)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard collapsed.count > maxLength else { return collapsed }
+        return String(collapsed.prefix(maxLength)) + "…"
     }
 
     static func subtitle(_ s: AgentSession, ref: ProjectRef) -> String? {
@@ -145,5 +177,40 @@ public enum RelativeTime {
     /// 超过 24 小时没有状态变化。
     public static func isStale(_ date: Date, now: Date) -> Bool {
         date != .distantPast && now.timeIntervalSince(date) > 86400
+    }
+}
+
+public enum HistoryGrouping {
+    /// 按「今天 / 昨天 / 更早」分组，组内按时间倒序；空分组被省略。
+    public static func byDay(_ items: [HistoryItem], now: Date, calendar: Calendar = .current) -> [(label: String, items: [HistoryItem])] {
+        var today: [HistoryItem] = []
+        var yesterday: [HistoryItem] = []
+        var earlier: [HistoryItem] = []
+        let yesterdayDate = calendar.date(byAdding: .day, value: -1, to: now)
+
+        for item in items {
+            if calendar.isDate(item.modifiedAt, inSameDayAs: now) {
+                today.append(item)
+            } else if let yesterdayDate, calendar.isDate(item.modifiedAt, inSameDayAs: yesterdayDate) {
+                yesterday.append(item)
+            } else {
+                earlier.append(item)
+            }
+        }
+
+        func sorted(_ items: [HistoryItem]) -> [HistoryItem] { items.sorted { $0.modifiedAt > $1.modifiedAt } }
+
+        var groups: [(label: String, items: [HistoryItem])] = []
+        if !today.isEmpty { groups.append((label: "今天", items: sorted(today))) }
+        if !yesterday.isEmpty { groups.append((label: "昨天", items: sorted(yesterday))) }
+        if !earlier.isEmpty { groups.append((label: "更早", items: sorted(earlier))) }
+        return groups
+    }
+
+    /// 某个项目根目录下的历史会话，按时间倒序。
+    public static func forProject(root: String, items: [HistoryItem], project: (String) -> ProjectRef) -> [HistoryItem] {
+        items
+            .filter { project($0.cwd).root == root }
+            .sorted { $0.modifiedAt > $1.modifiedAt }
     }
 }

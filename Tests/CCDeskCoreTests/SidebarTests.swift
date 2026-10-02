@@ -16,8 +16,8 @@ final class SidebarTests: XCTestCase {
         "/r/poems": ProjectRef(root: "/r/poems", branch: nil, cwd: "/r/poems"),
     ]
 
-    func build(_ sessions: [AgentSession]) -> [SessionGroup] {
-        SidebarBuilder.build(sessions: sessions, project: { self.projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) })
+    func build(_ sessions: [AgentSession], titles: @escaping (AgentSession) -> TranscriptMeta? = { _ in nil }) -> [SessionGroup] {
+        SidebarBuilder.build(sessions: sessions, project: { self.projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) }, titles: titles)
     }
 
     func testGroupsByProjectRootAndOrdersGroupsByTopStatus() {
@@ -41,34 +41,33 @@ final class SidebarTests: XCTestCase {
         XCTAssertEqual(g.rows.map(\.id), ["wait", "idleNew", "idleOld"])
     }
 
-    func testDisplayNameShortensDerivedNames() {
+    func testDisplayNameUsesTranscriptTitleWhenAvailable() {
         let g = build([
             s("a", cwd: "/r/poems", name: "poems-06", derived: true),
             s("b", cwd: "/r/poems", name: "travel-guide-pipeline", derived: false),
-            s("c", cwd: "/r/poems", name: "", derived: false),
-            s("d", cwd: "/r/poems", name: "claude-4a", derived: true),
-            s("e", cwd: "/r/poems", name: "claude-88", derived: true),
-            s("f", cwd: "/r/poems", name: "shop-backend-service-c7", derived: true),
-            s("g", cwd: "/r/poems", name: "my-app", derived: true),
-        ])[0]
+        ], titles: { session in
+            session.id == "a" ? TranscriptMeta(customTitle: "自定义标题") : nil
+        })[0]
         let names = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0.displayName) })
-        XCTAssertEqual(names["a"], "#06")
-        XCTAssertEqual(names["b"], "travel-guide-pipeline")
-        XCTAssertEqual(names["c"], "poems")
-        XCTAssertEqual(names["d"], "#4a")
-        XCTAssertEqual(names["e"], "#88")
-        XCTAssertEqual(names["f"], "#c7")
-        XCTAssertEqual(names["g"], "my-app", "suffix 'app' is not lowercase hex, so it must not be shortened")
+        XCTAssertEqual(names["a"], "自定义标题")
+        XCTAssertEqual(names["b"], "travel-guide-pipeline", "no meta available, falls back to non-derived name")
     }
 
-    func testNotificationNameAddsGroupPrefixOnlyWhenShortened() {
+    func testDisplayNameFallsBackToNameWhenNotDerivedAndNoMeta() {
         let g = build([
-            s("a", cwd: "/r/poems", name: "poems-06", derived: true),
-            s("b", cwd: "/r/poems", name: "travel-guide-pipeline", derived: false),
+            s("a", cwd: "/r/poems", name: "travel-guide-pipeline", derived: false),
+            s("b", cwd: "/r/poems", name: "poems-06", derived: true),
+            s("c", cwd: "/r/poems", name: "", derived: false),
         ])[0]
-        let byID = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0) })
-        XCTAssertEqual(byID["a"]?.notificationName, "poems #06")
-        XCTAssertEqual(byID["b"]?.notificationName, "travel-guide-pipeline")
+        let names = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0.displayName) })
+        XCTAssertEqual(names["a"], "travel-guide-pipeline")
+        XCTAssertEqual(names["b"], "新会话", "derived name must not be used as a fallback title")
+        XCTAssertEqual(names["c"], "新会话", "empty name must not be used as a fallback title")
+    }
+
+    func testDisplayNameNeverShortensToHashPrefix() {
+        let g = build([s("a", cwd: "/r/poems", name: "claude-4a", derived: true)])[0]
+        XCTAssertEqual(g.rows[0].displayName, "新会话")
     }
 
     func testDuplicateGroupTitlesGetParentDirPrefix() {
@@ -142,6 +141,54 @@ final class SidebarTests: XCTestCase {
         XCTAssertEqual(labels["v"], "VS Code")
         XCTAssertEqual(labels["o"], "外部")
         XCTAssertEqual(labels["m"], "目录缺失")
+    }
+
+    func testTooltipIncludesFullTitleAndWhereForEachHost() {
+        let tid = UUID()
+        let g = build([
+            s("e", cwd: "/r/poems", name: "n", host: .embedded(terminalID: tid)),
+            s("t", cwd: "/r/poems", name: "n", host: .terminalApp(tty: "ttys001")),
+            s("v", cwd: "/r/poems", name: "n", host: .vscode),
+            s("o", cwd: "/r/poems", name: "n", host: .other(tty: nil)),
+            s("m", cwd: "/r/poems", name: "n", host: .missing(terminalID: tid)),
+        ])[0]
+        let tooltips = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0.tooltip) })
+        XCTAssertEqual(tooltips["e"], "n\n在 CC Desk 内运行")
+        XCTAssertEqual(tooltips["t"], "n\n在 Terminal 中运行，点击跳转")
+        XCTAssertEqual(tooltips["v"], "n\n在 VS Code 中运行，点击跳转")
+        XCTAssertEqual(tooltips["o"], "n\n在外部终端中运行")
+        XCTAssertEqual(tooltips["m"], "n\n目录缺失：/r/poems")
+    }
+
+    func testTooltipAppendsLastPromptWhenAvailable() {
+        let g = build([s("a", cwd: "/r/poems", name: "n")], titles: { _ in
+            TranscriptMeta(customTitle: "n", lastPrompt: "帮我\n写一个函数")
+        })[0]
+        XCTAssertEqual(g.rows[0].tooltip, "n\n在 VS Code 中运行，点击跳转\n最近：帮我 写一个函数")
+    }
+
+    func testTooltipTruncatesLastPromptTo80Characters() {
+        let longPrompt = String(repeating: "字", count: 100)
+        let g = build([s("a", cwd: "/r/poems", name: "n")], titles: { _ in
+            TranscriptMeta(customTitle: "n", lastPrompt: longPrompt)
+        })[0]
+        let expected = "n\n在 VS Code 中运行，点击跳转\n最近：" + String(repeating: "字", count: 80) + "…"
+        XCTAssertEqual(g.rows[0].tooltip, expected)
+    }
+
+    func testSessionGroupCounts() {
+        let g = build([
+            s("a", cwd: "/r/poems", status: .waiting("x")),
+            s("b", cwd: "/r/poems", status: .waiting("y")),
+            s("c", cwd: "/r/poems", status: .working),
+            s("d", cwd: "/r/poems", status: .idle),
+            s("e", cwd: "/r/poems", status: .idle),
+            s("f", cwd: "/r/poems", status: .idle),
+            s("g", cwd: "/r/poems", status: .unknown),
+        ])[0]
+        XCTAssertEqual(g.waitingCount, 2)
+        XCTAssertEqual(g.workingCount, 1)
+        XCTAssertEqual(g.idleCount, 3)
     }
 
     func testRelativeTime() {
