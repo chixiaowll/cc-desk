@@ -115,10 +115,12 @@ final class TerminalPool {
         terminals.removeAll { $0.id == id }
     }
 
-    func infos(processes: ProcessTable) -> [EmbeddedTerminalInfo] {
+    /// ended：claude 已退出的终端 -> 最近的 sessionId 与退出时间。
+    func infos(processes: ProcessTable, ended: [UUID: (id: String, at: Date)] = [:]) -> [EmbeddedTerminalInfo] {
         terminals.map {
             EmbeddedTerminalInfo(id: $0.id, cwd: $0.cwd, tty: processes.tty(of: $0.shellPID),
-                                 title: $0.title, createdAt: $0.createdAt)
+                                 title: $0.title, createdAt: $0.createdAt,
+                                 lastSessionID: ended[$0.id]?.id, endedAt: ended[$0.id]?.at)
         }
     }
 }

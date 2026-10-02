@@ -207,4 +207,32 @@ final class SidebarTests: XCTestCase {
         XCTAssertTrue(RelativeTime.isStale(now.addingTimeInterval(-90_000), now: now))
         XCTAssertFalse(RelativeTime.isStale(now.addingTimeInterval(-60), now: now))
     }
+
+    func testStatusLabelShowsTerminalForEmbeddedPlainShell() {
+        let tid = UUID()
+        let shell = AgentSession(id: "term:x", kind: .other, sessionID: nil, pid: nil, tty: nil, cwd: "/r/poems",
+                                 name: "poems", nameIsDerived: false, host: .embedded(terminalID: tid),
+                                 status: .unknown, statusChangedAt: Date())
+        let rows = build([shell, s("ext", cwd: "/r/poems", status: .unknown)])[0].rows
+        let labels = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.statusLabel) })
+        XCTAssertEqual(labels["term:x"], "终端")
+        XCTAssertEqual(labels["ext"], "未知")
+    }
+
+    func testEndedRowUsesTranscriptTitleAndEndedLabel() {
+        let ended = AgentSession(id: "term:x", kind: .claude, sessionID: "sid", pid: nil, tty: nil, cwd: "/r/poems",
+                                 name: "poems", nameIsDerived: false, host: .embedded(terminalID: UUID()),
+                                 status: .ended, statusChangedAt: Date())
+        let row = build([ended], titles: { $0.sessionID == "sid" ? TranscriptMeta(aiTitle: "修复通知") : nil })[0].rows[0]
+        XCTAssertEqual(row.displayName, "修复通知")
+        XCTAssertEqual(row.statusLabel, "已结束")
+    }
+
+    func testEndedRowsSortAfterIdle() {
+        let g = build([
+            s("ended", cwd: "/r/poems", status: .ended, at: 9),
+            s("idle", cwd: "/r/poems", status: .idle, at: 1),
+        ])[0]
+        XCTAssertEqual(g.rows.map(\.id), ["idle", "ended"])
+    }
 }

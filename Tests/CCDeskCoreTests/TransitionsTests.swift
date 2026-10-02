@@ -40,4 +40,9 @@ final class TransitionsTests: XCTestCase {
         XCTAssertEqual(TransitionDetector.events(previous: ["a": .unknown], rows: [row("a", .idle)]), [])
         XCTAssertEqual(TransitionDetector.events(previous: ["a": .waiting("x")], rows: [row("a", .idle)]), [])
     }
+
+    func testWorkingToEndedProducesNoEvent() {
+        XCTAssertEqual(TransitionDetector.events(previous: ["a": .working], rows: [row("a", .ended)]), [])
+        XCTAssertEqual(TransitionDetector.events(previous: ["a": .ended], rows: [row("a", .idle)]), [])
+    }
 }

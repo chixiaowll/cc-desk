@@ -13,6 +13,8 @@ public enum AgentStatus: Equatable, Sendable {
     case working
     case waiting(String?)
     case idle
+    /// 内嵌终端里的 claude 已退出，只剩普通 shell（可原地恢复）。
+    case ended
     case unknown
 
     /// 排序用：数值越小越靠前。
@@ -21,7 +23,8 @@ public enum AgentStatus: Equatable, Sendable {
         case .waiting: return 0
         case .working: return 1
         case .idle: return 2
-        case .unknown: return 3
+        case .ended: return 3
+        case .unknown: return 4
         }
     }
 
@@ -30,6 +33,7 @@ public enum AgentStatus: Equatable, Sendable {
         case .waiting: return "等批准"
         case .working: return "处理中"
         case .idle: return "空闲"
+        case .ended: return "已结束"
         case .unknown: return "未知"
         }
     }
@@ -37,7 +41,7 @@ public enum AgentStatus: Equatable, Sendable {
     public var isActive: Bool {
         switch self {
         case .working, .waiting: return true
-        case .idle, .unknown: return false
+        case .idle, .ended, .unknown: return false
         }
     }
 

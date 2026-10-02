@@ -6,13 +6,20 @@ public struct EmbeddedTerminalInfo: Equatable, Sendable {
     public let tty: String?
     public let title: String
     public let createdAt: Date
+    /// 该终端里最近一次退出的 Claude sessionId（claude 已退出、终端还留着 shell 时）。
+    public let lastSessionID: String?
+    /// claude 退出的时间（若已知）。
+    public let endedAt: Date?
 
-    public init(id: UUID, cwd: String, tty: String?, title: String, createdAt: Date) {
+    public init(id: UUID, cwd: String, tty: String?, title: String, createdAt: Date,
+                lastSessionID: String? = nil, endedAt: Date? = nil) {
         self.id = id
         self.cwd = cwd
         self.tty = tty
         self.title = title
         self.createdAt = createdAt
+        self.lastSessionID = lastSessionID
+        self.endedAt = endedAt
     }
 }
 
@@ -67,6 +74,14 @@ public enum SessionBuilder {
         }
 
         for info in embedded where !claimedTerminals.contains(info.id) {
+            if let sid = info.lastSessionID {
+                result.append(AgentSession(
+                    id: "term:\(info.id.uuidString)", kind: .claude, sessionID: sid, pid: nil, tty: info.tty,
+                    cwd: info.cwd, name: info.title, nameIsDerived: false,
+                    host: .embedded(terminalID: info.id), status: .ended,
+                    statusChangedAt: info.endedAt ?? info.createdAt))
+                continue
+            }
             result.append(AgentSession(
                 id: "term:\(info.id.uuidString)", kind: .other, sessionID: nil, pid: nil, tty: info.tty,
                 cwd: info.cwd, name: info.title, nameIsDerived: false,

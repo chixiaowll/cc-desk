@@ -3,14 +3,15 @@ import XCTest
 
 final class ModelTests: XCTestCase {
     func testStatusRankOrdersWaitingFirst() {
-        let ordered: [AgentStatus] = [.unknown, .idle, .working, .waiting(nil)].sorted { $0.rank < $1.rank }
-        XCTAssertEqual(ordered, [.waiting(nil), .working, .idle, .unknown])
+        let ordered: [AgentStatus] = [.unknown, .ended, .idle, .working, .waiting(nil)].sorted { $0.rank < $1.rank }
+        XCTAssertEqual(ordered, [.waiting(nil), .working, .idle, .ended, .unknown])
     }
 
     func testStatusLabels() {
         XCTAssertEqual(AgentStatus.waiting("x").label, "等批准")
         XCTAssertEqual(AgentStatus.working.label, "处理中")
         XCTAssertEqual(AgentStatus.idle.label, "空闲")
+        XCTAssertEqual(AgentStatus.ended.label, "已结束")
         XCTAssertEqual(AgentStatus.unknown.label, "未知")
     }
 
@@ -18,6 +19,8 @@ final class ModelTests: XCTestCase {
         XCTAssertTrue(AgentStatus.working.isActive)
         XCTAssertTrue(AgentStatus.waiting(nil).isActive)
         XCTAssertFalse(AgentStatus.idle.isActive)
+        XCTAssertFalse(AgentStatus.ended.isActive)
+        XCTAssertFalse(AgentStatus.unknown.isActive)
     }
 
     func testEmbeddedHost() {

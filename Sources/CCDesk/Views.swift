@@ -105,7 +105,7 @@ struct StatusPill: View {
         switch status {
         case .waiting: return (theme.pillWaitBg, theme.pillWaitFg, status.label)
         case .working: return (theme.pillWorkBg, theme.pillWorkFg, status.label)
-        case .idle, .unknown: return (theme.pillIdleBg, theme.pillIdleFg, status.label)
+        case .idle, .ended, .unknown: return (theme.pillIdleBg, theme.pillIdleFg, status.label)
         }
     }
 }

@@ -84,8 +84,8 @@ struct SessionRowView: View {
                     .foregroundStyle(theme.pillWaitBg)
             case .working:
                 Text("处理中").fontWeight(.medium).foregroundStyle(theme.pillWorkFg)
-            case .idle, .unknown:
-                Text(row.session.status.label).fontWeight(.medium).foregroundStyle(theme.fg3)
+            case .idle, .ended, .unknown:
+                Text(row.statusLabel).fontWeight(.medium).foregroundStyle(theme.fg3)
             }
         }
     }
@@ -135,7 +135,7 @@ struct SessionTile: View {
         switch status {
         case .waiting: return theme.pillWaitBg
         case .working: return theme.dot
-        case .idle, .unknown: return nil
+        case .idle, .ended, .unknown: return nil
         }
     }
 

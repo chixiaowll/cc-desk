@@ -30,7 +30,8 @@ final class AppModel: ObservableObject {
     /// 只在 `queue` 上使用（非线程安全）。
     private let transcripts = TranscriptIndex()
     private var refreshingHistory = false
-    /// 当前运行中的 Claude sessionId；历史列表据此在主线程上再过滤一次（后台结果可能已过时）。
+    /// 侧栏上已有对应行的 Claude sessionId（运行中的 + 内嵌终端里已结束、可原地恢复的）；
+    /// 历史列表排除这些，并据此在主线程上再过滤一次（后台结果可能已过时）。
     private var liveSessionIDs: Set<String> = []
     private var timer: Timer?
     private var polling = false
@@ -44,6 +45,10 @@ final class AppModel: ObservableObject {
     /// 曾经在某个内嵌终端里观测到过 Claude session 的终端 id；用于区分"claude 已退出留下普通 shell"
     /// 与"刚恢复、claude 还没来得及注册"两种情况。
     private var observedClaude: Set<UUID> = []
+    /// 内嵌终端里 claude 已退出、终端仍留着 shell 时，最近一次的 sessionId 与退出时间；侧栏显示为「已结束」并可原地恢复。
+    private var endedSessionIDs: [UUID: (id: String, at: Date)] = [:]
+    /// 最近一次拿到的 transcript 标题，供刚结束的会话在后台尚未补齐标题时沿用。
+    private var titleCache: [String: TranscriptMeta] = [:]
     /// 最近一次 poll 的进程表，供「激活 .other 宿主」时查找宿主 App。
     private var lastProcesses: ProcessTable?
     private var tick = 0
@@ -63,6 +68,7 @@ final class AppModel: ObservableObject {
         guard !polling else { return }
         polling = true
         let cwds = pool.terminals.map(\.cwd) + missing.map(\.cwd)
+        let endedIDs = endedSessionIDs.values.map(\.id)
         let resolver = self.resolver
         let transcripts = self.transcripts
         queue.async { [weak self] in
@@ -73,6 +79,9 @@ final class AppModel: ObservableObject {
             var titles: [String: TranscriptMeta] = [:]
             for entry in registry where processes.isAlive(entry.pid) {
                 if let meta = transcripts.meta(forSession: entry.sessionID) { titles[entry.sessionID] = meta }
+            }
+            for sid in endedIDs where titles[sid] == nil {
+                if let meta = transcripts.meta(forSession: sid) { titles[sid] = meta }
             }
             DispatchQueue.main.async {
                 self?.apply(registry: registry, processes: processes, projects: projects, titles: titles)
@@ -106,19 +115,20 @@ final class AppModel: ObservableObject {
         polling = false
         now = Date()
         lastProcesses = processes
-        sessions = SessionBuilder.build(registry: registry, processes: processes,
-                                        embedded: pool.infos(processes: processes), missing: missing)
-        for s in sessions {
-            guard case .embedded(let tid) = s.host else { continue }
-            if s.kind == .claude {
-                observedClaude.insert(tid)
-                if let sid = s.sessionID { knownSessionIDs[tid] = sid }
-            } else if observedClaude.contains(tid) {
-                // claude 已退出，只留下普通 shell：忘掉旧 sessionId，下次恢复时不要再尝试 resume。
-                knownSessionIDs[tid] = nil
-            }
+        var built = SessionBuilder.build(registry: registry, processes: processes,
+                                         embedded: pool.infos(processes: processes, ended: endedSessionIDs),
+                                         missing: missing)
+        if trackEmbeddedClaude(built) {
+            // 本轮刚发现有 claude 退出：带上 endedSessionIDs 重建，避免先闪一下「终端」。
+            built = SessionBuilder.build(registry: registry, processes: processes,
+                                         embedded: pool.infos(processes: processes, ended: endedSessionIDs),
+                                         missing: missing)
         }
+        sessions = built
+        let previousLive = liveSessionIDs
         liveSessionIDs = Set(sessions.compactMap(\.sessionID))
+        for (sid, meta) in titles { titleCache[sid] = meta }
+        titleCache = titleCache.filter { liveSessionIDs.contains($0.key) }
         var hostApps: [String: String] = [:]
         for s in sessions {
             if let path = HostApps.bundlePath(for: s, processes: processes) { hostApps[s.id] = path }
@@ -127,7 +137,7 @@ final class AppModel: ObservableObject {
         groups = SidebarBuilder.build(
             sessions: sessions,
             project: { projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) },
-            titles: { s in s.sessionID.flatMap { titles[$0] } })
+            titles: { [titleCache] s in s.sessionID.flatMap { titleCache[$0] } })
 
         let rows = groups.flatMap(\.rows)
         let events = TransitionDetector.events(previous: lastStatuses, rows: rows)
@@ -143,7 +153,33 @@ final class AppModel: ObservableObject {
         if tick % 30 == 0 {
             saveWorkspace()
             refreshHistory()
+        } else if !previousLive.subtracting(liveSessionIDs).isEmpty {
+            // 有会话从侧栏消失（如关闭了已结束的终端）：立即刷新，让它回到历史列表。
+            refreshHistory()
         }
+    }
+
+    /// 根据本轮内嵌终端的状态更新 observedClaude / knownSessionIDs / endedSessionIDs。
+    /// 返回 true 表示本轮新发现有 claude 退出。
+    private func trackEmbeddedClaude(_ sessions: [AgentSession]) -> Bool {
+        var newlyEnded = false
+        for s in sessions {
+            guard case .embedded(let tid) = s.host else { continue }
+            if s.kind == .claude, s.status != .ended {
+                observedClaude.insert(tid)
+                if let sid = s.sessionID { knownSessionIDs[tid] = sid }
+                endedSessionIDs[tid] = nil
+            } else if s.status == .unknown, observedClaude.contains(tid) {
+                // claude 已退出，只留下普通 shell：记下它以便原地恢复；但忘掉旧 sessionId，
+                // 下次启动 App 时不要再自动 resume。
+                if let sid = knownSessionIDs[tid] {
+                    endedSessionIDs[tid] = (id: sid, at: Date())
+                    newlyEnded = true
+                }
+                knownSessionIDs[tid] = nil
+            }
+        }
+        return newlyEnded
     }
 
     // MARK: 查询
@@ -403,6 +439,7 @@ final class AppModel: ObservableObject {
         pool.remove(tid)
         knownSessionIDs[tid] = nil
         observedClaude.remove(tid)
+        endedSessionIDs[tid] = nil
         if selectedTerminalID == tid { selectedID = nil }
         saveWorkspace()
         poll()

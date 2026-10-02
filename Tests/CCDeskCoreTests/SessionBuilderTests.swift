@@ -154,4 +154,42 @@ final class SessionBuilderTests: XCTestCase {
         // ordered first by the live-sort tie-break.
         XCTAssertEqual(out.map(\.pid), [902, 901])
     }
+
+    func testEmbeddedTerminalWithEndedClaudeBecomesEndedRow() {
+        let tid = UUID()
+        let ended = Date(timeIntervalSince1970: 50)
+        let info = EmbeddedTerminalInfo(id: tid, cwd: "/p/x", tty: "ttys099", title: "x",
+                                        createdAt: Date(timeIntervalSince1970: 5),
+                                        lastSessionID: "gone", endedAt: ended)
+        let out = SessionBuilder.build(registry: [], processes: ps, embedded: [info], missing: [])
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].id, "term:\(tid.uuidString)")
+        XCTAssertEqual(out[0].kind, .claude)
+        XCTAssertEqual(out[0].sessionID, "gone")
+        XCTAssertEqual(out[0].status, .ended)
+        XCTAssertEqual(out[0].name, "x")
+        XCTAssertNil(out[0].pid)
+        XCTAssertEqual(out[0].host, .embedded(terminalID: tid))
+        XCTAssertEqual(out[0].statusChangedAt, ended)
+    }
+
+    func testEndedRowFallsBackToCreatedAtWhenEndTimeUnknown() {
+        let info = EmbeddedTerminalInfo(id: UUID(), cwd: "/p/x", tty: nil, title: "x",
+                                        createdAt: Date(timeIntervalSince1970: 5), lastSessionID: "gone")
+        let out = SessionBuilder.build(registry: [], processes: ps, embedded: [info], missing: [])
+        XCTAssertEqual(out.first?.status, .ended)
+        XCTAssertEqual(out.first?.statusChangedAt, Date(timeIntervalSince1970: 5))
+    }
+
+    func testLiveClaudeWinsOverEndedSessionInSameTerminal() {
+        let tid = UUID()
+        let info = EmbeddedTerminalInfo(id: tid, cwd: "/p/e", tty: "ttys020", title: "e",
+                                        createdAt: Date(timeIntervalSince1970: 1),
+                                        lastSessionID: "old", endedAt: Date(timeIntervalSince1970: 2))
+        let out = SessionBuilder.build(registry: [reg(902, "new", status: .working, at: 200)],
+                                       processes: ps, embedded: [info], missing: [])
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].sessionID, "new")
+        XCTAssertEqual(out[0].status, .working)
+    }
 }

@@ -21,6 +21,12 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
         self.tooltip = tooltip
     }
 
+    /// 状态文字：内嵌终端里从未运行 claude 的普通 shell 显示「终端」，其余取状态本身的文字。
+    public var statusLabel: String {
+        if session.status == .unknown, session.host.isEmbedded { return "终端" }
+        return session.status.label
+    }
+
     /// 通知标题用的名字。标题已取自 transcript（不再有 "#xx" 缩写），直接使用 displayName。
     public var notificationName: String { displayName }
 }
