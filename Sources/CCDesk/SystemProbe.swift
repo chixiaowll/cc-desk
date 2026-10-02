@@ -3,7 +3,8 @@ import CCDeskCore
 
 enum SystemProbe {
     /// 执行命令，退出码为 0 时返回 stdout；超时或失败返回 nil。
-    /// 并发读取 stdout 管道，避免管道缓冲区写满导致子进程阻塞，从而死锁在 waitUntilExit() 上。
+    /// 后台线程阻塞读取整个 stdout；主调用方等待该读取完成或超时。超时后 terminate() 会关闭子进程的
+    /// 标准输出写端，使后台读取收到 EOF 并退出，避免遗留一个永久阻塞的读线程。
     static func run(_ executable: String, _ args: [String], timeout: TimeInterval = 3) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -12,37 +13,23 @@ enum SystemProbe {
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
 
+        do { try process.run() } catch { return nil }
+
         let dataBox = Locked<Data>(Data())
-        pipe.fileHandleForReading.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if !chunk.isEmpty { dataBox.withLock { $0.append(chunk) } }
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            dataBox.withLock { $0 = data }
+            done.signal()
         }
 
-        do { try process.run() } catch {
-            pipe.fileHandleForReading.readabilityHandler = nil
-            return nil
-        }
-
-        let exited = Locked<Bool>(false)
-        let semaphore = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in
-            exited.withLock { $0 = true }
-            semaphore.signal()
-        }
-
-        let deadline = DispatchTime.now() + timeout
-        if semaphore.wait(timeout: deadline) == .timedOut {
-            process.terminationHandler = nil
+        if done.wait(timeout: .now() + timeout) == .timedOut {
             process.terminate()
-            pipe.fileHandleForReading.readabilityHandler = nil
+            _ = done.wait(timeout: .now() + 1)
             return nil
         }
 
-        pipe.fileHandleForReading.readabilityHandler = nil
-        // 读完 readabilityHandler 已排空的数据后，再补读一次管道中剩余的尾部字节。
-        let remaining = pipe.fileHandleForReading.availableData
-        if !remaining.isEmpty { dataBox.withLock { $0.append(remaining) } }
-
+        process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
         return String(data: dataBox.withLock { $0 }, encoding: .utf8)
     }
@@ -56,7 +43,7 @@ enum SystemProbe {
     }
 }
 
-/// 简单的互斥锁包装，供后台回调（readabilityHandler/terminationHandler）与等待线程之间安全共享状态。
+/// 简单的互斥锁包装，供后台读取线程与等待线程之间安全共享数据。
 private final class Locked<Value>: @unchecked Sendable {
     private var value: Value
     private let lock = NSLock()
