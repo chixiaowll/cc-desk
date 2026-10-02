@@ -68,6 +68,8 @@ public struct SessionGroup: Identifiable, Equatable, Sendable {
     /// 项目根路径。
     public let id: String
     public let title: String
+    /// 该组是 git worktree 时的分支名（组标题后灰字显示）。
+    public let branch: String?
     public let rows: [SidebarRow]
     public let waitingCount: Int
     public let workingCount: Int
@@ -78,9 +80,10 @@ public struct SessionGroup: Identifiable, Equatable, Sendable {
     /// 组内最靠前一行的排序值（见 `SidebarRow.rank`），用于组间排序。
     public var topRank: Int { rows.first?.rank ?? 5 }
 
-    public init(id: String, title: String, rows: [SidebarRow]) {
+    public init(id: String, title: String, rows: [SidebarRow], branch: String? = nil) {
         self.id = id
         self.title = title
+        self.branch = branch
         self.rows = rows
         self.waitingCount = rows.filter { $0.session.status.isWaiting }.count
         self.workingCount = rows.filter { $0.session.status == .working }.count
@@ -105,9 +108,9 @@ public enum SidebarBuilder {
         for root in buckets.keys { titleByRoot[root] = groupTitle(root) }
         var titleCounts: [String: Int] = [:]
         for title in titleByRoot.values { titleCounts[title, default: 0] += 1 }
-        for root in titleByRoot.keys where (titleCounts[titleByRoot[root]!] ?? 0) > 1 {
+        for (root, title) in titleByRoot where (titleCounts[title] ?? 0) > 1 {
             let parent = URL(fileURLWithPath: root).deletingLastPathComponent().lastPathComponent
-            if !parent.isEmpty { titleByRoot[root] = "\(parent)/\(titleByRoot[root]!)" }
+            if !parent.isEmpty { titleByRoot[root] = "\(parent)/\(title)" }
         }
 
         let groups = buckets.map { root, members -> SessionGroup in
@@ -116,7 +119,8 @@ public enum SidebarBuilder {
                 .map { row(for: $0, ref: refs[$0.cwd] ?? ProjectRef(root: root, branch: nil, cwd: root),
                           groupTitle: title, meta: titles($0), unread: unread($0)) }
                 .sorted(by: rowOrder)
-            return SessionGroup(id: root, title: title, rows: rows)
+            let branch = members.lazy.compactMap { refs[$0.cwd]?.branch }.first
+            return SessionGroup(id: root, title: title, rows: rows, branch: branch)
         }
 
         return groups.sorted { a, b in

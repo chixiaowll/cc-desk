@@ -30,7 +30,7 @@ final class ProjectResolverTests: XCTestCase {
         XCTAssertEqual(r.resolve("/super/sub"), ProjectRef(root: "/super/sub", branch: nil, cwd: "/super/sub"))
     }
 
-    func testLinkedWorktreeGroupsUnderMainRepoWithBranch() {
+    func testLinkedWorktreeIsItsOwnGroupWithBranch() {
         let r = ProjectResolver { cwd, args in
             switch args.last {
             case "--show-toplevel": return "/repo/.git/worktrees/fix\n/repo/.git\n/wt/fix\n"
@@ -38,7 +38,7 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/repo", branch: "issue/42-fix", cwd: "/wt/fix"))
+        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/wt/fix", branch: "issue/42-fix", cwd: "/wt/fix"))
     }
 
     func testLinkedWorktreeWithDetachedHeadFallsBackToShortSHA() {
@@ -50,10 +50,10 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/repo", branch: "a1b2c3d", cwd: "/wt/fix"))
+        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/wt/fix", branch: "a1b2c3d", cwd: "/wt/fix"))
     }
 
-    func testLinkedWorktreeOfBareRepoUsesCommonDirAsRoot() {
+    func testLinkedWorktreeOfBareRepoIsItsOwnGroup() {
         let r = ProjectResolver { cwd, args in
             switch args.last {
             case "--show-toplevel": return "/bare/worktrees/fix\n/bare\n/wt/fix\n"
@@ -61,7 +61,7 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/bare", branch: "main", cwd: "/wt/fix"))
+        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/wt/fix", branch: "main", cwd: "/wt/fix"))
     }
 
     func testResultsAreCached() {

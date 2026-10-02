@@ -6,7 +6,7 @@ import Glibc
 #endif
 
 public struct ProjectRef: Equatable, Hashable, Sendable {
-    /// 分组键：git 仓库主目录（worktree 归入主仓库），非 git 目录为 cwd 本身。
+    /// 分组键：git 检出的顶层目录（worktree 单独成组），非 git 目录为 cwd 本身。
     public let root: String
     /// cwd 位于 worktree 时的分支名。
     public let branch: String?
@@ -89,9 +89,8 @@ public final class ProjectResolver {
             return (ProjectRef(root: toplevel, branch: nil, cwd: canonicalCwd), true)
         }
 
-        // 关联 worktree：按主仓库（commonDir 的父目录，若其末段是 ".git"；否则 commonDir 本身即裸仓库）分组。
-        let commonURL = URL(fileURLWithPath: commonDir)
-        let root = commonURL.lastPathComponent == ".git" ? commonURL.deletingLastPathComponent().path : commonDir
+        // 关联 worktree：按 worktree 自身目录单独成组（与用户 cd 进去的目录一致），并带上分支名。
+        let root = toplevel
         var branch = run(cwd, ["rev-parse", "--abbrev-ref", "HEAD"])
         if branch == nil || branch == "HEAD" {
             branch = run(cwd, ["rev-parse", "--short", "HEAD"])

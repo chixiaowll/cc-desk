@@ -103,11 +103,22 @@ struct GroupHeaderView: View {
                     .font(.system(size: 12.5))
                     .foregroundStyle(theme.fg2)
                     .frame(width: 30)
-                Text(group.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(theme.fg1)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                HStack(spacing: 6) {
+                    Text(group.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(theme.fg1)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .layoutPriority(1)
+                    if let branch = group.branch {
+                        Label(branch, systemImage: "arrow.triangle.branch")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 11))
+                            .foregroundStyle(theme.fg3)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
             }
             .padding(.leading, 10)
             .frame(maxWidth: .infinity, alignment: .leading)

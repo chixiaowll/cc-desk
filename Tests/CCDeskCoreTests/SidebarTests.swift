@@ -338,4 +338,12 @@ final class SidebarTests: XCTestCase {
         XCTAssertTrue(AgentLabelPolicy.shows(presentKinds: [.claude]))
         XCTAssertTrue(AgentLabelPolicy.shows(presentKinds: []))
     }
+
+    func testWorktreeGroupCarriesBranch() {
+        let s = AgentSession(id: "w", kind: .claude, sessionID: "w", pid: 1, tty: nil, cwd: "/r/poems-v2", name: "n",
+                             nameIsDerived: false, host: .vscode, status: .idle, statusChangedAt: Date())
+        let groups = SidebarBuilder.build(sessions: [s]) { _ in ProjectRef(root: "/r/poems-v2", branch: "season-v2", cwd: "/r/poems-v2") }
+        XCTAssertEqual(groups.first?.title, "poems-v2")
+        XCTAssertEqual(groups.first?.branch, "season-v2")
+    }
 }
