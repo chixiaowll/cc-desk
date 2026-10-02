@@ -135,10 +135,11 @@ public enum RelativeTime {
     public static func short(from date: Date, now: Date) -> String {
         if date == .distantPast { return "" }
         let seconds = max(0, now.timeIntervalSince(date))
-        if seconds < 60 { return "now" }
-        if seconds < 3600 { return "\(Int(seconds / 60))m" }
-        if seconds < 86400 { return "\(Int(seconds / 3600))h" }
-        return "\(Int(seconds / 86400))d"
+        if seconds < 60 { return "刚刚" }
+        if seconds < 3600 { return "\(Int(seconds / 60))分钟" }
+        if seconds < 86400 { return "\(Int(seconds / 3600))小时" }
+        if seconds < 7 * 86400 { return "\(Int(seconds / 86400))天" }
+        return "\(Int(seconds / (7 * 86400)))周"
     }
 
     /// 超过 24 小时没有状态变化。

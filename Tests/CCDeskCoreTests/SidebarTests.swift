@@ -146,10 +146,12 @@ final class SidebarTests: XCTestCase {
 
     func testRelativeTime() {
         let now = Date(timeIntervalSince1970: 100_000)
-        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-30), now: now), "now")
-        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-300), now: now), "5m")
-        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-7200), now: now), "2h")
-        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-3 * 86400), now: now), "3d")
+        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-30), now: now), "刚刚")
+        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-300), now: now), "5分钟")
+        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-7200), now: now), "2小时")
+        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-3 * 86400), now: now), "3天")
+        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-10 * 86400), now: now), "1周")
+        XCTAssertEqual(RelativeTime.short(from: now.addingTimeInterval(-20 * 86400), now: now), "2周")
         XCTAssertEqual(RelativeTime.short(from: .distantPast, now: now), "")
     }
 
