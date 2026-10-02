@@ -28,8 +28,13 @@ public enum SessionBuilder {
         var claimedTerminals: Set<UUID> = []
 
         // 同一 tty 上可能残留旧 session 的记录（进程仍在退出中），较新的优先。
+        // pid 存活且其 ps comm 的最后一段确为 "claude" 才算有效；否则说明 pid 被复用或记录已过期。
         let live = registry
-            .filter { processes.isAlive($0.pid) }
+            .filter { entry in
+                guard let proc = processes.byPID[entry.pid] else { return false }
+                let lastComponent = proc.command.split(separator: "/").last.map(String.init) ?? proc.command
+                return lastComponent == "claude"
+            }
             .sorted { $0.statusUpdatedAt > $1.statusUpdatedAt }
 
         for entry in live {

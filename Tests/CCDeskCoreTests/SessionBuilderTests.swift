@@ -73,6 +73,22 @@ final class SessionBuilderTests: XCTestCase {
         XCTAssertEqual(out[0].cwd, "/p/x")
     }
 
+    func testDropsEntriesWhosePIDWasReusedByNonClaudeProcess() {
+        let psReused = ProcessTable.parse("""
+            700   601 ttys007  vim
+        """)
+        let out = SessionBuilder.build(registry: [reg(700, "stale")], processes: psReused, embedded: [], missing: [])
+        XCTAssertTrue(out.isEmpty)
+    }
+
+    func testAcceptsVSCodeNativeBinaryNamedClaude() {
+        let psVSCode = ProcessTable.parse("""
+            700   601 ttys007  /some/native-binary/claude
+        """)
+        let out = SessionBuilder.build(registry: [reg(700, "ok")], processes: psVSCode, embedded: [], missing: [])
+        XCTAssertEqual(out.count, 1)
+    }
+
     func testMissingEntriesBecomePlaceholders() {
         let tid = UUID()
         let out = SessionBuilder.build(
