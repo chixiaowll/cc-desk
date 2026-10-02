@@ -260,28 +260,7 @@ hook 写 `state/ttys007.json`（waiting）→ FSEvents → SessionStore 合并�
 
 ## 7. 项目结构
 
-```
-cc-desk/
-├── Package.swift       # SwiftPM：CCDeskCore（无 UI，可测试）+ CCDesk（App）；SwiftTerm v1.20.0
-├── scripts/bundle.sh   # 把可执行文件打包成 CCDesk.app（Info.plist + ad-hoc 签名），通知与自动化权限需要 App bundle
-├── Sources/CCDesk/
-│   ├── App/            # 入口、窗口、菜单、设置页
-│   ├── Model/          # AgentSession、AgentStatus、SessionHost
-│   ├── Store/          # SessionStore（合并逻辑）
-│   ├── Sources/        # HookStateReader、RegistryReader、ProcessScanner
-│   ├── Detect/         # 规则引擎 + manifest 解析
-│   ├── Agents/         # ClaudeAdapter、GenericAdapter（v1.1：CodexAdapter、PiAdapter）
-│   ├── Terminal/       # TerminalPool、TerminalView 封装
-│   ├── Integration/    # HookInstaller、Jumper、Notifier、Restorer
-│   └── UI/             # SidebarView、行视图、新建面板
-├── Resources/
-│   ├── hooks/          # cc-desk-hook.sh（v1.1：pi 扩展 .ts）
-│   └── manifests/      # 来自 herdr 的 toml 规则
-├── Tests/CCDeskTests/  # 合并逻辑、规则引擎、适配器、HookInstaller 的单元测试
-└── NOTICE
-```
-
-`SessionStore`、规则引擎、适配器、HookInstaller 不依赖 UI，可以单独测试。
+SwiftPM 包，两个 target：`CCDeskCore`（纯逻辑，无 UI，XCTest 覆盖）与 `CCDesk`（SwiftUI + AppKit 应用，依赖 SwiftTerm v1.20.0）。`scripts/bundle.sh` 把可执行文件打包为 `build/CCDesk.app`（Info.plist + ad-hoc 签名），通知与自动化权限需要 App bundle。逐文件结构见实现计划 `docs/plans/2026-10-02-cc-desk-v1.md`。v1.1 增加 hook、屏幕规则时再加 `Resources/`。
 
 ## 8. 测试与验证
 
