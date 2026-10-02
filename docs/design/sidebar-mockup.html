@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CC Desk 界面稿</title>
+<style>
+:root {
+  --page: #E9E6E0;
+  --side: #F3F1ED; --main: #FBFAF8; --line: #E4E0D9; --frame: #D6D1C9;
+  --fg1: #1F1E1C; --fg2: #6B675F; --fg3: #8A857D; --chip: #E7E3DC;
+  --sel: #FFFFFF; --sel-line: #E2DDD5; --sel-shadow: 0 1px 2px rgba(60,50,40,.08); --hover: #EAE6DF; --wait-row: #F9EDE6; --wait-sub: #A8481F;
+  --pill-wait-bg: #C4552B; --pill-wait-fg: #FFFFFF;
+  --pill-work-bg: #E5ECF3; --pill-work-fg: #35618E; --dot: #4A7BAD; --chip-work-bg: #3F6E9E; --chip-work-fg: #FFFFFF;
+  --pill-idle-bg: #ECE8E2; --pill-idle-fg: #5C5852;
+  --pill-miss-bg: #F1E4E2; --pill-miss-fg: #8E5A55;
+  --tile-emb-bg: #E2DCD2; --tile-emb-fg: #3A362F;
+  --tile-term-bg: #ECE8E2; --tile-term-fg: #6B675F;
+  --tile-code-bg: #ECE8E2; --tile-code-fg: #6B675F;
+  --tile-miss-bg: #F1E4E2; --tile-miss-fg: #8E5A55;
+  --ok: #4A7BAD; --accent: #B24E26; --action: #2B2925; --focus: #4A7BAD;
+  /* 终端（浅色） */
+  --term-bg: #FFFEFC; --term-border: #E4E0D9; --term-fg: #2A2925; --term-dim: #85807A;
+  --term-claude: #C4552B; --term-rule: #DDD8D0; --term-cursor: #2A2925; --term-spin: #C4552B;
+}
+:root[data-theme="dark"] {
+  --page: #121110;
+  --side: #1F1E1C; --main: #252422; --line: #34322E; --frame: #3A3834;
+  --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; --chip: #2E2C29;
+  --sel: #33312D; --sel-line: #403D38; --sel-shadow: 0 1px 2px rgba(0,0,0,.35); --hover: #2A2825; --wait-row: #2E211A; --wait-sub: #E8987A;
+  --pill-wait-bg: #E2875F; --pill-wait-fg: #1E120C;
+  --pill-work-bg: #22303D; --pill-work-fg: #9DBBDA; --dot: #82A8CF; --chip-work-bg: #82A8CF; --chip-work-fg: #101C27;
+  --pill-idle-bg: #2F2D2A; --pill-idle-fg: #B8B3AB;
+  --pill-miss-bg: #352826; --pill-miss-fg: #C9A09A;
+  --tile-emb-bg: #3A3732; --tile-emb-fg: #E2DDD5;
+  --tile-term-bg: #2E2C29; --tile-term-fg: #A39E96;
+  --tile-code-bg: #2E2C29; --tile-code-fg: #A39E96;
+  --tile-miss-bg: #352826; --tile-miss-fg: #C9A09A;
+  --ok: #82A8CF; --accent: #E2875F; --action: #EDEBE7; --focus: #82A8CF;
+  --term-bg: #1B1A18; --term-border: #1B1A18; --term-fg: #D8D3CB; --term-dim: #8F8A82;
+  --term-claude: #D97757; --term-rule: #3A3834; --term-cursor: #D8D3CB; --term-spin: #E8925F;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #121110;
+    --side: #1F1E1C; --main: #252422; --line: #34322E; --frame: #3A3834;
+    --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; --chip: #2E2C29;
+    --sel: #33312D; --sel-line: #403D38; --sel-shadow: 0 1px 2px rgba(0,0,0,.35); --hover: #2A2825; --wait-row: #2E211A; --wait-sub: #E8987A;
+    --pill-wait-bg: #E2875F; --pill-wait-fg: #1E120C;
+    --pill-work-bg: #22303D; --pill-work-fg: #9DBBDA; --dot: #82A8CF; --chip-work-bg: #82A8CF; --chip-work-fg: #101C27;
+    --pill-idle-bg: #2F2D2A; --pill-idle-fg: #B8B3AB;
+    --pill-miss-bg: #352826; --pill-miss-fg: #C9A09A;
+    --tile-emb-bg: #3A3732; --tile-emb-fg: #E2DDD5;
+    --tile-term-bg: #2E2C29; --tile-term-fg: #A39E96;
+    --tile-code-bg: #2E2C29; --tile-code-fg: #A39E96;
+    --tile-miss-bg: #352826; --tile-miss-fg: #C9A09A;
+    --ok: #82A8CF; --accent: #E2875F; --action: #EDEBE7; --focus: #82A8CF;
+    --term-bg: #1B1A18; --term-border: #1B1A18; --term-fg: #D8D3CB; --term-dim: #8F8A82;
+    --term-claude: #D97757; --term-rule: #3A3834; --term-cursor: #D8D3CB; --term-spin: #E8925F;
+  }
+}
+/* 「始终深色终端」选项：只覆盖终端变量 */
+:root[data-term="dark"] {
+  --term-bg: #1B1A18; --term-border: #1B1A18; --term-fg: #D8D3CB; --term-dim: #8F8A82;
+  --term-claude: #D97757; --term-rule: #3A3834; --term-cursor: #D8D3CB; --term-spin: #E8925F;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--fg1);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+  padding: 24px 16px 64px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+.bar { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+.bar h1 { margin: 0; font-size: 20px; }
+.seg { display: inline-flex; background: var(--chip); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button {
+  border: 0; background: transparent; color: var(--fg2); font: inherit; font-size: 12.5px;
+  padding: 6px 12px; border-radius: 6px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--main); color: var(--fg1); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 12.5px; color: var(--fg2); }
+
+/* 窗口 */
+.window {
+  position: relative; display: flex; height: 820px; overflow: hidden;
+  border-radius: 12px; border: 1px solid var(--frame); background: var(--main);
+  box-shadow: 0 24px 60px rgba(0,0,0,.18);
+}
+.lights { position: absolute; top: 18px; left: 18px; display: flex; gap: 8px; z-index: 3; }
+.lights span { width: 12px; height: 12px; border-radius: 50%; }
+.tools { position: absolute; top: 12px; left: 96px; display: flex; gap: 4px; z-index: 3; }
+.icon-btn {
+  width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--fg2);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+}
+.icon-btn:hover { background: var(--chip); }
+svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 侧边栏 */
+.side { position: relative; width: 300px; min-width: 240px; max-width: 420px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--side); border-right: 1px solid var(--line); }
+.side-top { height: 52px; flex-shrink: 0; }
+.resizer { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 2; }
+.resizer:hover, .resizer.active { background: color-mix(in srgb, var(--focus) 30%, transparent); }
+.groups { flex: 1; overflow: auto; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 2px; }
+.group:not(.collapsed) { margin-bottom: 8px; }
+.group .rows { margin-left: 16px; display: flex; flex-direction: column; gap: 1px; }
+/* 子层（会话行）比目录行小一号 */
+.rows .row { grid-template-columns: 26px minmax(0, 1fr) auto; column-gap: 9px; padding: 6px 10px 6px 8px; border-radius: 8px; }
+.rows .tile { width: 26px; height: 26px; border-radius: 7px; }
+.rows .tile svg.i { width: 14px; height: 14px; }
+.rows .badge { width: 9px; height: 9px; right: -2px; bottom: -2px; border-width: 1.5px; }
+.rows .title { font-size: 12.5px; line-height: 17px; }
+.rows .sub { font-size: 11px; line-height: 14px; }
+.rows .time { font-size: 10.5px; line-height: 17px; }
+.badge.idle { display: none; }
+.ext { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--side); color: var(--fg2); box-shadow: 0 0 0 1px var(--line); }
+.ext svg.i { width: 7px !important; height: 7px !important; stroke-width: 2.2; }
+.row.selected .ext { background: var(--sel); }
+.row.waiting .ext { background: var(--wait-row); }
+:root[data-density="compact"] .rows .ext { display: none; }
+
+/* 紧凑模式：会话一行；只有等批准保留第二行说明原因 */
+:root[data-density="compact"] .rows .row { grid-template-columns: 16px minmax(0, 1fr) auto; column-gap: 8px; padding: 4px 10px 4px 8px; row-gap: 0; border-radius: 7px; }
+:root[data-density="compact"] .rows .tile { grid-row: 1; width: 16px; height: 16px; background: transparent !important; }
+:root[data-density="compact"] .rows .tile svg.i { display: none; }
+:root[data-density="compact"] .rows .badge { position: static; display: block; width: 7px; height: 7px; border: 0; }
+:root[data-density="compact"] .rows .badge.idle { width: 7px; height: 7px; background: transparent; box-shadow: inset 0 0 0 1.5px var(--fg3); }
+:root[data-density="compact"] .rows .title { font-size: 12.5px; line-height: 18px; }
+:root[data-density="compact"] .rows .sub { display: none; }
+:root[data-density="compact"] .rows .row.waiting { row-gap: 1px; }
+:root[data-density="compact"] .rows .row.waiting .sub { display: block; grid-column: 2 / 4; }
+:root[data-density="compact"] .rows .row.waiting .sub .st ~ * { display: none; }
+.group:not(.collapsed) + .group { margin-top: 2px; }
+/* 目录行：图标与会话图标同列居中，名称与会话标题左对齐，计数和箭头靠右 */
+.group-head {
+  display: flex; align-items: center; gap: 4px; height: 28px; padding: 0 6px 0 0;
+  border-radius: 8px; cursor: pointer; user-select: none;
+}
+.group-head { position: relative; --head-bg: var(--side); background: var(--head-bg); }
+.group-head:hover, .group-head:has(:focus-visible), .group-head:has(.hist-btn.on) { --head-bg: var(--hover); }
+.group-toggle:focus-visible { outline: none; }
+.group-head:has(.group-toggle:focus-visible) { box-shadow: 0 0 0 2px var(--focus); }
+.group-toggle {
+  flex: 1; min-width: 0; display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 10px; align-items: center;
+  height: 28px; padding: 0 0 0 10px; border: 0; background: transparent; cursor: pointer; font: inherit; color: inherit; text-align: left;
+}
+.gicon { justify-self: center; display: flex; color: var(--fg2); }
+.gicon svg.i { width: 14px; height: 14px; }
+.group:not(.collapsed) .gicon { color: var(--fg2); }
+.gchev { display: flex; width: 16px; justify-content: center; color: var(--fg3); }
+.gchev svg.i { width: 11px; height: 11px; transition: transform .15s ease; }
+.group.collapsed .gchev svg.i { transform: rotate(-90deg); }
+.counts { display: inline-flex; gap: 3px; flex-shrink: 0; }
+.count.c-idle { display: none; }
+.group.collapsed .count.c-idle { display: inline-flex; }
+.count.c-wait { background: var(--pill-wait-bg); color: var(--pill-wait-fg); }
+.count.c-work { background: var(--chip-work-bg); color: var(--chip-work-fg); gap: 4px; padding: 0 6px 0 5px; }
+.count.c-work::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--chip-work-fg); animation: breathe 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .count.c-work::before { animation: none; } }
+.group-label { font-size: 13px; font-weight: 650; line-height: 16px; color: var(--fg1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.count { flex-shrink: 0; font-size: 10.5px; font-weight: 600; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--chip); color: var(--fg2); }
+.group-head .hover-only { display: none; }
+.gactions { position: absolute; top: 0; bottom: 0; right: 22px; display: none; align-items: center; gap: 2px; padding: 0 4px 0 18px;
+  background: linear-gradient(to right, transparent, var(--head-bg) 16px); border-radius: 0 8px 8px 0; }
+.group-head:hover .gactions, .group-head:has(:focus-visible) .gactions, .group-head:has(.hist-btn.on) .gactions { display: flex; }
+.group-head:hover .counts, .group-head:has(:focus-visible) .counts, .group-head:has(.hist-btn.on) .counts { visibility: hidden; }
+.group-head .icon-btn { width: 22px; height: 22px; }
+.group-head .icon-btn svg.i { width: 14px; height: 14px; }
+.group.collapsed .rows, .group.collapsed .history { display: none !important; }
+
+.row {
+  width: 100%; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-rows: auto auto;
+  column-gap: 10px; row-gap: 1px; align-items: center; padding: 8px 10px;
+  border: 0; border-radius: 9px; background: transparent; cursor: pointer; text-align: left;
+  font: inherit; color: var(--fg1);
+}
+button:focus { outline: none; }
+button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.row:hover { background: var(--hover); }
+.row.waiting { background: var(--wait-row); }
+.row.selected { background: var(--sel); box-shadow: inset 0 0 0 1px var(--sel-line), var(--sel-shadow); }
+.row.waiting.selected { background: var(--sel); }
+.row.stale { opacity: .55; }
+.tile { grid-row: 1 / 3; position: relative; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.tile.t-emb { background: var(--tile-emb-bg); color: var(--tile-emb-fg); }
+.tile.t-term { background: var(--tile-term-bg); color: var(--tile-term-fg); }
+.tile.t-code { background: var(--tile-code-bg); color: var(--tile-code-fg); }
+.tile.t-app { background: transparent; }
+.appicon { width: 100%; height: 100%; object-fit: contain; display: block; }
+.rows .tile.t-app .appicon { width: 26px; height: 26px; }
+.tile.t-miss { background: var(--tile-miss-bg); color: var(--tile-miss-fg); }
+.tile.t-hist { background: transparent; color: var(--fg3); }
+.badge { position: absolute; right: -3px; bottom: -3px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--side); }
+.row.selected .badge, .row.waiting.selected .badge { border-color: var(--sel); }
+.row.waiting .badge { border-color: var(--wait-row); }
+.badge.wait { background: var(--pill-wait-bg); }
+.badge.work { background: var(--dot); animation: breathe 1.6s ease-in-out infinite; }
+.title { grid-column: 2; font-size: 13px; font-weight: 500; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.time { grid-column: 3; font-size: 11px; line-height: 18px; color: var(--fg3); font-variant-numeric: tabular-nums; }
+.sub { grid-column: 2 / 4; font-size: 11.5px; line-height: 15px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st { font-weight: 500; }
+.st.wait { color: var(--pill-wait-bg); font-weight: 700; }
+.st.work { color: var(--pill-work-fg); }
+.st.idle { color: var(--fg3); }
+.st.miss { color: var(--pill-miss-fg); }
+.pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border-radius: 11px; font-size: 11.5px; font-weight: 600; }
+.pill.work { background: var(--pill-work-bg); color: var(--pill-work-fg); }
+.pill.work::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dot); animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .badge.work, .pill.work::before { animation: none; } }
+
+/* 历史会话：目录弹出层 + 全局搜索面板 */
+.group-head .hist-btn.on { color: var(--fg1); background: color-mix(in srgb, var(--fg1) 8%, transparent); }
+.pop {
+  position: absolute; z-index: 5; width: 300px; padding: 8px;
+  background: var(--main); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: 0 14px 36px rgba(40,30,20,.16), 0 2px 6px rgba(40,30,20,.08);
+}
+.pop[hidden], .pal-back[hidden] { display: none; }
+.pop-head { display: flex; align-items: center; gap: 6px; padding: 4px 6px 8px; font-size: 12px; font-weight: 600; color: var(--fg2); }
+.pop-head .spacer { flex: 1; }
+.pop-head .icon-btn { width: 22px; height: 22px; }
+.search { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; margin-bottom: 4px; border-radius: 8px; background: var(--side); border: 1px solid var(--line); color: var(--fg3); }
+.search svg.i { width: 13px; height: 13px; flex-shrink: 0; }
+.search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 12.5px; color: var(--fg1); }
+.search input::placeholder { color: var(--fg3); }
+.pop-list { display: flex; flex-direction: column; max-height: 260px; overflow: auto; }
+.pop .hitem { padding: 0 8px; height: 32px; }
+.pop .hitem::before { display: none; }
+.pop-empty { padding: 14px 8px; font-size: 12px; color: var(--fg3); }
+.pop-foot { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 30px; margin-top: 4px; padding: 0 8px; border: 0; border-top: 1px solid var(--line); border-radius: 0 0 6px 6px; background: transparent; cursor: pointer; font: inherit; font-size: 11.5px; color: var(--fg2); }
+.pop-foot:hover { color: var(--fg1); }
+kbd { font: 500 10.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var(--fg3); background: var(--side); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+
+.pal-back { position: absolute; inset: 0; z-index: 6; display: flex; justify-content: center; align-items: flex-start; padding-top: 96px; background: rgba(30,25,20,.16); }
+.pal { width: 560px; max-width: calc(100% - 32px); max-height: 560px; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--main); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 24px 60px rgba(40,30,20,.22), 0 2px 8px rgba(40,30,20,.08); }
+.pal-search { display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 16px; border-bottom: 1px solid var(--line); color: var(--fg3); }
+.pal-search svg.i { width: 16px; height: 16px; }
+.pal-search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font: inherit; font-size: 15px; color: var(--fg1); }
+.pal-search input::placeholder { color: var(--fg3); }
+.pal-body { overflow: auto; padding: 6px 8px 8px; }
+.pal-sec h4 { margin: 10px 10px 4px; font-size: 11px; font-weight: 600; color: var(--fg3); }
+.pitem { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 10px; align-items: center; width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; text-align: left; font: inherit; color: var(--fg1); }
+.pitem:hover, .pitem.active { background: var(--hover); }
+.pitem .pt { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pitem .pp { font-size: 11px; color: var(--fg2); background: var(--chip); border-radius: 5px; padding: 1px 6px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pitem .pm { font-size: 11px; color: var(--fg3); min-width: 40px; text-align: right; }
+.pitem .pr { display: none; font-size: 11px; font-weight: 600; color: var(--action); min-width: 40px; text-align: right; }
+.pitem:hover .pm, .pitem.active .pm { display: none; }
+.pitem:hover .pr, .pitem.active .pr { display: inline; }
+.pal-foot { display: flex; gap: 14px; padding: 8px 16px; border-top: 1px solid var(--line); font-size: 11px; color: var(--fg3); }
+
+.hitem {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; align-items: center;
+  width: 100%; height: 30px; padding: 0 10px 0 25px; border: 0; border-radius: 7px; background: transparent;
+  cursor: pointer; text-align: left; font: inherit; color: var(--fg2);
+}
+.hitem::before { content: ""; position: absolute; left: -2px; top: 50%; width: 5.5px; height: 5.5px; margin-top: -2.75px; border-radius: 50%; background: var(--side); box-shadow: inset 0 0 0 1.5px var(--line); }
+.hitem:hover { background: var(--hover); color: var(--fg1); }
+.hitem:hover::before { box-shadow: inset 0 0 0 1.5px var(--fg3); }
+.hitem .ht { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hitem .hm { font-size: 11px; color: var(--fg3); font-variant-numeric: tabular-nums; }
+.hitem .hr { display: none; font-size: 11px; font-weight: 600; color: var(--action); }
+.hitem:hover .hm { display: none; }
+.hitem:hover .hr { display: inline-flex; align-items: center; gap: 3px; }
+
+
+.foot { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 18px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--fg2); }
+.foot .fsep { width: 1px; height: 10px; background: var(--line); margin: 0 4px; }
+.foot .fdot { width: 6px; height: 6px; border-radius: 50%; }
+.foot .fdot.work { background: var(--dot); }
+.foot .fdot.wait { background: var(--pill-wait-bg); }
+.foot .warn { color: var(--accent); font-weight: 600; }
+
+/* 右侧 */
+.detail { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--main); }
+.detail-head { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--main); }
+.detail-head .t { font-size: 13.5px; font-weight: 600; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-head .p { font-size: 11.5px; line-height: 15px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-head .spacer { flex: 1; }
+.termpane {
+  flex: 1; margin: 0; padding: 20px 24px; overflow: hidden;
+  background: var(--term-bg); color: var(--term-fg);
+  font-family: "SF Mono", Menlo, monospace; font-size: 12.5px; line-height: 19px;
+  display: flex; flex-direction: column;
+}
+.termpane .c { color: var(--term-claude); }
+.termpane .d { color: var(--term-dim); }
+.termpane .b { font-weight: 600; }
+.termpane .s { color: var(--term-spin); }
+.termpane .r { color: var(--term-rule); }
+.termpane .ln { white-space: pre; min-height: 19px; }
+.termpane .blank { height: 19px; flex-shrink: 0; }
+.termpane .logo { display: inline-block; width: 11ch; }
+.termpane .rule { height: 1px; background: var(--term-rule); margin: 6px 0; flex-shrink: 0; }
+.termpane .grow { flex: 1; }
+.cursor { display: inline-block; width: 8px; height: 15px; background: var(--term-cursor); vertical-align: -2px; }
+
+/* 状态说明 */
+.section { background: var(--side); border: 1px solid var(--line); border-radius: 12px; padding: 28px 32px; }
+.section h2 { margin: 0 0 6px; font-size: 18px; }
+.section > p { margin: 0 0 20px; font-size: 13px; color: var(--fg2); }
+.states { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px 32px; }
+.state .cap { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--fg2); margin-bottom: 6px; }
+.state .box { background: var(--side); border: 1px solid var(--line); border-radius: 12px; padding: 6px; }
+.state .note { font-size: 12px; line-height: 17px; color: var(--fg2); margin-top: 6px; }
+.notes { margin: 0; padding-left: 18px; font-size: 13px; line-height: 21px; color: var(--fg2); }
+
+@media (max-width: 900px) {
+  .window { flex-direction: column; height: auto; }
+  .side { width: 100% !important; max-width: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  .resizer { display: none; }
+  .termpane { min-height: 420px; }
+  .tools { left: 96px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="bar">
+  <h1>CC Desk 界面稿</h1>
+  <div class="controls">
+    <span>外观</span>
+    <div class="seg" role="group" aria-label="外观">
+      <button type="button" data-theme-btn="auto" aria-pressed="true">跟随系统</button>
+      <button type="button" data-theme-btn="light" aria-pressed="false">浅色</button>
+      <button type="button" data-theme-btn="dark" aria-pressed="false">深色</button>
+    </div>
+    <span>密度</span>
+    <div class="seg" role="group" aria-label="列表密度">
+      <button type="button" data-density-btn="comfortable" aria-pressed="true">舒适</button>
+      <button type="button" data-density-btn="compact" aria-pressed="false">紧凑</button>
+    </div>
+    <span>终端</span>
+    <div class="seg" role="group" aria-label="终端外观">
+      <button type="button" data-term-btn="follow" aria-pressed="true">跟随外观</button>
+      <button type="button" data-term-btn="dark" aria-pressed="false">始终深色</button>
+    </div>
+  </div>
+</div>
+
+<div class="window">
+  <div class="lights" aria-hidden="true"><span style="background:#FF5F57"></span><span style="background:#FEBC2E"></span><span style="background:#28C840"></span></div>
+  <div class="tools">
+    <button class="icon-btn" type="button" aria-label="显示或隐藏侧边栏"><svg class="i" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M6 2.5v11"/></svg></button>
+    <button class="icon-btn" type="button" aria-label="新建会话" title="新建会话 ⌘N"><svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg></button>
+    <button class="icon-btn" type="button" id="open-pal" aria-label="搜索历史会话" title="历史会话 ⌘⇧H"><svg class="i" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.4"/></svg></button>
+  </div>
+  <div class="pop" id="pop" hidden role="dialog" aria-label="目录历史会话"></div>
+  <div class="pal-back" id="pal" hidden><div class="pal" role="dialog" aria-label="搜索历史会话">
+    <div class="pal-search"><svg class="i" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg><input id="pal-q" type="text" placeholder="搜索所有历史会话…" aria-label="搜索所有历史会话"><kbd>esc</kbd></div>
+    <div class="pal-body" id="pal-body"></div>
+    <div class="pal-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> 选择</span><span><kbd>↩</kbd> 在原目录恢复</span><span><kbd>esc</kbd> 关闭</span></div>
+  </div></div>
+
+  <nav class="side" aria-label="会话">
+    <div class="side-top"></div>
+    <div class="groups" id="groups"></div>
+    <div class="foot" id="foot"></div>
+    <div class="resizer" id="resizer" title="拖动调整侧栏宽度"></div>
+  </nav>
+
+  <main class="detail">
+    <div class="detail-head">
+      <div style="min-width:0">
+        <div class="t" title="项目概览">项目概览</div>
+        <div class="p">Claude · ~/Documents/work/research/herdr</div>
+      </div>
+      <span class="spacer"></span>
+      <span class="pill work">处理中</span>
+    </div>
+<div class="termpane">
+<div class="ln"><span class="c logo"> ▐▛███▜▌ </span><span class="b">Claude Code</span> <span class="d">v2.1.280</span></div>
+<div class="ln"><span class="c logo">▝▜█████▛▘</span><span class="d">Opus 5.5 · Claude Team</span></div>
+<div class="ln"><span class="c logo">  ▘▘ ▝▝  </span><span class="d">~/Documents/work/research/herdr</span></div>
+<div class="blank"></div>
+<div class="ln"><span class="d">&gt; </span>你帮我看看这个项目主要是做什么的</div>
+<div class="blank"></div>
+<div class="ln">● Bash(head -120 README.md; ls src)</div>
+<div class="ln d">  ⎿  herdr · the runtime your coding agents live on.</div>
+<div class="blank"></div>
+<div class="ln">● herdr 是一个给 AI 编程 agent 用的终端运行时，相当于专门为</div>
+<div class="ln">  Claude Code、Codex 这类 agent 做的 tmux……</div>
+<div class="blank"></div>
+<div class="ln"><span class="s">✻ Working…</span> <span class="d">(18s · esc to interrupt)</span></div>
+<div class="grow"></div>
+<div class="rule"></div>
+<div class="ln"><span class="d">&gt; </span><span class="cursor"></span></div>
+<div class="rule"></div>
+<div class="ln d">  ? for shortcuts</div>
+</div>
+  </main>
+</div>
+
+<section class="section">
+  <h2>会话行的状态</h2>
+  <p>每种颜色只表示一件事：陶土橙 = 等批准（需要你处理），雾蓝 = 处理中，暖灰 = 空闲，灰玫瑰 = 目录缺失。图标表示会话在哪里运行：暖灰终端图标 = 在 CC Desk 内，Terminal / VS Code 等外部会话直接显示该应用的图标（App 中通过 NSWorkspace 读取本机已安装应用的真实图标）。</p>
+  <div class="states" id="states"></div>
+</section>
+
+<section class="section">
+  <h2>说明</h2>
+  <ul class="notes">
+    <li>标题优先用你在 Claude 里 <code>/rename</code> 起的名字，其次是 Claude 自动生成的标题，再其次是你最近一条消息的前 20 个字；不再显示 #63 这类编号。</li>
+    <li>分组按「需要处理」优先排序：有等批准的组在最前，然后是处理中的组。</li>
+    <li>点分组标题（目录名）即可收起 / 展开整组；「poems」和「读书笔记」演示了收起状态。</li>
+    <li>目录名后按状态分别计数，只显示不为 0 的：实心橙 = 等批准个数，实心蓝带呼吸点 = 处理中个数；灰色的空闲个数只在分组收起时显示（展开时每行都看得到，不重复）。悬停可看到文字明细。</li>
+    <li>侧栏只放正在运行的会话。历史会话有两个入口：悬停目录标题点时钟，弹出该目录的历史（可搜索）；点左上角工具栏的时钟或按 ⌘⇧H，打开全局搜索面板，按今天 / 昨天 / 更早分组，每条标出所属目录。这里默认展开了 herdr 的弹出层。</li>
+    <li>浅色外观下终端也是浅色；需要在 Claude 里执行 <code>/theme</code> 切到 light，否则部分灰色文字看不清。设置里可以选「终端始终深色」。</li>
+    <li>标题过长：侧栏单行、末尾省略号，悬停显示完整标题和你最近一条消息；选中后右侧标题栏显示完整标题；侧栏右边缘可拖动，宽度 240–420px。目录名过长同样截断，数量标签始终完整。「旅行攻略」第二条是超长标题示例。</li>
+    <li>示例里的会话标题和历史记录是示意内容，实际会从 Claude 的会话记录读取。</li>
+  </ul>
+</section>
+
+</div>
+
+<script>
+const ICON = {
+  term: '<svg class="i" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2"/><path d="M4.5 6l2 2-2 2M8.5 10.5h3"/></svg>',
+  code: '<svg class="i" viewBox="0 0 16 16"><path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5"/></svg>',
+  hist: '<svg class="i" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.4"/></svg>',
+  miss: '<svg class="i" viewBox="0 0 16 16"><path d="M1.8 4.5a1 1 0 0 1 1-1h3l1.5 1.5h5.9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1z"/><path d="M6.5 7.5l3 3M9.5 7.5l-3 3"/></svg>',
+  clock: '<svg class="i hl-clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.8V8l2.2 1.4"/></svg>',
+  chevSmall: '<svg class="i hl-chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>',
+  resume: '<svg class="i" viewBox="0 0 16 16" style="width:11px;height:11px"><path d="M6 3.5L2.5 7 6 10.5"/><path d="M3 7h6.5a3.5 3.5 0 0 1 0 7H8"/></svg>',
+  folder: '<svg class="i" viewBox="0 0 16 16"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.4l1.6 1.6h5A1.5 1.5 0 0 1 14 6.1v5.4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/></svg>',
+  ext: '<svg class="i" viewBox="0 0 16 16"><path d="M6 3.5h6.5V10M12.5 3.5L4 12"/></svg>',
+  plus: '<svg class="i" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>',
+  chev: '<svg class="i chev" viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>'
+};
+const PILL = { waiting: ['wait', '等批准'], working: ['work', '处理中'], idle: ['idle', '空闲'], missing: ['miss', '目录缺失'] };
+const TILE = { embedded: ['t-emb', ICON.term], terminal: ['t-app', '<img class="appicon" src="assets/terminal.png" alt="Terminal">'], vscode: ['t-app', '<img class="appicon" src="assets/vscode.png" alt="VS Code">'], missing: ['t-miss', ICON.miss] };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const STATUS = { waiting: ['wait', '等批准'], working: ['work', '处理中'], idle: ['idle', '空闲'], missing: ['miss', '目录缺失'] };
+function row(r) {
+  const [tileCls, tileIcon] = TILE[r.source];
+  const st = STATUS[r.status];
+  const badge = r.status === 'waiting' ? '<span class="badge wait"></span>' : r.status === 'working' ? '<span class="badge work"></span>' : r.status === 'idle' ? '<span class="badge idle"></span>' : '';
+  const cls = ['row', r.status === 'waiting' ? 'waiting' : '', r.selected ? 'selected' : '', r.stale ? 'stale' : ''].join(' ');
+  const where = { embedded: '在 CC Desk 内运行', terminal: '在 Terminal 中运行，点击跳转', vscode: '在 VS Code 中运行，点击跳转', missing: '目录缺失' }[r.source];
+  const tip = r.title + `\n${where}` + (r.last ? `\n最近：${r.last}` : '');
+  const ext = (r.source === 'terminal' || r.source === 'vscode') ? `<span class="ext" aria-hidden="true">${ICON.ext}</span>` : '';
+  return `<button type="button" class="${cls}" title="${esc(tip)}" aria-label="${esc(r.title)}，${st[1]}">
+    <span class="tile ${tileCls}">${tileIcon}${ext}${badge}</span>
+    <span class="title">${esc(r.title)}</span><span class="time">${esc(r.time)}</span>
+    <span class="sub"><span class="st ${st[0]}">${st[1]}${r.reason ? ' · ' + esc(r.reason) : ''}</span>${r.status === 'missing' && r.sub ? ' · ' + esc(r.sub) : ''}</span>
+  </button>`;
+}
+function histRow(h) {
+  return `<button type="button" class="hitem" title="${esc(h.title)}" aria-label="恢复 ${esc(h.title)}">
+    <span class="ht">${esc(h.title)}</span><span class="hm">${esc(h.time)}</span>
+    <span class="hr">${ICON.resume}恢复</span>
+  </button>`;
+}
+const ICON_SEARCH = '<svg class="i" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>';
+function ageMin(t) { if (t === '刚刚') return 0; const m = t.match(/(\d+)(分钟|小时|天|周)/); if (!m) return 1e9; return +m[1] * { 分钟: 1, 小时: 60, 天: 1440, 周: 10080 }[m[2]]; }
+function dayOf(t) { return /分钟|小时|刚刚/.test(t) ? '今天' : t === '1天' ? '昨天' : '更早'; }
+
+const GROUPS = [
+  { label: '旅行攻略', path: '~/Documents/work/project/旅行攻略', rows: [
+      { title: 'travel-guide-refactor', reason: '权限确认', sub: 'Terminal', status: 'waiting', source: 'terminal', time: '2分钟', last: '把排序结果接到攻略生成上，然后跑一遍测试' },
+      { title: '把旅行攻略 pipeline 拆成抓取、整理、排版三个独立阶段，并为每个阶段补充测试脚本', sub: '', status: 'idle', source: 'embedded', time: '40分钟', last: '先别动线上配置，只改 offline 目录' }
+    ],
+    history: [{ title: '攻略生成 prompt 调整', time: '3小时' }, { title: '离线评测脚本', time: '1天' }, { title: '景点数据去重', time: '3天' }] },
+  { label: 'herdr', path: '~/Documents/work/research/herdr', open: true,
+    rows: [
+      { title: '项目概览', sub: '', status: 'working', source: 'embedded', time: '刚刚', selected: true },
+      { title: '修复 codex idle 检测', sub: 'Terminal', status: 'idle', source: 'terminal', time: '2小时' }
+    ],
+    history: [{ title: '恢复 codex 状态识别', time: '1天' }, { title: 'Windows 原生通知', time: '2天' }, { title: '修订 agent 支持文档', time: '4天' }, { title: 'pi manifest 更新', time: '5天' }, { title: '预览版发布流程', time: '1周' }] },
+  { label: 'shop-backend-service', path: '~/Documents/work/code/shop-backend-service', collapsed: true, rows: [{ title: '订单接口压测', sub: 'VS Code', status: 'working', source: 'vscode', time: '3分钟' }],
+    history: [{ title: '订单表字段梳理', sub: '9月30日 结束', time: '2天' }] },
+  { label: 'poems', path: '~/Documents/work/research/poems', rows: [{ title: '写一首秋天的诗', sub: 'Terminal', status: 'idle', source: 'terminal', time: '5小时' }],
+    history: [{ title: '改写古诗风格', sub: '9月27日 结束', time: '5天' }] },
+  { label: '读书笔记', path: '~/Documents/work/project/读书笔记', collapsed: true, rows: [{ title: '读书笔记抽取', sub: 'Terminal', status: 'idle', source: 'terminal', time: '6天', stale: true }],
+    history: [{ title: '书单标签整理', sub: '9月20日 结束', time: '12天' }] }
+];
+
+function groupCounts(g) {
+  const n = (st) => g.rows.filter((r) => r.status === st).length;
+  return [['waiting', 'c-wait'], ['working', 'c-work'], ['idle', 'c-idle']]
+    .map(([st, cls]) => n(st) ? `<span class="count ${cls}">${n(st)}</span>` : '').join('');
+}
+function groupTitle(g) {
+  const w = g.rows.filter((r) => r.status === 'waiting').length;
+  const k = g.rows.filter((r) => r.status === 'working').length;
+  const d = g.rows.filter((r) => r.status === 'idle').length;
+  return [w ? w + ' 个等批准' : '', k ? k + ' 个处理中' : '', d ? d + ' 个空闲' : ''].filter(Boolean).join('，');
+}
+document.getElementById('groups').innerHTML = GROUPS.map((g, i) => `
+  <section class="group${g.collapsed ? ' collapsed' : ''}" data-i="${i}">
+    <div class="group-head">
+      <button class="group-toggle" type="button" aria-expanded="${g.collapsed ? 'false' : 'true'}" aria-label="收起或展开 ${esc(g.label)}" title="${esc(g.path || g.label)}">
+        <span class="gicon">${ICON.folder}</span><span class="group-label">${esc(g.label)}</span>
+      </button>
+      <span class="gactions">
+        ${g.history.length ? `<button class="icon-btn hist-btn" type="button" data-i="${i}" aria-label="${esc(g.label)} 的历史会话" title="历史会话">${ICON.hist}</button>` : ''}
+        <button class="icon-btn" type="button" aria-label="在 ${esc(g.label)} 新建会话" title="新建会话">${ICON.plus}</button>
+      </span>
+      <span class="counts" title="${groupTitle(g)}">${groupCounts(g)}</span>
+      <span class="gchev" aria-hidden="true">${ICON.chev}</span>
+    </div>
+    <div class="rows">${g.rows.map(row).join('')}</div>
+  </section>`).join('');
+
+{ const all = GROUPS.flatMap((g) => g.rows); const wait = all.filter((r) => r.status === 'waiting').length; const work = all.filter((r) => r.status === 'working').length;
+  document.getElementById('foot').innerHTML = `<span>${all.length} 个会话</span>${work ? `<span class="fsep"></span><span class="fdot work"></span><span>${work} 处理中</span>` : ''}${wait ? `<span class="fsep"></span><span class="fdot wait"></span><span class="warn">${wait} 待处理</span>` : ''}`; }
+const pop = document.getElementById('pop');
+let popFor = -1;
+function renderPop(i, q = '') {
+  const g = GROUPS[i];
+  const items = g.history.filter((h) => !q || h.title.toLowerCase().includes(q.toLowerCase())).sort((a, b) => ageMin(a.time) - ageMin(b.time));
+  pop.querySelector('.pop-list').innerHTML = items.length ? items.map(histRow).join('') : '<div class="pop-empty">没有匹配的历史会话</div>';
+}
+function openPop(i, btn) {
+  const g = GROUPS[i];
+  pop.innerHTML = `<div class="pop-head"><span>${esc(g.label)} 的历史会话</span><span class="spacer"></span><span style="font-weight:500;color:var(--fg3)">${g.history.length} 条</span></div>
+    <label class="search">${ICON_SEARCH}<input type="text" placeholder="搜索这个目录的历史…" aria-label="搜索 ${esc(g.label)} 的历史会话"></label>
+    <div class="pop-list"></div>
+    <button type="button" class="pop-foot" data-open-pal>在全部历史中搜索<kbd>⌘⇧H</kbd></button>`;
+  renderPop(i);
+  pop.querySelector('input').addEventListener('input', (e) => renderPop(i, e.target.value));
+  const win = document.querySelector('.window').getBoundingClientRect();
+  const b = btn.closest('.group-head').getBoundingClientRect();
+  const side = document.querySelector('.side').getBoundingClientRect();
+  pop.style.left = (side.right - win.left + 8) + 'px';
+  pop.style.top = Math.max(12, Math.min(b.top - win.top - 8, win.height - 380)) + 'px';
+  pop.hidden = false; popFor = i;
+  document.querySelectorAll('.hist-btn').forEach((x) => x.classList.toggle('on', x === btn));
+}
+function closePop() { pop.hidden = true; popFor = -1; document.querySelectorAll('.hist-btn').forEach((x) => x.classList.remove('on')); }
+
+const pal = document.getElementById('pal');
+function renderPal(q = '') {
+  const all = GROUPS.flatMap((g) => g.history.map((h) => ({ ...h, project: g.label })))
+    .filter((h) => !q || (h.title + h.project).toLowerCase().includes(q.toLowerCase()))
+    .sort((a, b) => ageMin(a.time) - ageMin(b.time));
+  const secs = ['今天', '昨天', '更早'].map((d) => [d, all.filter((h) => dayOf(h.time) === d)]).filter(([, xs]) => xs.length);
+  let first = true;
+  document.getElementById('pal-body').innerHTML = secs.length ? secs.map(([d, xs]) => `<div class="pal-sec"><h4>${d}</h4>${xs.map((h) => {
+    const cls = first ? 'pitem active' : 'pitem'; first = false;
+    return `<button type="button" class="${cls}" title="${esc(h.title)}"><span class="pt">${esc(h.title)}</span><span class="pp">${esc(h.project)}</span><span class="pm">${esc(h.time)}</span><span class="pr">↩ 恢复</span></button>`;
+  }).join('')}</div>`).join('') : '<div class="pop-empty" style="padding:24px 16px">没有匹配的历史会话</div>';
+}
+function openPal() { closePop(); renderPal(); pal.hidden = false; const q = document.getElementById('pal-q'); q.value = ''; q.focus(); }
+function closePal() { pal.hidden = true; }
+document.getElementById('pal-q').addEventListener('input', (e) => renderPal(e.target.value));
+document.getElementById('open-pal').addEventListener('click', openPal);
+pal.addEventListener('click', (e) => { if (e.target === pal) closePal(); });
+pop.addEventListener('click', (e) => { if (e.target.closest('[data-open-pal]')) openPal(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closePal(); closePop(); }
+  if (e.key.toLowerCase() === 'h' && e.metaKey && e.shiftKey) { e.preventDefault(); openPal(); }
+});
+document.addEventListener('click', (e) => { if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('.hist-btn')) closePop(); });
+
+document.getElementById('groups').addEventListener('click', (e) => {
+  if (e.detail > 0 && document.activeElement && document.activeElement.closest('#groups')) document.activeElement.blur();
+  const hb = e.target.closest('.hist-btn');
+  if (hb) { const i = +hb.dataset.i; if (popFor === i) closePop(); else openPop(i, hb); return; }
+  const head = e.target.closest('.group-head');
+  if (head && !e.target.closest('.icon-btn')) { const g = head.closest('.group'); g.classList.toggle('collapsed'); head.querySelector('.group-toggle').setAttribute('aria-expanded', g.classList.contains('collapsed') ? 'false' : 'true'); return; }
+  const r = e.target.closest('.row:not(.hist)');
+  if (r) { document.querySelectorAll('#groups .row.selected').forEach((x) => x.classList.remove('selected')); r.classList.add('selected'); }
+});
+
+const STATES = [
+  ['等批准', { title: 'travel-guide-refactor', reason: '权限确认', sub: 'Terminal', status: 'waiting', source: 'terminal', time: '2分钟' }, '整行浅橙底色，副标题显示等待原因，排在最前。'],
+  ['处理中', { title: '项目概览', sub: '', status: 'working', source: 'embedded', time: '刚刚' }, '图标角上呼吸的蓝点；暖灰终端图标块表示在 CC Desk 内运行。'],
+  ['空闲', { title: '修复 codex idle 检测', sub: 'Terminal', status: 'idle', source: 'terminal', time: '2小时' }, 'Terminal 的应用图标 + 右上角 ↗：在外部 Terminal 运行，点击跳过去。'],
+  ['选中', { title: '项目概览', sub: '', status: 'working', source: 'embedded', time: '刚刚', selected: true }, '系统风格的圆角高亮。'],
+  ['来自 VS Code', { title: '订单接口压测', sub: 'VS Code', status: 'idle', source: 'vscode', time: '5小时' }, 'VS Code 的应用图标 + ↗：点击打开对应项目。'],
+  ['超过 24 小时没有变化', { title: '读书笔记抽取', sub: 'Terminal', status: 'idle', source: 'terminal', time: '6天', stale: true }, '整行变淡，提示可以关掉了。'],
+  ['目录缺失', { title: '旧实验', sub: '~/work/old-exp', status: 'missing', source: 'missing', time: '' }, '恢复时原目录不存在；右键可换目录打开或移除。'],
+  
+];
+document.getElementById('states').innerHTML = STATES.map(([cap, r, note]) => `
+  <div class="state"><div class="cap">${cap}</div>
+    <div class="box">${row(r)}</div>
+    <div class="note">${note}</div></div>`).join('');
+
+const initial = location.hash.slice(1).split('&')[0];
+if (initial === 'light' || initial === 'dark') document.documentElement.setAttribute('data-theme', initial);
+(() => {
+  const rz = document.getElementById('resizer'); const side = rz.parentElement; let x0 = 0, w0 = 0;
+  const move = (e) => { side.style.width = Math.min(420, Math.max(240, w0 + e.clientX - x0)) + 'px'; };
+  const up = () => { rz.classList.remove('active'); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  rz.addEventListener('pointerdown', (e) => { x0 = e.clientX; w0 = side.getBoundingClientRect().width; rz.classList.add('active'); window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); e.preventDefault(); });
+})();
+document.documentElement.setAttribute('data-density', 'comfortable');
+function setPressed(attr, val) {
+  document.querySelectorAll(`[${attr}]`).forEach((b) => b.setAttribute('aria-pressed', b.getAttribute(attr) === val ? 'true' : 'false'));
+}
+document.querySelectorAll('[data-theme-btn]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.getAttribute('data-theme-btn');
+  if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+  setPressed('data-theme-btn', v);
+}));
+document.querySelectorAll('[data-density-btn]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.getAttribute('data-density-btn');
+  document.documentElement.setAttribute('data-density', v);
+  setPressed('data-density-btn', v);
+}));
+document.querySelectorAll('[data-term-btn]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.getAttribute('data-term-btn');
+  if (v === 'dark') document.documentElement.setAttribute('data-term', 'dark'); else document.documentElement.removeAttribute('data-term');
+  setPressed('data-term-btn', v);
+}));
+requestAnimationFrame(() => {
+  const flags = location.hash.slice(1).split('&');
+  if (flags.includes('compact')) document.documentElement.setAttribute('data-density', 'compact');
+  if (flags.includes('collapsed')) document.querySelectorAll('.group').forEach((g) => g.classList.add('collapsed'));
+  if (flags.includes('pal')) openPal();
+  else if (flags.includes('clean')) {}
+  else { const b = document.querySelector('.hist-btn[data-i="1"]'); if (b) openPop(1, b); }
+});
+</script>
+</body>
+</html>
