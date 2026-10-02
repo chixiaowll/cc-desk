@@ -197,6 +197,12 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// 把键盘焦点还给当前选中的内嵌终端（如关闭历史面板后）。
+    func focusSelectedTerminal() {
+        guard let id = selectedTerminalID, let terminal = pool.terminal(id) else { return }
+        terminal.view.window?.makeFirstResponder(terminal.view)
+    }
+
     func selectEmbedded(index: Int) {
         let rows = embeddedRowsInOrder
         guard rows.indices.contains(index) else { return }

@@ -54,6 +54,13 @@ struct CCDeskApp: App {
                 }
                 .keyboardShortcut("w")
             }
+            CommandGroup(after: .sidebar) {
+                Button("历史会话") {
+                    delegate.model.openMainWindow?()
+                    delegate.model.showHistoryPalette = true
+                }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
+            }
             CommandMenu("Session") {
                 ForEach(1...9, id: \.self) { index in
                     Button("切换到第 \(index) 个") { delegate.model.selectEmbedded(index: index - 1) }

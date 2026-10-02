@@ -13,6 +13,9 @@ struct ContentView: View {
         } detail: {
             DetailView(model: model)
         }
+        .overlay {
+            if model.showHistoryPalette { HistoryPalette(model: model) }
+        }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
     }

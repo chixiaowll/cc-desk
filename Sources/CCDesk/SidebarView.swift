@@ -40,6 +40,10 @@ struct SidebarView: View {
                 Button { model.showNewSession = true } label: { Image(systemName: "plus") }
                     .help("新建会话 ⌘N")
             }
+            ToolbarItem {
+                Button { model.showHistoryPalette = true } label: { Image(systemName: "clock") }
+                    .help("历史会话 ⌘⇧H")
+            }
         }
     }
 }
@@ -77,6 +81,7 @@ struct GroupHeaderView: View {
     let collapsed: Bool
     let theme: Theme
     @State private var hovering = false
+    @State private var showHistory = false
 
     private var allMissing: Bool {
         group.rows.allSatisfy {
@@ -85,7 +90,7 @@ struct GroupHeaderView: View {
         }
     }
 
-    private var showActions: Bool { hovering }
+    private var showActions: Bool { hovering || showHistory }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -127,6 +132,24 @@ struct GroupHeaderView: View {
 
     private var actions: some View {
         HStack(spacing: 2) {
+            if !model.history(forRoot: group.id).isEmpty {
+                SidebarIconButton(systemName: "clock", help: "历史会话", on: showHistory, theme: theme) {
+                    if !showHistory { model.refreshHistory() }
+                    showHistory.toggle()
+                }
+                .popover(isPresented: $showHistory, arrowEdge: .trailing) {
+                    HistoryPopover(
+                        model: model, root: group.id, title: group.title,
+                        onSearchAll: {
+                            showHistory = false
+                            model.showHistoryPalette = true
+                        },
+                        onResume: { item in
+                            showHistory = false
+                            model.resumeHistory(item)
+                        })
+                }
+            }
             if !allMissing {
                 SidebarIconButton(systemName: "plus", help: "在 \(group.title) 新建会话", theme: theme) {
                     model.newSession(cwd: group.id)
