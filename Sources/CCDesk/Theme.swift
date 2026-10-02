@@ -54,21 +54,21 @@ struct Theme {
     static func of(_ scheme: ColorScheme) -> Theme { scheme == .dark ? dark : light }
 
     static let light = Theme(
-        side: Color(hex: 0xF3F1ED), main: Color(hex: 0xFBFAF8), line: Color(hex: 0xE4E0D9),
-        fg1: Color(hex: 0x1F1E1C), fg2: Color(hex: 0x6B675F), fg3: Color(hex: 0x8A857D), chip: Color(hex: 0xE7E3DC),
-        sel: Color(hex: 0xFFFFFF), selLine: Color(hex: 0xE2DDD5), selShadow: Color(red: 60 / 255, green: 50 / 255, blue: 40 / 255).opacity(0.08),
-        hover: Color(hex: 0xEAE6DF), waitRow: Color(hex: 0xF9EDE6),
+        side: Color(hex: 0xECE7DE), main: Color(hex: 0xF4EFE6), line: Color(hex: 0xDED6CA),
+        fg1: Color(hex: 0x2A2622), fg2: Color(hex: 0x6B675F), fg3: Color(hex: 0x8A857D), chip: Color(hex: 0xE3DDD2),
+        sel: Color(hex: 0xFAF7F1), selLine: Color(hex: 0xDCD4C7), selShadow: Color(red: 60 / 255, green: 50 / 255, blue: 40 / 255).opacity(0.08),
+        hover: Color(hex: 0xE4DED3), waitRow: Color(hex: 0xF4E4D9),
         pillWaitBg: Color(hex: 0xC4552B), pillWaitFg: Color(hex: 0xFFFFFF),
         pillWorkBg: Color(hex: 0xE5ECF3), pillWorkFg: Color(hex: 0x35618E), dot: Color(hex: 0x4A7BAD),
         chipWorkBg: Color(hex: 0x3F6E9E), chipWorkFg: Color(hex: 0xFFFFFF),
         unread: Color(hex: 0x5E8B6A), chipUnreadBg: Color(hex: 0x5E8B6A), chipUnreadFg: Color(hex: 0xFFFFFF),
-        pillIdleBg: Color(hex: 0xECE8E2), pillIdleFg: Color(hex: 0x5C5852),
+        pillIdleBg: Color(hex: 0xE5DFD5), pillIdleFg: Color(hex: 0x5C5852),
         pillMissBg: Color(hex: 0xF1E4E2), pillMissFg: Color(hex: 0x8E5A55),
-        tileEmbBg: Color(hex: 0xE2DCD2), tileEmbFg: Color(hex: 0x3A362F),
-        tileTermBg: Color(hex: 0xECE8E2), tileTermFg: Color(hex: 0x6B675F),
+        tileEmbBg: Color(hex: 0xDDD5C8), tileEmbFg: Color(hex: 0x3A362F),
+        tileTermBg: Color(hex: 0xE5DFD5), tileTermFg: Color(hex: 0x6B675F),
         tileMissBg: Color(hex: 0xF1E4E2), tileMissFg: Color(hex: 0x8E5A55),
         accent: Color(hex: 0xB24E26), action: Color(hex: 0x2B2925),
-        extBg: Color(hex: 0xFFFFFF), extFg: Color(hex: 0x5C5852), extRing: Color(hex: 0xDDD8D0),
+        extBg: Color(hex: 0xFAF7F1), extFg: Color(hex: 0x5C5852), extRing: Color(hex: 0xD6CEC1),
         appIconShadow: Color(red: 60 / 255, green: 50 / 255, blue: 40 / 255).opacity(0.18), appIconShadowRadius: 1,
         appIconRim: nil,
         backdrop: Color(red: 30 / 255, green: 25 / 255, blue: 20 / 255).opacity(0.16),
@@ -104,8 +104,8 @@ struct TerminalTheme {
     let foreground: NSColor
     let cursor: NSColor
 
-    static let light = TerminalTheme(background: NSColor(hex: 0xFFFEFC), foreground: NSColor(hex: 0x2A2925),
-                                     cursor: NSColor(hex: 0x2A2925))
+    static let light = TerminalTheme(background: NSColor(hex: 0xF4EFE6), foreground: NSColor(hex: 0x2E2A25),
+                                     cursor: NSColor(hex: 0x2E2A25))
     static let dark = TerminalTheme(background: NSColor(hex: 0x1B1A18), foreground: NSColor(hex: 0xD8D3CB),
                                     cursor: NSColor(hex: 0xD8D3CB))
 
