@@ -43,13 +43,13 @@ public enum SessionBuilder {
                 id = "term:\(info.id.uuidString)"
             } else if entry.entrypoint == "claude-vscode" {
                 host = .vscode
-                id = "claude:\(entry.sessionID)"
+                id = "claude-pid:\(entry.pid)"
             } else if let tty, processes.hasAncestor(of: entry.pid, where: { $0.command.contains("/Terminal.app/") }) {
                 host = .terminalApp(tty: tty)
-                id = "claude:\(entry.sessionID)"
+                id = "claude-pid:\(entry.pid)"
             } else {
                 host = .other(tty: tty)
-                id = "claude:\(entry.sessionID)"
+                id = "claude-pid:\(entry.pid)"
             }
             result.append(AgentSession(
                 id: id, kind: .claude, sessionID: entry.sessionID, pid: entry.pid, tty: tty,

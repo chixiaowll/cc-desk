@@ -69,7 +69,8 @@ public enum SessionHost: Equatable, Sendable {
 }
 
 public struct AgentSession: Identifiable, Equatable, Sendable {
-    /// 内嵌："term:<uuid>"；缺失占位："missing:<uuid>"；外部："claude:<sessionId>"。
+    /// 内嵌："term:<uuid>"；缺失占位："missing:<uuid>"；外部："claude-pid:<pid>"（按 pid 而非 sessionId 保证稳定唯一，
+    /// 因为同一 sessionId 可能在多个终端中被恢复，且同一进程内 sessionId 可能切换）。
     public var id: String
     public var kind: AgentKind
     public var sessionID: String?

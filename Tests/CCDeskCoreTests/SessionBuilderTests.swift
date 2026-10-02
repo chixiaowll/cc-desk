@@ -31,9 +31,19 @@ final class SessionBuilderTests: XCTestCase {
             registry: [reg(700, "term"), reg(951, "code", entrypoint: "claude-vscode"), reg(961, "iterm")],
             processes: ps, embedded: [], missing: [])
         let hosts = Dictionary(uniqueKeysWithValues: out.map { ($0.id, $0.host) })
-        XCTAssertEqual(hosts["claude:term"], .terminalApp(tty: "ttys007"))
-        XCTAssertEqual(hosts["claude:code"], .vscode)
-        XCTAssertEqual(hosts["claude:iterm"], .other(tty: "ttys030"))
+        XCTAssertEqual(hosts["claude-pid:700"], .terminalApp(tty: "ttys007"))
+        XCTAssertEqual(hosts["claude-pid:951"], .vscode)
+        XCTAssertEqual(hosts["claude-pid:961"], .other(tty: "ttys030"))
+    }
+
+    func testExternalSessionIDsAreKeyedByPIDNotSessionID() {
+        // Same sessionId resumed on two different pids/terminals must not collide.
+        let out = SessionBuilder.build(
+            registry: [reg(700, "shared"), reg(961, "shared")],
+            processes: ps, embedded: [], missing: [])
+        XCTAssertEqual(out.count, 2)
+        XCTAssertEqual(Set(out.map(\.id)), ["claude-pid:700", "claude-pid:961"])
+        XCTAssertEqual(Set(out.map { $0.sessionID ?? "" }), ["shared"])
     }
 
     func testEmbeddedTerminalMatchedByTTYUsesNewestEntry() {
