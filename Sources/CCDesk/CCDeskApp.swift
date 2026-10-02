@@ -41,9 +41,18 @@ struct CCDeskApp: App {
                 }
                 .keyboardShortcut("n")
             }
-            CommandGroup(replacing: .saveItem) {
-                Button("关闭当前 Session") { delegate.model.closeSelected() }
-                    .keyboardShortcut("w")
+            // `Window` scene 不像 WindowGroup 那样自带系统 "Close"（⌘W）菜单项，所以这里用
+            // `after:` 新增而非 `replacing:` 某个占位组，确保有且只有一个 ⌘W 绑定。
+            // 选中内嵌 session 时关闭该 session（沿用原有确认逻辑）；否则按标准行为关闭窗口本身。
+            CommandGroup(after: .newItem) {
+                Button("关闭当前 Session") {
+                    if let row = delegate.model.selectedRow, row.session.host.isEmbedded {
+                        delegate.model.closeSelected()
+                    } else {
+                        NSApp.keyWindow?.performClose(nil)
+                    }
+                }
+                .keyboardShortcut("w")
             }
             CommandMenu("Session") {
                 ForEach(1...9, id: \.self) { index in
