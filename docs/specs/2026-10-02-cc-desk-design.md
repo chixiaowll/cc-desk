@@ -16,7 +16,7 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 
 ### 成功标准
 
-1. 本机所有正在运行的 Claude Code / Codex / pi session（无论在哪启动）都出现在左边栏，3 秒内反映状态变化。
+1. 本机所有正在运行的 Claude Code session（无论在哪启动）都出现在左边栏，3 秒内反映状态变化。
 2. 在 CC Desk 内新建、切换、使用 agent session，体验与在 Terminal.app 中基本一致（中文输入、复制粘贴、滚动、agent 全屏 TUI 正常）。
 3. session 进入「等批准」或「本轮完成」时收到系统通知，点击通知跳到该 session。
 4. 外部 session 可以一键接管到 CC Desk 中继续（对话上下文不丢）。
@@ -32,11 +32,13 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 
 ## 2. 支持范围
 
+**v1 只做 Claude Code**，Codex 与 pi 在 v1.1 加入。适配器抽象在 v1 就建好，v1.1 只需新增适配器、hook 和规则文件。
+
 | Agent | 启动 | 恢复 | 状态来源 |
 |---|---|---|---|
 | Claude Code | `claude` | `claude --resume <id>` | hook + `~/.claude/sessions` 登记文件 + 屏幕规则 |
-| Codex | `codex` | `codex resume <id>` | hook（`~/.codex/hooks.json`）+ 屏幕规则 |
-| pi | `pi` | 实现前验证（见 §9） | 扩展（`~/.pi/agent/extensions/`）+ 屏幕规则 |
+| Codex（v1.1） | `codex` | `codex resume <id>` | hook（`~/.codex/hooks.json`）+ 屏幕规则 |
+| pi（v1.1） | `pi` | v1.1 实现前验证 | 扩展（`~/.pi/agent/extensions/`）+ 屏幕规则 |
 | 其他命令 | 任意 shell 命令 | 不支持 | 仅「运行中 / 已退出」 |
 
 新增 agent 只需新增一个适配器（§4.3），不改其他模块。
@@ -48,7 +50,7 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 │ SESSIONS            [+] │ 旅行攻略 · Claude · ~/work/project/旅行攻略  │
 │ ▲ 旅行攻略    等批准  2m │ ┌─────────────────────────────────────────┐ │
 │ ● herdr       处理中 now │ │                                         │ │
-│ ● api [Codex] 处理中  5m │ │           内嵌终端（SwiftTerm）          │ │
+│ ● api         处理中  5m │ │           内嵌终端（SwiftTerm）          │ │
 │ ○ tmp         空闲    1h │ │                                         │ │
 │ ── 外部 ──────────────── │ │                                         │ │
 │ ○ 读书笔记 [Terminal] 7d │ │                                         │ │
@@ -165,14 +167,14 @@ protocol AgentAdapter {
 }
 ```
 
-v1 实现 `ClaudeAdapter`、`CodexAdapter`、`PiAdapter`、`GenericAdapter`。
+v1 实现 `ClaudeAdapter`、`GenericAdapter`；v1.1 增加 `CodexAdapter`、`PiAdapter`。
 
 ### 4.4 Hook / 扩展
 
 所有 hook 写同一种状态文件 `~/.cc-desk/state/<tty>.json`：
 
 ```json
-{ "agent": "codex", "session_id": "…", "tty": "ttys007", "pid": 12345,
+{ "agent": "claude", "session_id": "…", "tty": "ttys007", "pid": 12345,
   "cwd": "/…", "status": "waiting", "message": "allow command?", "ts": 1790922468588 }
 ```
 
@@ -184,14 +186,14 @@ v1 实现 `ClaudeAdapter`、`CodexAdapter`、`PiAdapter`、`GenericAdapter`。
 | Agent | 安装位置 | 事件 → 状态 |
 |---|---|---|
 | Claude Code | `~/.claude/settings.json` 的 `hooks`（追加，不改动已有的 rtk hook） | `UserPromptSubmit` → working；`Notification` → waiting（带 message）；`Stop` → idle |
-| Codex | `~/.codex/hooks.json` | `UserPromptSubmit` → working；`Stop` / `Interrupt` → idle；等批准靠屏幕规则 |
-| pi | `~/.pi/agent/extensions/cc-desk-state.ts` | 扩展内监听 agent 开始 / 结束 / 需要确认事件 |
+| Codex（v1.1） | `~/.codex/hooks.json` | `UserPromptSubmit` → working；`Stop` / `Interrupt` → idle；等批准靠屏幕规则 |
+| pi（v1.1） | `~/.pi/agent/extensions/cc-desk-state.ts` | 扩展内监听 agent 开始 / 结束 / 需要确认事件 |
 
 **安装流程**：首次启动时在设置页列出可安装的 hook，用户逐个点「安装」。安装前备份原配置文件（`*.cc-desk.bak`），修改用结构化 JSON 合并而非字符串拼接；提供「卸载」按钮，只移除 CC Desk 自己添加的条目。hook 脚本放在 `~/.cc-desk/hooks/`，配置中通过绝对路径引用。
 
 ### 4.5 屏幕检测
 
-- 复用 herdr（Apache-2.0）的 `src/detect/manifests/{claude,codex,pi}.toml`，随 App 打包，在 `NOTICE` 中注明来源与许可。
+- 复用 herdr（Apache-2.0）的 `src/detect/manifests/claude.toml`（v1.1 加 codex、pi），随 App 打包，在 `NOTICE` 中注明来源与许可。
 - v1 用 Swift 实现规则引擎的子集：区域 `bottom_non_empty_lines(N)`、`whole_recent`、`after_last_prompt_marker`、`osc_title`；匹配 `contains`、`regex`、`line_regex`、`any`、`all`；按 `priority` 取最高命中规则。不支持的区域或字段：跳过该规则并记录日志，不报错。
 - 引擎有单元测试，用合成的最小规则和字符串测试解析、区域、AND/OR、优先级；不针对具体 agent 的真实屏幕写断言（agent 界面会变，交给 §8 的实测）。
 
@@ -258,12 +260,12 @@ cc-desk/
 │   ├── Store/          # SessionStore（合并逻辑）
 │   ├── Sources/        # HookStateReader、RegistryReader、ProcessScanner
 │   ├── Detect/         # 规则引擎 + manifest 解析
-│   ├── Agents/         # ClaudeAdapter、CodexAdapter、PiAdapter、GenericAdapter
+│   ├── Agents/         # ClaudeAdapter、GenericAdapter（v1.1：CodexAdapter、PiAdapter）
 │   ├── Terminal/       # TerminalPool、TerminalView 封装
 │   ├── Integration/    # HookInstaller、Jumper、Notifier、Restorer
 │   └── UI/             # SidebarView、行视图、新建面板
 ├── Resources/
-│   ├── hooks/          # cc-desk-hook.sh、pi 扩展 .ts
+│   ├── hooks/          # cc-desk-hook.sh（v1.1：pi 扩展 .ts）
 │   └── manifests/      # 来自 herdr 的 toml 规则
 ├── Tests/CCDeskTests/  # 合并逻辑、规则引擎、适配器、HookInstaller 的单元测试
 └── NOTICE
@@ -280,7 +282,7 @@ cc-desk/
 - 登记文件 / 状态文件解析：缺字段、坏 JSON。
 
 **实测清单**（每个 agent 记录版本号和结果）：
-- Claude Code / Codex / pi 分别在内嵌终端中：启动、处理中、等批准、空闲、退出、恢复。
+- Claude Code 在内嵌终端中：启动、处理中、等批准、空闲、退出、恢复。
 - 在 Terminal.app 中启动的同类 session：出现在外部组、状态正确、跳转、接管。
 - 终端体验：中文输入法、⌘C/⌘V、滚动回看、agent 全屏界面、窗口缩放。
 - 通知：前台不通知、后台通知、点击跳转、刚启动不误报。
@@ -290,11 +292,11 @@ cc-desk/
 
 按实现顺序排在最前面，任一项不成立需回到设计调整：
 
-1. **SwiftTerm 跑 agent 的体验**：在最小 Demo 中运行 `claude`、`codex`、`pi`，确认显示、中文输入、快捷键正常。这是整个方案的前提。
-2. **Codex hook 的事件名与载荷**：以当前 Codex 版本实际验证 `~/.codex/hooks.json` 格式及 `UserPromptSubmit` / `Stop` 事件（参考 herdr `src/integration/assets/codex/`）。
-3. **pi 的恢复命令与扩展事件**：确认 pi 恢复指定会话的方式和扩展 API（参考 herdr `src/integration/assets/pi/herdr-agent-state.ts`）。若无法按 id 恢复，pi 的接管 / 重启恢复改为「在原目录重新启动 pi」。
-4. **Terminal.app AppleScript 按 tty 定位**：在当前 macOS 版本验证。
-5. 本机需先安装 codex 和 pi。
+1. **SwiftTerm 跑 agent 的体验**：在最小 Demo 中运行 `claude`，确认显示、中文输入、快捷键正常。这是整个方案的前提。
+2. **Terminal.app AppleScript 按 tty 定位**：在当前 macOS 版本验证。
+3. **Claude Code `Notification` hook 载荷**：确认 `message` 字段内容及等批准时是否必定触发。
+
+v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，参考 herdr `src/integration/assets/codex/`）、pi 的恢复命令与扩展 API（参考 herdr `src/integration/assets/pi/`），并在本机安装 codex 和 pi。
 
 ## 10. 后续方向（不在 v1）
 
