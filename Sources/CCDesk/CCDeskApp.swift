@@ -1,12 +1,38 @@
 import SwiftUI
 import AppKit
 
+/// App 内外观偏好：跟随系统 / 浅色 / 深色。设置 NSApp.appearance，SwiftUI 的 colorScheme 与终端配色随之更新。
+enum AppearancePreference: String, CaseIterable, Identifiable {
+    case system, light, dark
+    static let defaultsKey = "appearance"
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .system: return "跟随系统"
+        case .light: return "浅色"
+        case .dark: return "深色"
+        }
+    }
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
+        }
+    }
+    static var stored: AppearancePreference {
+        AppearancePreference(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .system
+    }
+    func apply() { NSApp.appearance = nsAppearance }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        AppearancePreference.stored.apply()
         model.start()
     }
 
@@ -27,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct CCDeskApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @AppStorage(AppearancePreference.defaultsKey) private var appearance: String = AppearancePreference.system.rawValue
 
     var body: some Scene {
         Window("CC Desk", id: "main") {
@@ -61,6 +88,14 @@ struct CCDeskApp: App {
                     delegate.model.showHistoryPalette = true
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
+                Divider()
+                Picker("外观", selection: $appearance) {
+                    ForEach(AppearancePreference.allCases) { Text($0.label).tag($0.rawValue) }
+                }
+                .pickerStyle(.inline)
+                .onChange(of: appearance) { _, value in
+                    (AppearancePreference(rawValue: value) ?? .system).apply()
+                }
             }
             CommandMenu("Session") {
                 ForEach(1...9, id: \.self) { index in
