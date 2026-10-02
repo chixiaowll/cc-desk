@@ -3,3 +3,98 @@ import Foundation
 public enum CCDeskCore {
     public static let version = "0.1.0"
 }
+
+public enum AgentKind: String, Codable, Sendable {
+    case claude
+    case other
+}
+
+public enum AgentStatus: Equatable, Sendable {
+    case working
+    case waiting(String?)
+    case idle
+    case unknown
+
+    /// 排序用：数值越小越靠前。
+    public var rank: Int {
+        switch self {
+        case .waiting: return 0
+        case .working: return 1
+        case .idle: return 2
+        case .unknown: return 3
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .waiting: return "等批准"
+        case .working: return "处理中"
+        case .idle: return "空闲"
+        case .unknown: return "未知"
+        }
+    }
+
+    public var isActive: Bool {
+        switch self {
+        case .working, .waiting: return true
+        case .idle, .unknown: return false
+        }
+    }
+
+    public var isWaiting: Bool {
+        if case .waiting = self { return true }
+        return false
+    }
+}
+
+public enum SessionHost: Equatable, Sendable {
+    case embedded(terminalID: UUID)
+    case terminalApp(tty: String)
+    case vscode
+    case other(tty: String?)
+    /// 恢复时原目录已不存在的占位。
+    case missing(terminalID: UUID)
+
+    public var isEmbedded: Bool {
+        if case .embedded = self { return true }
+        return false
+    }
+
+    public var terminalID: UUID? {
+        switch self {
+        case .embedded(let id), .missing(let id): return id
+        default: return nil
+        }
+    }
+}
+
+public struct AgentSession: Identifiable, Equatable, Sendable {
+    /// 内嵌："term:<uuid>"；缺失占位："missing:<uuid>"；外部："claude:<sessionId>"。
+    public var id: String
+    public var kind: AgentKind
+    public var sessionID: String?
+    public var pid: Int32?
+    public var tty: String?
+    public var cwd: String
+    public var name: String
+    public var nameIsDerived: Bool
+    public var host: SessionHost
+    public var status: AgentStatus
+    public var statusChangedAt: Date
+
+    public init(id: String, kind: AgentKind, sessionID: String?, pid: Int32?, tty: String?,
+                cwd: String, name: String, nameIsDerived: Bool, host: SessionHost,
+                status: AgentStatus, statusChangedAt: Date) {
+        self.id = id
+        self.kind = kind
+        self.sessionID = sessionID
+        self.pid = pid
+        self.tty = tty
+        self.cwd = cwd
+        self.name = name
+        self.nameIsDerived = nameIsDerived
+        self.host = host
+        self.status = status
+        self.statusChangedAt = statusChangedAt
+    }
+}
