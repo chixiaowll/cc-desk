@@ -42,7 +42,19 @@ public enum LaunchSpec {
 
     private static let hostTerminalIdentityPrefixes = ["ITERM_", "VSCODE_"]
 
-    public static func environment(base: [String: String], shell: String, terminalID: UUID) -> [String] {
+    /// 没有任何 `LANG`/`LC_ALL`/`LC_CTYPE` 时使用的默认 UTF-8 locale：优先沿用系统当前 locale
+    /// （形如 "xx_YY"），否则退回 "en_US.UTF-8"。
+    public static func defaultUTF8Locale() -> String {
+        let identifier = Locale.current.identifier
+        let pattern = "^[a-z]{2,3}_[A-Z]{2}$"
+        if identifier.range(of: pattern, options: .regularExpression) != nil {
+            return "\(identifier).UTF-8"
+        }
+        return "en_US.UTF-8"
+    }
+
+    public static func environment(base: [String: String], shell: String, terminalID: UUID,
+                                    defaultLocale: String = LaunchSpec.defaultUTF8Locale()) -> [String] {
         var env = base.filter { key, _ in
             !sessionScopedDenylist.contains(key)
                 && !hostTerminalIdentityDenylist.contains(key)
@@ -54,6 +66,9 @@ public enum LaunchSpec {
         env["CC_DESK"] = "1"
         env["CC_DESK_TERMINAL_ID"] = terminalID.uuidString
         env["TERM_PROGRAM"] = "CCDesk"
+        if env["LANG"] == nil && env["LC_ALL"] == nil && env["LC_CTYPE"] == nil {
+            env["LANG"] = defaultLocale
+        }
         return env.map { "\($0.key)=\($0.value)" }.sorted()
     }
 

@@ -88,6 +88,40 @@ final class AgentsTests: XCTestCase {
         XCTAssertTrue(env.contains("SOME_USER_VAR=x"))
     }
 
+    func testEnvironmentSetsDefaultLocaleWhenMissing() {
+        let id = UUID()
+        let env = LaunchSpec.environment(
+            base: ["PATH": "/bin"], shell: "/bin/zsh", terminalID: id, defaultLocale: "zh_CN.UTF-8")
+        XCTAssertTrue(env.contains("LANG=zh_CN.UTF-8"))
+    }
+
+    func testEnvironmentKeepsExistingLANG() {
+        let id = UUID()
+        let env = LaunchSpec.environment(
+            base: ["PATH": "/bin", "LANG": "ja_JP.UTF-8"], shell: "/bin/zsh", terminalID: id,
+            defaultLocale: "zh_CN.UTF-8")
+        XCTAssertTrue(env.contains("LANG=ja_JP.UTF-8"))
+        XCTAssertFalse(env.contains("LANG=zh_CN.UTF-8"))
+    }
+
+    func testEnvironmentKeepsExistingLC_ALLAndDoesNotAddLANG() {
+        let id = UUID()
+        let env = LaunchSpec.environment(
+            base: ["PATH": "/bin", "LC_ALL": "C"], shell: "/bin/zsh", terminalID: id,
+            defaultLocale: "zh_CN.UTF-8")
+        XCTAssertTrue(env.contains("LC_ALL=C"))
+        XCTAssertFalse(env.contains { $0.hasPrefix("LANG=") })
+    }
+
+    func testEnvironmentKeepsExistingLC_CTYPEAndDoesNotAddLANG() {
+        let id = UUID()
+        let env = LaunchSpec.environment(
+            base: ["PATH": "/bin", "LC_CTYPE": "C"], shell: "/bin/zsh", terminalID: id,
+            defaultLocale: "zh_CN.UTF-8")
+        XCTAssertTrue(env.contains("LC_CTYPE=C"))
+        XCTAssertFalse(env.contains { $0.hasPrefix("LANG=") })
+    }
+
     func testBracketedPayload() {
         XCTAssertEqual(LaunchSpec.inputPayload(text: "hi", bracketed: false), "hi")
         XCTAssertEqual(LaunchSpec.inputPayload(text: "hi", bracketed: true), "\u{1b}[200~hi\u{1b}[201~")
