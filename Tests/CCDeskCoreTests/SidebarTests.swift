@@ -16,8 +16,10 @@ final class SidebarTests: XCTestCase {
         "/r/poems": ProjectRef(root: "/r/poems", branch: nil, cwd: "/r/poems"),
     ]
 
-    func build(_ sessions: [AgentSession], titles: @escaping (AgentSession) -> TranscriptMeta? = { _ in nil }) -> [SessionGroup] {
-        SidebarBuilder.build(sessions: sessions, project: { self.projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) }, titles: titles)
+    func build(_ sessions: [AgentSession], titles: @escaping (AgentSession) -> TranscriptMeta? = { _ in nil },
+               unread: Set<String> = []) -> [SessionGroup] {
+        SidebarBuilder.build(sessions: sessions, project: { self.projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) },
+                             titles: titles, unread: { unread.contains($0.id) })
     }
 
     func testGroupsByProjectRootAndOrdersGroupsByTopStatus() {
@@ -234,5 +236,70 @@ final class SidebarTests: XCTestCase {
             s("idle", cwd: "/r/poems", status: .idle, at: 1),
         ])[0]
         XCTAssertEqual(g.rows.map(\.id), ["idle", "ended"])
+    }
+
+    // MARK: 已完成·未读
+
+    func testUnreadFlagComesFromClosureAndDefaultsToFalse() {
+        let g = build([s("a", cwd: "/r/poems"), s("b", cwd: "/r/poems")], unread: ["a"])[0]
+        let flags = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0.unread) })
+        XCTAssertEqual(flags["a"], true)
+        XCTAssertEqual(flags["b"], false)
+        let plain = SidebarBuilder.build(sessions: [s("a", cwd: "/r/poems")],
+                                         project: { ProjectRef(root: $0, branch: nil, cwd: $0) })[0]
+        XCTAssertEqual(plain.rows[0].unread, false, "default closure marks nothing unread")
+    }
+
+    func testUnreadIdleRowShowsCompletedLabel() {
+        let g = build([s("a", cwd: "/r/poems", status: .idle), s("b", cwd: "/r/poems", status: .idle)], unread: ["a"])[0]
+        let labels = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0.statusLabel) })
+        XCTAssertEqual(labels["a"], "已完成")
+        XCTAssertEqual(labels["b"], "空闲")
+    }
+
+    func testWaitingTakesPriorityOverUnread() {
+        let g = build([s("w", cwd: "/r/poems", status: .waiting("x"))], unread: ["w"])[0]
+        XCTAssertFalse(g.rows[0].showsUnread)
+        XCTAssertEqual(g.rows[0].statusLabel, "等批准")
+        XCTAssertEqual(g.unreadCount, 0, "waiting rows are not counted as unread")
+        XCTAssertEqual(g.waitingCount, 1)
+    }
+
+    func testUnreadCountExcludesWaitingRows() {
+        let g = build([
+            s("a", cwd: "/r/poems", status: .idle),
+            s("b", cwd: "/r/poems", status: .idle),
+            s("c", cwd: "/r/poems", status: .waiting(nil)),
+            s("d", cwd: "/r/poems", status: .idle),
+        ], unread: ["a", "b", "c"])[0]
+        XCTAssertEqual(g.unreadCount, 2)
+    }
+
+    func testRowsSortWaitingThenUnreadThenWorkingThenIdle() {
+        let g = build([
+            s("idle", cwd: "/r/poems", status: .idle, at: 9),
+            s("ended", cwd: "/r/poems", status: .ended, at: 8),
+            s("work", cwd: "/r/poems", status: .working, at: 7),
+            s("unread", cwd: "/r/poems", status: .idle, at: 1),
+            s("wait", cwd: "/r/poems", status: .waiting("x"), at: 0),
+            s("unk", cwd: "/r/poems", status: .unknown, at: 10),
+        ], unread: ["unread"])[0]
+        XCTAssertEqual(g.rows.map(\.id), ["wait", "unread", "work", "idle", "ended", "unk"])
+    }
+
+    func testGroupsSortByTopStateWithUnreadAfterWaiting() {
+        let groups = build([
+            s("w", cwd: "/r/herdr", status: .working, at: 50),
+            s("u", cwd: "/r/poems", status: .idle, at: 1),
+            s("x", cwd: "/r/other", status: .waiting(nil), at: 0),
+        ], unread: ["u"])
+        XCTAssertEqual(groups.map(\.title), ["other", "poems", "herdr"])
+    }
+
+    func testRowInitDefaultsUnreadToFalse() {
+        let row = SidebarRow(session: s("a", cwd: "/r/poems"), displayName: "n", groupTitle: "g",
+                             subtitle: nil, sourceLabel: nil)
+        XCTAssertFalse(row.unread)
+        XCTAssertFalse(row.showsUnread)
     }
 }

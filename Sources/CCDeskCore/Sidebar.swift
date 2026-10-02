@@ -9,20 +9,39 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
     public let sourceLabel: String?
     /// 悬停提示：完整标题 + 运行位置 + （若有）最近一条 prompt。
     public let tooltip: String
+    /// Claude 完成一轮（working → idle）时用户没在看它：「已完成·未读」。仅内存中保存，由 App 层维护。
+    public var unread: Bool
     public var id: String { session.id }
 
     public init(session: AgentSession, displayName: String, groupTitle: String, subtitle: String?,
-                sourceLabel: String?, tooltip: String = "") {
+                sourceLabel: String?, tooltip: String = "", unread: Bool = false) {
         self.session = session
         self.displayName = displayName
         self.groupTitle = groupTitle
         self.subtitle = subtitle
         self.sourceLabel = sourceLabel
         self.tooltip = tooltip
+        self.unread = unread
+    }
+
+    /// 是否按「已完成·未读」显示：等批准始终优先于未读。
+    public var showsUnread: Bool { unread && !session.status.isWaiting }
+
+    /// 排序用：等批准 > 已完成·未读 > 处理中 > 空闲 > 已结束 > 未知；数值越小越靠前。
+    public var rank: Int {
+        if showsUnread { return 1 }
+        switch session.status {
+        case .waiting: return 0
+        case .working: return 2
+        case .idle: return 3
+        case .ended: return 4
+        case .unknown: return 5
+        }
     }
 
     /// 状态文字：内嵌终端里从未运行 claude 的普通 shell 显示「终端」，其余取状态本身的文字。
     public var statusLabel: String {
+        if showsUnread { return "已完成" }
         if session.status == .unknown, session.host.isEmbedded { return "终端" }
         return session.status.label
     }
@@ -39,7 +58,11 @@ public struct SessionGroup: Identifiable, Equatable, Sendable {
     public let waitingCount: Int
     public let workingCount: Int
     public let idleCount: Int
+    /// 已完成·未读且不在等批准的行数。
+    public let unreadCount: Int
     public var topStatus: AgentStatus { rows.first?.session.status ?? .unknown }
+    /// 组内最靠前一行的排序值（见 `SidebarRow.rank`），用于组间排序。
+    public var topRank: Int { rows.first?.rank ?? 5 }
 
     public init(id: String, title: String, rows: [SidebarRow]) {
         self.id = id
@@ -48,12 +71,14 @@ public struct SessionGroup: Identifiable, Equatable, Sendable {
         self.waitingCount = rows.filter { $0.session.status.isWaiting }.count
         self.workingCount = rows.filter { $0.session.status == .working }.count
         self.idleCount = rows.filter { $0.session.status == .idle }.count
+        self.unreadCount = rows.filter(\.showsUnread).count
     }
 }
 
 public enum SidebarBuilder {
     public static func build(sessions: [AgentSession], project: (String) -> ProjectRef,
-                             titles: (AgentSession) -> TranscriptMeta? = { _ in nil }) -> [SessionGroup] {
+                             titles: (AgentSession) -> TranscriptMeta? = { _ in nil },
+                             unread: (AgentSession) -> Bool = { _ in false }) -> [SessionGroup] {
         var buckets: [String: [AgentSession]] = [:]
         var refs: [String: ProjectRef] = [:]
         for session in sessions {
@@ -74,14 +99,14 @@ public enum SidebarBuilder {
         let groups = buckets.map { root, members -> SessionGroup in
             let title = titleByRoot[root] ?? groupTitle(root)
             let rows = members
-                .sorted(by: rowOrder)
                 .map { row(for: $0, ref: refs[$0.cwd] ?? ProjectRef(root: root, branch: nil, cwd: root),
-                          groupTitle: title, meta: titles($0)) }
+                          groupTitle: title, meta: titles($0), unread: unread($0)) }
+                .sorted(by: rowOrder)
             return SessionGroup(id: root, title: title, rows: rows)
         }
 
         return groups.sorted { a, b in
-            let ra = a.topStatus.rank, rb = b.topStatus.rank
+            let ra = a.topRank, rb = b.topRank
             if ra != rb { return ra < rb }
             let ta = a.rows.map(\.session.statusChangedAt).max() ?? .distantPast
             let tb = b.rows.map(\.session.statusChangedAt).max() ?? .distantPast
@@ -90,9 +115,9 @@ public enum SidebarBuilder {
         }
     }
 
-    static func rowOrder(_ a: AgentSession, _ b: AgentSession) -> Bool {
-        if a.status.rank != b.status.rank { return a.status.rank < b.status.rank }
-        if a.statusChangedAt != b.statusChangedAt { return a.statusChangedAt > b.statusChangedAt }
+    static func rowOrder(_ a: SidebarRow, _ b: SidebarRow) -> Bool {
+        if a.rank != b.rank { return a.rank < b.rank }
+        if a.session.statusChangedAt != b.session.statusChangedAt { return a.session.statusChangedAt > b.session.statusChangedAt }
         return a.id < b.id
     }
 
@@ -102,14 +127,16 @@ public enum SidebarBuilder {
         return name.isEmpty ? root : name
     }
 
-    static func row(for s: AgentSession, ref: ProjectRef, groupTitle: String, meta: TranscriptMeta?) -> SidebarRow {
+    static func row(for s: AgentSession, ref: ProjectRef, groupTitle: String, meta: TranscriptMeta?,
+                    unread: Bool = false) -> SidebarRow {
         let name = displayName(s, meta: meta)
         return SidebarRow(session: s,
                           displayName: name,
                           groupTitle: groupTitle,
                           subtitle: subtitle(s, ref: ref),
                           sourceLabel: sourceLabel(s.host),
-                          tooltip: tooltip(s, displayName: name, meta: meta))
+                          tooltip: tooltip(s, displayName: name, meta: meta),
+                          unread: unread)
     }
 
     /// 标题规则：customTitle → aiTitle → lastPrompt 前 20 字 → 非派生的会话名 → "新会话"。不再有 "#NN" 缩写。

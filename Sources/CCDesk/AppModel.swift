@@ -6,7 +6,9 @@ import CCDeskCore
 final class AppModel: ObservableObject {
     @Published private(set) var groups: [SessionGroup] = []
     @Published private(set) var now = Date()
-    @Published var selectedID: String?
+    @Published var selectedID: String? {
+        didSet { if let id = selectedID { clearUnread(id) } }
+    }
     @Published var showNewSession = false
     /// 由 ContentView 在 onAppear 时注入，用于在窗口已关闭时重新打开（App 设计上关闭窗口不退出）。
     var openMainWindow: (() -> Void)?
@@ -56,6 +58,10 @@ final class AppModel: ObservableObject {
     private var tick = 0
     /// 「测试通知与角标」期间暂时显示示例角标，到期后恢复真实计数。
     private var badgePreviewUntil: Date?
+    /// 「已完成·未读」的行 id：Claude 完成一轮（working → idle）时用户没在看它。仅内存中保存。
+    private var unreadKeys: Set<String> = []
+    /// 最近一次 poll 的项目解析结果，供未读状态变化时立即重建侧栏。
+    private var lastProjects: [String: ProjectRef] = [:]
 
     func testNotificationAndBadge() {
         badgePreviewUntil = Date().addingTimeInterval(5)
@@ -155,23 +161,27 @@ final class AppModel: ObservableObject {
             if let path = HostApps.bundlePath(for: s, processes: processes) { hostApps[s.id] = path }
         }
         hostAppPaths = hostApps
-        groups = SidebarBuilder.build(
-            sessions: sessions,
-            project: { projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) },
-            titles: { [titleCache] s in s.sessionID.flatMap { titleCache[$0] } })
+        lastProjects = projects
+
+        // 未读：会话消失或重新开始处理 / 等批准时清除；用户正看着选中的行时也清除。
+        let appVisible = NSApp.isActive && NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
+        let statusByID = Dictionary(sessions.map { ($0.id, $0.status) }, uniquingKeysWith: { a, _ in a })
+        unreadKeys = unreadKeys.filter { key in
+            guard let status = statusByID[key], status != .working, !status.isWaiting else { return false }
+            return !(appVisible && key == selectedID)
+        }
+        rebuildGroups()
 
         let rows = groups.flatMap(\.rows)
         let events = TransitionDetector.events(previous: lastStatuses, rows: rows)
         lastStatuses = Dictionary(rows.map { ($0.id, $0.session.status) }, uniquingKeysWith: { a, _ in a })
-        let appVisible = NSApp.isActive && NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
+        var newlyUnread = false
         for event in events where !(appVisible && event.sessionKey == selectedID) {
             notifier.post(event)
+            if event.kind == .finished, unreadKeys.insert(event.sessionKey).inserted { newlyUnread = true }
         }
-        let waiting = rows.filter { $0.session.status.isWaiting }.count
-        if badgePreviewUntil.map({ $0 < now }) ?? true {
-            badgePreviewUntil = nil
-            NSApp.dockTile.badgeLabel = waiting > 0 ? "\(waiting)" : nil
-        }
+        if newlyUnread { rebuildGroups() }
+        updateBadge()
 
         tick += 1
         if tick % 30 == 0 {
@@ -181,6 +191,34 @@ final class AppModel: ObservableObject {
             // 有会话从侧栏消失（如关闭了已结束的终端）：立即刷新，让它回到历史列表。
             refreshHistory()
         }
+    }
+
+    /// 用最近一次 poll 的会话重建侧栏分组（带上当前的未读集合）。
+    private func rebuildGroups() {
+        let projects = lastProjects
+        let unread = unreadKeys
+        groups = SidebarBuilder.build(
+            sessions: sessions,
+            project: { projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) },
+            titles: { [titleCache] s in s.sessionID.flatMap { titleCache[$0] } },
+            unread: { unread.contains($0.id) })
+    }
+
+    /// 清除某行的未读标记，并立即刷新侧栏与 Dock 角标。
+    private func clearUnread(_ id: String) {
+        guard unreadKeys.remove(id) != nil else { return }
+        rebuildGroups()
+        updateBadge()
+    }
+
+    /// Dock 角标 = 等批准数 + 已完成·未读数（不含同时在等批准的行）；为 0 时不显示。「测试通知与角标」期间不覆盖示例角标。
+    private func updateBadge() {
+        guard badgePreviewUntil.map({ $0 < Date() }) ?? true else { return }
+        badgePreviewUntil = nil
+        let waiting = groups.reduce(0) { $0 + $1.waitingCount }
+        let unread = groups.reduce(0) { $0 + $1.unreadCount }
+        let count = waiting + unread
+        NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
     }
 
     /// 根据本轮内嵌终端的状态更新 observedClaude / knownSessionIDs / endedSessionIDs。
@@ -236,6 +274,7 @@ final class AppModel: ObservableObject {
     // MARK: 动作
 
     func activate(_ row: SidebarRow) {
+        clearUnread(row.id)
         switch row.session.host {
         case .embedded:
             selectedID = row.id
