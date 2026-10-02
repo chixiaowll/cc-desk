@@ -215,6 +215,7 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .st.unread { color: var(--unread); }
 .st.idle { color: var(--fg3); }
 .st.miss { color: var(--pill-miss-fg); }
+.sub .ag { color: var(--fg2); font-weight: 400; }
 .pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border-radius: 11px; font-size: 11.5px; font-weight: 600; }
 .pill.work { background: var(--pill-work-bg); color: var(--pill-work-fg); }
 .pill.work::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--dot); animation: breathe 1.6s ease-in-out infinite; }
@@ -455,12 +456,13 @@ function row(r) {
   const badge = r.status === 'waiting' ? '<span class="badge wait"></span>' : r.status === 'working' ? '<span class="badge work"></span>' : r.status === 'unread' ? '<span class="badge unread"></span>' : r.status === 'idle' ? '<span class="badge idle"></span>' : '';
   const cls = ['row', r.status === 'waiting' ? 'waiting' : '', r.status === 'unread' ? 'unread' : '', r.selected ? 'selected' : '', r.stale ? 'stale' : ''].join(' ');
   const where = { embedded: '在 CC Desk 内运行', terminal: '在 Terminal 中运行，点击跳转', vscode: '在 VS Code 中运行，点击跳转', missing: '目录缺失' }[r.source];
-  const tip = r.title + `\n${where}` + (r.last ? `\n最近：${r.last}` : '');
+  const agent = r.status === 'missing' ? null : (r.agent === undefined ? 'Claude' : r.agent);
+  const tip = r.title + (agent ? `\nAgent：${agent}` : '') + `\n${where}` + (r.last ? `\n最近：${r.last}` : '');
   const ext = (r.source === 'terminal' || r.source === 'vscode') ? `<span class="ext" aria-hidden="true">${ICON.ext}</span>` : '';
   return `<button type="button" class="${cls}" title="${esc(tip)}" aria-label="${esc(r.title)}，${st[1]}">
     <span class="tile ${tileCls}">${tileIcon}${ext}${badge}</span>
     <span class="title">${esc(r.title)}</span><span class="time">${esc(r.time)}</span>
-    <span class="sub"><span class="st ${st[0]}">${st[1]}${r.reason ? ' · ' + esc(r.reason) : ''}</span>${r.status === 'missing' && r.sub ? ' · ' + esc(r.sub) : ''}</span>
+    <span class="sub"><span class="st ${st[0]}">${st[1]}${r.reason ? ' · ' + esc(r.reason) : ''}</span>${r.status === 'missing' && r.sub ? ' · ' + esc(r.sub) : ''}${agent ? `<span class="ag"> · ${esc(agent)}</span>` : ''}</span>
   </button>`;
 }
 function histRow(h) {
