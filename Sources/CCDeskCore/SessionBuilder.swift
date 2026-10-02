@@ -1,0 +1,76 @@
+import Foundation
+
+public struct EmbeddedTerminalInfo: Equatable, Sendable {
+    public let id: UUID
+    public let cwd: String
+    public let tty: String?
+    public let title: String
+    public let createdAt: Date
+
+    public init(id: UUID, cwd: String, tty: String?, title: String, createdAt: Date) {
+        self.id = id
+        self.cwd = cwd
+        self.tty = tty
+        self.title = title
+        self.createdAt = createdAt
+    }
+}
+
+public enum SessionBuilder {
+    public static func build(registry: [RegistryEntry], processes: ProcessTable,
+                             embedded: [EmbeddedTerminalInfo], missing: [WorkspaceEntry]) -> [AgentSession] {
+        var embeddedByTTY: [String: EmbeddedTerminalInfo] = [:]
+        for info in embedded {
+            if let tty = info.tty { embeddedByTTY[tty] = info }
+        }
+
+        var result: [AgentSession] = []
+        var claimedTerminals: Set<UUID> = []
+
+        // 同一 tty 上可能残留旧 session 的记录（进程仍在退出中），较新的优先。
+        let live = registry
+            .filter { processes.isAlive($0.pid) }
+            .sorted { $0.statusUpdatedAt > $1.statusUpdatedAt }
+
+        for entry in live {
+            let tty = processes.tty(of: entry.pid)
+            let host: SessionHost
+            let id: String
+            if let tty, let info = embeddedByTTY[tty] {
+                if claimedTerminals.contains(info.id) { continue }
+                claimedTerminals.insert(info.id)
+                host = .embedded(terminalID: info.id)
+                id = "term:\(info.id.uuidString)"
+            } else if entry.entrypoint == "claude-vscode" {
+                host = .vscode
+                id = "claude:\(entry.sessionID)"
+            } else if let tty, processes.hasAncestor(of: entry.pid, where: { $0.command.contains("/Terminal.app/") }) {
+                host = .terminalApp(tty: tty)
+                id = "claude:\(entry.sessionID)"
+            } else {
+                host = .other(tty: tty)
+                id = "claude:\(entry.sessionID)"
+            }
+            result.append(AgentSession(
+                id: id, kind: .claude, sessionID: entry.sessionID, pid: entry.pid, tty: tty,
+                cwd: entry.cwd, name: entry.name ?? "", nameIsDerived: entry.nameIsDerived,
+                host: host, status: entry.status, statusChangedAt: entry.statusUpdatedAt))
+        }
+
+        for info in embedded where !claimedTerminals.contains(info.id) {
+            result.append(AgentSession(
+                id: "term:\(info.id.uuidString)", kind: .other, sessionID: nil, pid: nil, tty: info.tty,
+                cwd: info.cwd, name: info.title, nameIsDerived: false,
+                host: .embedded(terminalID: info.id), status: .unknown, statusChangedAt: info.createdAt))
+        }
+
+        for entry in missing {
+            result.append(AgentSession(
+                id: "missing:\(entry.terminalID.uuidString)", kind: .claude, sessionID: entry.sessionID,
+                pid: nil, tty: nil, cwd: entry.cwd, name: entry.name, nameIsDerived: false,
+                host: .missing(terminalID: entry.terminalID), status: .unknown,
+                statusChangedAt: .distantPast))
+        }
+        return result
+    }
+}
