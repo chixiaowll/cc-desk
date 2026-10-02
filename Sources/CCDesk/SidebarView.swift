@@ -174,7 +174,7 @@ struct GroupHeaderView: View {
     }
 }
 
-/// 目录行右侧的状态计数：等批准实心橙、处理中实心雾蓝带呼吸白点、空闲灰色（仅收起时）。
+/// 目录行右侧的状态计数：等批准实心橙、已完成·未读实心鼠尾草绿、处理中实心雾蓝带呼吸白点、空闲灰色（仅收起时）。
 struct GroupCounts: View {
     let group: SessionGroup
     let collapsed: Bool
@@ -184,6 +184,9 @@ struct GroupCounts: View {
         HStack(spacing: 3) {
             if group.waitingCount > 0 {
                 CountChip(text: "\(group.waitingCount)", bg: theme.pillWaitBg, fg: theme.pillWaitFg)
+            }
+            if group.unreadCount > 0 {
+                CountChip(text: "\(group.unreadCount)", bg: theme.chipUnreadBg, fg: theme.chipUnreadFg)
             }
             if group.workingCount > 0 {
                 HStack(spacing: 4) {
@@ -202,6 +205,7 @@ struct GroupCounts: View {
 
     private var helpText: String {
         [group.waitingCount > 0 ? "\(group.waitingCount) 个等批准" : nil,
+         group.unreadCount > 0 ? "\(group.unreadCount) 个已完成未读" : nil,
          group.workingCount > 0 ? "\(group.workingCount) 个处理中" : nil,
          group.idleCount > 0 ? "\(group.idleCount) 个空闲" : nil]
             .compactMap { $0 }
@@ -261,7 +265,7 @@ struct SidebarIconButton: View {
     }
 }
 
-/// 底部汇总：「N 个会话 | ●N 处理中 | ●N 待处理」，0 时省略对应段。
+/// 底部汇总：「N 个会话 | ●N 处理中 | ●N 待处理 | ●N 未读」，0 时省略对应段。
 struct SidebarFooter: View {
     let rows: [SidebarRow]
     let theme: Theme
@@ -269,6 +273,7 @@ struct SidebarFooter: View {
     var body: some View {
         let working = rows.filter { $0.session.status == .working }.count
         let waiting = rows.filter { $0.session.status.isWaiting }.count
+        let unread = rows.filter(\.showsUnread).count
         HStack(spacing: 6) {
             Text("\(rows.count) 个会话")
             if working > 0 {
@@ -280,6 +285,11 @@ struct SidebarFooter: View {
                 separator
                 Circle().fill(theme.pillWaitBg).frame(width: 6, height: 6)
                 Text("\(waiting) 待处理").fontWeight(.semibold).foregroundStyle(theme.accent)
+            }
+            if unread > 0 {
+                separator
+                Circle().fill(theme.unread).frame(width: 6, height: 6)
+                Text("\(unread) 未读").fontWeight(.medium).foregroundStyle(theme.unread)
             }
         }
         .font(.system(size: 11.5))

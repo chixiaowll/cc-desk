@@ -37,13 +37,13 @@ struct SessionRowView: View {
 
     var body: some View {
         HStack(spacing: 9) {
-            SessionTile(host: row.session.host, status: row.session.status, appIcon: appIcon,
+            SessionTile(host: row.session.host, status: row.session.status, unread: row.showsUnread, appIcon: appIcon,
                         ring: ringColor, extRing: selected || isWaiting || theme.isDark ? ringColor : theme.extRing,
                         theme: theme)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 9) {
                     Text(row.displayName)
-                        .font(.system(size: 12.5, weight: .medium))
+                        .font(.system(size: 12.5, weight: row.showsUnread ? .semibold : .medium))
                         .foregroundStyle(theme.fg1)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -91,6 +91,8 @@ struct SessionRowView: View {
         if isMissing {
             (Text("目录缺失").fontWeight(.medium).foregroundColor(theme.pillMissFg)
                 + Text(" · \(row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~"))").foregroundColor(theme.fg2))
+        } else if row.showsUnread {
+            Text(row.statusLabel).fontWeight(.medium).foregroundStyle(theme.unread)
         } else {
             switch row.session.status {
             case .waiting(let reason):
@@ -110,6 +112,8 @@ struct SessionRowView: View {
 struct SessionTile: View {
     let host: SessionHost
     let status: AgentStatus
+    /// 已完成·未读：右下角显示实心鼠尾草绿点（等批准优先，调用方传入的已是 `showsUnread`）。
+    var unread: Bool = false
     let appIcon: NSImage?
     /// 状态点外圈颜色（= 行背景）。
     let ring: Color
@@ -147,6 +151,7 @@ struct SessionTile: View {
 
     private var dotColor: Color? {
         if case .missing = host { return nil }
+        if unread && !status.isWaiting { return theme.unread }
         switch status {
         case .waiting: return theme.pillWaitBg
         case .working: return theme.dot

@@ -23,6 +23,10 @@ struct Theme {
     let dot: Color
     let chipWorkBg: Color
     let chipWorkFg: Color
+    /// 已完成·未读（鼠尾草绿）：文字 / 状态点、计数胶囊底色与文字。
+    let unread: Color
+    let chipUnreadBg: Color
+    let chipUnreadFg: Color
     let pillIdleBg: Color
     let pillIdleFg: Color
     let pillMissBg: Color
@@ -57,6 +61,7 @@ struct Theme {
         pillWaitBg: Color(hex: 0xC4552B), pillWaitFg: Color(hex: 0xFFFFFF),
         pillWorkBg: Color(hex: 0xE5ECF3), pillWorkFg: Color(hex: 0x35618E), dot: Color(hex: 0x4A7BAD),
         chipWorkBg: Color(hex: 0x3F6E9E), chipWorkFg: Color(hex: 0xFFFFFF),
+        unread: Color(hex: 0x5E8B6A), chipUnreadBg: Color(hex: 0x5E8B6A), chipUnreadFg: Color(hex: 0xFFFFFF),
         pillIdleBg: Color(hex: 0xECE8E2), pillIdleFg: Color(hex: 0x5C5852),
         pillMissBg: Color(hex: 0xF1E4E2), pillMissFg: Color(hex: 0x8E5A55),
         tileEmbBg: Color(hex: 0xE2DCD2), tileEmbFg: Color(hex: 0x3A362F),
@@ -78,6 +83,7 @@ struct Theme {
         pillWaitBg: Color(hex: 0xE2875F), pillWaitFg: Color(hex: 0x1E120C),
         pillWorkBg: Color(hex: 0x22303D), pillWorkFg: Color(hex: 0x9DBBDA), dot: Color(hex: 0x82A8CF),
         chipWorkBg: Color(hex: 0x82A8CF), chipWorkFg: Color(hex: 0x101C27),
+        unread: Color(hex: 0x8DB79A), chipUnreadBg: Color(hex: 0x8DB79A), chipUnreadFg: Color(hex: 0x102016),
         pillIdleBg: Color(hex: 0x2F2D2A), pillIdleFg: Color(hex: 0xB8B3AB),
         pillMissBg: Color(hex: 0x352826), pillMissFg: Color(hex: 0xC9A09A),
         tileEmbBg: Color(hex: 0x3A3732), tileEmbFg: Color(hex: 0xE2DDD5),

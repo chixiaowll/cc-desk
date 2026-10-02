@@ -12,6 +12,7 @@
   --sel: #FFFFFF; --sel-line: #E2DDD5; --sel-shadow: 0 1px 2px rgba(60,50,40,.08); --hover: #EAE6DF; --wait-row: #F9EDE6; --wait-sub: #A8481F;
   --pill-wait-bg: #C4552B; --pill-wait-fg: #FFFFFF;
   --pill-work-bg: #E5ECF3; --pill-work-fg: #35618E; --dot: #4A7BAD; --chip-work-bg: #3F6E9E; --chip-work-fg: #FFFFFF;
+  --unread: #5E8B6A; --chip-unread-bg: #5E8B6A; --chip-unread-fg: #FFFFFF;
   --pill-idle-bg: #ECE8E2; --pill-idle-fg: #5C5852;
   --pill-miss-bg: #F1E4E2; --pill-miss-fg: #8E5A55;
   --tile-emb-bg: #E2DCD2; --tile-emb-fg: #3A362F;
@@ -31,6 +32,7 @@
   --sel: #33312D; --sel-line: #403D38; --sel-shadow: 0 1px 2px rgba(0,0,0,.35); --hover: #2A2825; --wait-row: #2E211A; --wait-sub: #E8987A;
   --pill-wait-bg: #E2875F; --pill-wait-fg: #1E120C;
   --pill-work-bg: #22303D; --pill-work-fg: #9DBBDA; --dot: #82A8CF; --chip-work-bg: #82A8CF; --chip-work-fg: #101C27;
+  --unread: #8DB79A; --chip-unread-bg: #8DB79A; --chip-unread-fg: #102016;
   --pill-idle-bg: #2F2D2A; --pill-idle-fg: #B8B3AB;
   --pill-miss-bg: #352826; --pill-miss-fg: #C9A09A;
   --tile-emb-bg: #3A3732; --tile-emb-fg: #E2DDD5;
@@ -50,6 +52,7 @@
     --sel: #33312D; --sel-line: #403D38; --sel-shadow: 0 1px 2px rgba(0,0,0,.35); --hover: #2A2825; --wait-row: #2E211A; --wait-sub: #E8987A;
     --pill-wait-bg: #E2875F; --pill-wait-fg: #1E120C;
     --pill-work-bg: #22303D; --pill-work-fg: #9DBBDA; --dot: #82A8CF; --chip-work-bg: #82A8CF; --chip-work-fg: #101C27;
+    --unread: #8DB79A; --chip-unread-bg: #8DB79A; --chip-unread-fg: #102016;
     --pill-idle-bg: #2F2D2A; --pill-idle-fg: #B8B3AB;
     --pill-miss-bg: #352826; --pill-miss-fg: #C9A09A;
     --tile-emb-bg: #3A3732; --tile-emb-fg: #E2DDD5;
@@ -159,6 +162,7 @@ svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-widt
 .count.c-idle { display: none; }
 .group.collapsed .count.c-idle { display: inline-flex; }
 .count.c-wait { background: var(--pill-wait-bg); color: var(--pill-wait-fg); }
+.count.c-unread { background: var(--chip-unread-bg); color: var(--chip-unread-fg); }
 .count.c-work { background: var(--chip-work-bg); color: var(--chip-work-fg); gap: 4px; padding: 0 6px 0 5px; }
 .count.c-work::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--chip-work-fg); animation: breathe 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .count.c-work::before { animation: none; } }
@@ -200,12 +204,15 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .row.waiting .badge { border-color: var(--wait-row); }
 .badge.wait { background: var(--pill-wait-bg); }
 .badge.work { background: var(--dot); animation: breathe 1.6s ease-in-out infinite; }
+.badge.unread { background: var(--unread); }
+.row.unread .title { font-weight: 600; }
 .title { grid-column: 2; font-size: 13px; font-weight: 500; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .time { grid-column: 3; font-size: 11px; line-height: 18px; color: var(--fg3); font-variant-numeric: tabular-nums; }
 .sub { grid-column: 2 / 4; font-size: 11.5px; line-height: 15px; color: var(--fg2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .st { font-weight: 500; }
 .st.wait { color: var(--pill-wait-bg); font-weight: 700; }
 .st.work { color: var(--pill-work-fg); }
+.st.unread { color: var(--unread); }
 .st.idle { color: var(--fg3); }
 .st.miss { color: var(--pill-miss-fg); }
 .pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px; border-radius: 11px; font-size: 11.5px; font-weight: 600; }
@@ -276,6 +283,8 @@ kbd { font: 500 10.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var
 .foot .fdot { width: 6px; height: 6px; border-radius: 50%; }
 .foot .fdot.work { background: var(--dot); }
 .foot .fdot.wait { background: var(--pill-wait-bg); }
+.foot .fdot.unread { background: var(--unread); }
+.foot .unread { color: var(--unread); font-weight: 500; }
 .foot .warn { color: var(--accent); font-weight: 600; }
 
 /* 右侧 */
@@ -401,7 +410,7 @@ kbd { font: 500 10.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var
 
 <section class="section">
   <h2>会话行的状态</h2>
-  <p>每种颜色只表示一件事：陶土橙 = 等批准（需要你处理），雾蓝 = 处理中，暖灰 = 空闲，灰玫瑰 = 目录缺失。图标表示会话在哪里运行：暖灰终端图标 = 在 CC Desk 内，Terminal / VS Code 等外部会话直接显示该应用的图标（App 中通过 NSWorkspace 读取本机已安装应用的真实图标）。</p>
+  <p>每种颜色只表示一件事：陶土橙 = 等批准（需要你处理），鼠尾草绿 = 已完成·未读（Claude 做完一轮时你没在看；选中或跳转后消失），雾蓝 = 处理中，暖灰 = 空闲，灰玫瑰 = 目录缺失。图标表示会话在哪里运行：暖灰终端图标 = 在 CC Desk 内，Terminal / VS Code 等外部会话直接显示该应用的图标（App 中通过 NSWorkspace 读取本机已安装应用的真实图标）。</p>
   <div class="states" id="states"></div>
 </section>
 
@@ -411,7 +420,7 @@ kbd { font: 500 10.5px -apple-system, BlinkMacSystemFont, sans-serif; color: var
     <li>标题优先用你在 Claude 里 <code>/rename</code> 起的名字，其次是 Claude 自动生成的标题，再其次是你最近一条消息的前 20 个字；不再显示 #63 这类编号。</li>
     <li>分组按「需要处理」优先排序：有等批准的组在最前，然后是处理中的组。</li>
     <li>点分组标题（目录名）即可收起 / 展开整组；「poems」和「读书笔记」演示了收起状态。</li>
-    <li>目录名后按状态分别计数，只显示不为 0 的：实心橙 = 等批准个数，实心蓝带呼吸点 = 处理中个数；灰色的空闲个数只在分组收起时显示（展开时每行都看得到，不重复）。悬停可看到文字明细。</li>
+    <li>目录名后按状态分别计数，只显示不为 0 的：实心橙 = 等批准个数，实心绿 = 已完成·未读个数，实心蓝带呼吸点 = 处理中个数；灰色的空闲个数只在分组收起时显示（展开时每行都看得到，不重复）。悬停可看到文字明细。</li>
     <li>侧栏只放正在运行的会话。历史会话有两个入口：悬停目录标题点时钟，弹出该目录的历史（可搜索）；点左上角工具栏的时钟或按 ⌘⇧H，打开全局搜索面板，按今天 / 昨天 / 更早分组，每条标出所属目录。这里默认展开了 herdr 的弹出层。</li>
     <li>浅色外观下终端也是浅色；需要在 Claude 里执行 <code>/theme</code> 切到 light，否则部分灰色文字看不清。设置里可以选「终端始终深色」。</li>
     <li>标题过长：侧栏单行、末尾省略号，悬停显示完整标题和你最近一条消息；选中后右侧标题栏显示完整标题；侧栏右边缘可拖动，宽度 240–420px。目录名过长同样截断，数量标签始终完整。「旅行攻略」第二条是超长标题示例。</li>
@@ -439,12 +448,12 @@ const PILL = { waiting: ['wait', '等批准'], working: ['work', '处理中'], i
 const TILE = { embedded: ['t-emb', ICON.term], terminal: ['t-app', '<img class="appicon" src="assets/terminal.png" alt="Terminal">'], vscode: ['t-app', '<img class="appicon" src="assets/vscode.png" alt="VS Code">'], missing: ['t-miss', ICON.miss] };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-const STATUS = { waiting: ['wait', '等批准'], working: ['work', '处理中'], idle: ['idle', '空闲'], missing: ['miss', '目录缺失'] };
+const STATUS = { waiting: ['wait', '等批准'], unread: ['unread', '已完成'], working: ['work', '处理中'], idle: ['idle', '空闲'], missing: ['miss', '目录缺失'] };
 function row(r) {
   const [tileCls, tileIcon] = TILE[r.source];
   const st = STATUS[r.status];
-  const badge = r.status === 'waiting' ? '<span class="badge wait"></span>' : r.status === 'working' ? '<span class="badge work"></span>' : r.status === 'idle' ? '<span class="badge idle"></span>' : '';
-  const cls = ['row', r.status === 'waiting' ? 'waiting' : '', r.selected ? 'selected' : '', r.stale ? 'stale' : ''].join(' ');
+  const badge = r.status === 'waiting' ? '<span class="badge wait"></span>' : r.status === 'working' ? '<span class="badge work"></span>' : r.status === 'unread' ? '<span class="badge unread"></span>' : r.status === 'idle' ? '<span class="badge idle"></span>' : '';
+  const cls = ['row', r.status === 'waiting' ? 'waiting' : '', r.status === 'unread' ? 'unread' : '', r.selected ? 'selected' : '', r.stale ? 'stale' : ''].join(' ');
   const where = { embedded: '在 CC Desk 内运行', terminal: '在 Terminal 中运行，点击跳转', vscode: '在 VS Code 中运行，点击跳转', missing: '目录缺失' }[r.source];
   const tip = r.title + `\n${where}` + (r.last ? `\n最近：${r.last}` : '');
   const ext = (r.source === 'terminal' || r.source === 'vscode') ? `<span class="ext" aria-hidden="true">${ICON.ext}</span>` : '';
@@ -478,7 +487,7 @@ const GROUPS = [
     history: [{ title: '恢复 codex 状态识别', time: '1天' }, { title: 'Windows 原生通知', time: '2天' }, { title: '修订 agent 支持文档', time: '4天' }, { title: 'pi manifest 更新', time: '5天' }, { title: '预览版发布流程', time: '1周' }] },
   { label: 'shop-backend-service', path: '~/Documents/work/code/shop-backend-service', collapsed: true, rows: [{ title: '订单接口压测', sub: 'VS Code', status: 'working', source: 'vscode', time: '3分钟' }],
     history: [{ title: '订单表字段梳理', sub: '9月30日 结束', time: '2天' }] },
-  { label: 'poems', path: '~/Documents/work/research/poems', rows: [{ title: '写一首秋天的诗', sub: 'Terminal', status: 'idle', source: 'terminal', time: '5小时' }],
+  { label: 'poems', path: '~/Documents/work/research/poems', rows: [{ title: '写一首秋天的诗', sub: 'Terminal', status: 'unread', source: 'terminal', time: '5分钟' }],
     history: [{ title: '改写古诗风格', sub: '9月27日 结束', time: '5天' }] },
   { label: '读书笔记', path: '~/Documents/work/project/读书笔记', collapsed: true, rows: [{ title: '读书笔记抽取', sub: 'Terminal', status: 'idle', source: 'terminal', time: '6天', stale: true }],
     history: [{ title: '书单标签整理', sub: '9月20日 结束', time: '12天' }] }
@@ -486,14 +495,15 @@ const GROUPS = [
 
 function groupCounts(g) {
   const n = (st) => g.rows.filter((r) => r.status === st).length;
-  return [['waiting', 'c-wait'], ['working', 'c-work'], ['idle', 'c-idle']]
+  return [['waiting', 'c-wait'], ['unread', 'c-unread'], ['working', 'c-work'], ['idle', 'c-idle']]
     .map(([st, cls]) => n(st) ? `<span class="count ${cls}">${n(st)}</span>` : '').join('');
 }
 function groupTitle(g) {
   const w = g.rows.filter((r) => r.status === 'waiting').length;
+  const u = g.rows.filter((r) => r.status === 'unread').length;
   const k = g.rows.filter((r) => r.status === 'working').length;
   const d = g.rows.filter((r) => r.status === 'idle').length;
-  return [w ? w + ' 个等批准' : '', k ? k + ' 个处理中' : '', d ? d + ' 个空闲' : ''].filter(Boolean).join('，');
+  return [w ? w + ' 个等批准' : '', u ? u + ' 个已完成未读' : '', k ? k + ' 个处理中' : '', d ? d + ' 个空闲' : ''].filter(Boolean).join('，');
 }
 document.getElementById('groups').innerHTML = GROUPS.map((g, i) => `
   <section class="group${g.collapsed ? ' collapsed' : ''}" data-i="${i}">
@@ -511,8 +521,8 @@ document.getElementById('groups').innerHTML = GROUPS.map((g, i) => `
     <div class="rows">${g.rows.map(row).join('')}</div>
   </section>`).join('');
 
-{ const all = GROUPS.flatMap((g) => g.rows); const wait = all.filter((r) => r.status === 'waiting').length; const work = all.filter((r) => r.status === 'working').length;
-  document.getElementById('foot').innerHTML = `<span>${all.length} 个会话</span>${work ? `<span class="fsep"></span><span class="fdot work"></span><span>${work} 处理中</span>` : ''}${wait ? `<span class="fsep"></span><span class="fdot wait"></span><span class="warn">${wait} 待处理</span>` : ''}`; }
+{ const all = GROUPS.flatMap((g) => g.rows); const wait = all.filter((r) => r.status === 'waiting').length; const work = all.filter((r) => r.status === 'working').length; const unread = all.filter((r) => r.status === 'unread').length;
+  document.getElementById('foot').innerHTML = `<span>${all.length} 个会话</span>${work ? `<span class="fsep"></span><span class="fdot work"></span><span>${work} 处理中</span>` : ''}${wait ? `<span class="fsep"></span><span class="fdot wait"></span><span class="warn">${wait} 待处理</span>` : ''}${unread ? `<span class="fsep"></span><span class="fdot unread"></span><span class="unread">${unread} 未读</span>` : ''}`; }
 const pop = document.getElementById('pop');
 let popFor = -1;
 function renderPop(i, q = '') {
@@ -574,6 +584,7 @@ document.getElementById('groups').addEventListener('click', (e) => {
 
 const STATES = [
   ['等批准', { title: 'travel-guide-refactor', reason: '权限确认', sub: 'Terminal', status: 'waiting', source: 'terminal', time: '2分钟' }, '整行浅橙底色，副标题显示等待原因，排在最前。'],
+  ['已完成·未读', { title: '写一首秋天的诗', sub: 'Terminal', status: 'unread', source: 'terminal', time: '5分钟' }, '鼠尾草绿「已完成」+ 角上实心绿点（不呼吸），标题加粗；排在等批准之后。选中或跳转后变回空闲。'],
   ['处理中', { title: '项目概览', sub: '', status: 'working', source: 'embedded', time: '刚刚' }, '图标角上呼吸的蓝点；暖灰终端图标块表示在 CC Desk 内运行。'],
   ['空闲', { title: '修复 codex idle 检测', sub: 'Terminal', status: 'idle', source: 'terminal', time: '2小时' }, 'Terminal 的应用图标 + 右上角 ↗：在外部 Terminal 运行，点击跳过去。'],
   ['选中', { title: '项目概览', sub: '', status: 'working', source: 'embedded', time: '刚刚', selected: true }, '系统风格的圆角高亮。'],

@@ -67,7 +67,8 @@ struct DetailView: View {
             }
             ToolbarItem(placement: .automatic) {
                 if let row {
-                    StatusPill(status: row.session.status, label: row.statusLabel, missing: false, theme: theme)
+                    StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
+                               unread: row.showsUnread, theme: theme)
                 }
             }
         }
@@ -106,6 +107,8 @@ struct StatusPill: View {
     /// 显示文字（如内嵌普通 shell 的「终端」）；nil 时取 status.label。
     var label: String? = nil
     let missing: Bool
+    /// 已完成·未读：鼠尾草绿「已完成」（等批准优先）。
+    var unread: Bool = false
     let theme: Theme
 
     var body: some View {
@@ -122,6 +125,7 @@ struct StatusPill: View {
 
     private var colors: (Color, Color, String) {
         if missing { return (theme.pillMissBg, theme.pillMissFg, "目录缺失") }
+        if unread && !status.isWaiting { return (theme.chipUnreadBg, theme.chipUnreadFg, "已完成") }
         switch status {
         case .waiting: return (theme.pillWaitBg, theme.pillWaitFg, label ?? status.label)
         case .working: return (theme.pillWorkBg, theme.pillWorkFg, label ?? status.label)
