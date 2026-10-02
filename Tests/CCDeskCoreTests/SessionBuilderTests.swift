@@ -123,8 +123,26 @@ final class SessionBuilderTests: XCTestCase {
 
     func testTerminalAppTakesPriorityOverVSCodeAncestryCheck() {
         // Even if a VS Code ancestor also happened to exist, Terminal.app ancestry wins when present.
-        let out = SessionBuilder.build(registry: [reg(700, "term")], processes: ps, embedded: [], missing: [])
+        let psBothAncestors = ProcessTable.parse("""
+            500     1 ??       /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal
+            600   500 ??       /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+            700   600 ttys007  claude
+        """)
+        let out = SessionBuilder.build(registry: [reg(700, "term")], processes: psBothAncestors, embedded: [], missing: [])
         XCTAssertEqual(out.first(where: { $0.id == "claude-pid:700" })?.host, .terminalApp(tty: "ttys007"))
+    }
+
+    func testClassifiesVSCodeByCodeHelperAncestryWithoutAppPath() {
+        // Only "/Code Helper" (not a "/Visual Studio Code.app/" path) appears in the ancestry,
+        // so this exercises the second half of the ancestry OR-check on its own.
+        let psCodeHelperOnly = ProcessTable.parse("""
+            800     1 ??       /opt/x/Code Helper (Plugin)
+            801   800 ttys050  claude
+        """)
+        let out = SessionBuilder.build(
+            registry: [reg(801, "ch", entrypoint: "cli")], processes: psCodeHelperOnly, embedded: [], missing: [])
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].host, .vscode)
     }
 
     func testSortTieBreaksOnHigherPIDWhenStatusUpdatedAtEqual() {
