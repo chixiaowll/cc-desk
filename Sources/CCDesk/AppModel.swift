@@ -14,12 +14,24 @@ final class AppModel: ObservableObject {
         didSet { UserDefaults.standard.set(Array(collapsed), forKey: "collapsedGroups") }
     }
     @Published private(set) var recentDirs: [String] = UserDefaults.standard.stringArray(forKey: "recentDirs") ?? []
+    /// 历史会话（不含当前运行中的），按时间倒序；后台每 30 秒刷新，打开历史弹出层 / 搜索面板时立即刷新。
+    @Published private var historyEntries: [HistoryEntry] = []
+    @Published var showHistoryPalette = false {
+        didSet { if showHistoryPalette && !oldValue { refreshHistory() } }
+    }
+    /// 外部会话行 id -> 宿主 App 的 .app 路径（由进程链推出），用于显示真实 App 图标。
+    private(set) var hostAppPaths: [String: String] = [:]
 
     let pool = TerminalPool()
     let notifier = Notifier()
     private let adapter = ClaudeAdapter()
     private let resolver = ProjectResolver(git: SystemProbe.git)
     private let queue = DispatchQueue(label: "cc-desk.poll")
+    /// 只在 `queue` 上使用（非线程安全）。
+    private let transcripts = TranscriptIndex()
+    private var refreshingHistory = false
+    /// 当前运行中的 Claude sessionId；历史列表据此在主线程上再过滤一次（后台结果可能已过时）。
+    private var liveSessionIDs: Set<String> = []
     private var timer: Timer?
     private var polling = false
     private var sessions: [AgentSession] = []
@@ -44,6 +56,7 @@ final class AppModel: ObservableObject {
         restore()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.poll() }
         poll()
+        refreshHistory()
     }
 
     func poll() {
@@ -51,18 +64,45 @@ final class AppModel: ObservableObject {
         polling = true
         let cwds = pool.terminals.map(\.cwd) + missing.map(\.cwd)
         let resolver = self.resolver
+        let transcripts = self.transcripts
         queue.async { [weak self] in
             let registry = RegistryReader.readAll()
             let processes = SystemProbe.processTable()
             var projects: [String: ProjectRef] = [:]
             for cwd in Set(registry.map(\.cwd) + cwds) { projects[cwd] = resolver.resolve(cwd) }
+            var titles: [String: TranscriptMeta] = [:]
+            for entry in registry where processes.isAlive(entry.pid) {
+                if let meta = transcripts.meta(forSession: entry.sessionID) { titles[entry.sessionID] = meta }
+            }
             DispatchQueue.main.async {
-                self?.apply(registry: registry, processes: processes, projects: projects)
+                self?.apply(registry: registry, processes: processes, projects: projects, titles: titles)
             }
         }
     }
 
-    private func apply(registry: [RegistryEntry], processes: ProcessTable, projects: [String: ProjectRef]) {
+    /// 在后台刷新历史会话列表；已在刷新中时忽略。
+    func refreshHistory() {
+        guard !refreshingHistory else { return }
+        refreshingHistory = true
+        let live = liveSessionIDs
+        let resolver = self.resolver
+        let transcripts = self.transcripts
+        queue.async { [weak self] in
+            let items = transcripts.history(excluding: live)
+            let entries = items.map { item -> HistoryEntry in
+                let root = resolver.resolve(item.cwd).root
+                return HistoryEntry(item: item, root: root, projectTitle: HistoryEntry.projectTitle(root: root))
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.refreshingHistory = false
+                self.historyEntries = entries
+            }
+        }
+    }
+
+    private func apply(registry: [RegistryEntry], processes: ProcessTable, projects: [String: ProjectRef],
+                       titles: [String: TranscriptMeta]) {
         polling = false
         now = Date()
         lastProcesses = processes
@@ -78,7 +118,16 @@ final class AppModel: ObservableObject {
                 knownSessionIDs[tid] = nil
             }
         }
-        groups = SidebarBuilder.build(sessions: sessions) { projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) }
+        liveSessionIDs = Set(sessions.compactMap(\.sessionID))
+        var hostApps: [String: String] = [:]
+        for s in sessions {
+            if let path = HostApps.bundlePath(for: s, processes: processes) { hostApps[s.id] = path }
+        }
+        hostAppPaths = hostApps
+        groups = SidebarBuilder.build(
+            sessions: sessions,
+            project: { projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) },
+            titles: { s in s.sessionID.flatMap { titles[$0] } })
 
         let rows = groups.flatMap(\.rows)
         let events = TransitionDetector.events(previous: lastStatuses, rows: rows)
@@ -91,7 +140,10 @@ final class AppModel: ObservableObject {
         NSApp.dockTile.badgeLabel = waiting > 0 ? "\(waiting)" : nil
 
         tick += 1
-        if tick % 30 == 0 { saveWorkspace() }
+        if tick % 30 == 0 {
+            saveWorkspace()
+            refreshHistory()
+        }
     }
 
     // MARK: 查询
@@ -103,6 +155,16 @@ final class AppModel: ObservableObject {
 
     var selectedRow: SidebarRow? {
         groups.lazy.flatMap(\.rows).first { $0.id == self.selectedID }
+    }
+
+    /// 全部历史会话（排除运行中的），按时间倒序。
+    var history: [HistoryEntry] {
+        historyEntries.filter { !liveSessionIDs.contains($0.item.sessionID) }
+    }
+
+    /// 某个项目根目录下的历史会话，按时间倒序。
+    func history(forRoot root: String) -> [HistoryEntry] {
+        history.filter { $0.root == root }
     }
 
     private var embeddedRowsInOrder: [SidebarRow] {
@@ -124,7 +186,7 @@ final class AppModel: ObservableObject {
             Jumper.openInVSCode(cwd: row.session.cwd)
         case .other:
             if let pid = row.session.pid, let processes = lastProcesses,
-               let appPath = Self.hostAppBundlePath(ofPID: pid, processes: processes) {
+               let appPath = HostApps.bundlePath(ofPID: pid, processes: processes) {
                 NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: appPath),
                                                    configuration: NSWorkspace.OpenConfiguration())
             } else {
@@ -133,16 +195,6 @@ final class AppModel: ObservableObject {
         case .missing:
             break
         }
-    }
-
-    /// 沿着祖先进程往上找第一个来自 `*.app/Contents/MacOS/*` 的命令，返回其 `.app` bundle 路径。
-    private static func hostAppBundlePath(ofPID pid: Int32, processes: ProcessTable) -> String? {
-        for ancestor in processes.ancestors(of: pid) {
-            guard let range = ancestor.command.range(of: "/Contents/MacOS/") else { continue }
-            let appPath = String(ancestor.command[..<range.lowerBound])
-            if appPath.hasSuffix(".app") { return appPath }
-        }
-        return nil
     }
 
     func selectEmbedded(index: Int) {
@@ -258,6 +310,27 @@ final class AppModel: ObservableObject {
         poll()
     }
 
+    /// 在历史会话的原目录新建内嵌终端执行 `claude --resume <id>` 并选中；已在运行则直接跳过去。
+    func resumeHistory(_ item: HistoryItem) {
+        if let row = groups.lazy.flatMap(\.rows).first(where: { $0.session.sessionID == item.sessionID }) {
+            activate(row)
+            return
+        }
+        let cwd = ProjectResolver.canonical(item.cwd)
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
+            alert("目录不存在", cwd)
+            return
+        }
+        let terminal = makeTerminal(id: UUID(), cwd: cwd, command: adapter.resumeCommand(sessionID: item.sessionID))
+        knownSessionIDs[terminal.id] = item.sessionID
+        liveSessionIDs.insert(item.sessionID)
+        selectedID = "term:\(terminal.id.uuidString)"
+        rememberRecent(cwd)
+        saveWorkspace()
+        poll()
+    }
+
     func chooseDirectoryAndCreate() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -367,5 +440,19 @@ final class AppModel: ObservableObject {
            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
             NSWorkspace.shared.open(url)
         }
+    }
+}
+
+/// 历史会话 + 其所属项目（用于按目录筛选与显示目录标签）。
+struct HistoryEntry: Identifiable, Equatable {
+    let item: HistoryItem
+    let root: String
+    let projectTitle: String
+    var id: String { item.id }
+
+    static func projectTitle(root: String) -> String {
+        if root == NSHomeDirectory() { return "~" }
+        let name = URL(fileURLWithPath: root).lastPathComponent
+        return name.isEmpty ? root : name
     }
 }
