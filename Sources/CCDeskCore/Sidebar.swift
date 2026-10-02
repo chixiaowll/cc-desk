@@ -21,10 +21,8 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
         self.tooltip = tooltip
     }
 
-    /// 通知标题用的名字；仅当 displayName 被缩短为 "#xx" 形式时补上分组前缀，避免通知歧义。
-    public var notificationName: String {
-        displayName.hasPrefix("#") ? "\(groupTitle) \(displayName)" : displayName
-    }
+    /// 通知标题用的名字。标题已取自 transcript（不再有 "#xx" 缩写），直接使用 displayName。
+    public var notificationName: String { displayName }
 }
 
 public struct SessionGroup: Identifiable, Equatable, Sendable {

@@ -28,10 +28,10 @@ final class TransitionsTests: XCTestCase {
         XCTAssertEqual(ev, [StatusEvent(kind: .finished, sessionKey: "a", title: "旅行攻略 已完成", body: "本轮已结束")])
     }
 
-    func testNotificationNameUsesGroupTitlePrefixForShortenedDerivedNames() {
+    func testNotificationNameIsDisplayNameWithoutGroupPrefix() {
         let ev = TransitionDetector.events(previous: ["a": .working],
                                             rows: [row("a", .waiting("x"), name: "#06", groupTitle: "poems")])
-        XCTAssertEqual(ev.first?.title, "poems #06 需要批准")
+        XCTAssertEqual(ev.first?.title, "#06 需要批准")
     }
 
     func testNoEventsForUnchangedNewOrOtherTransitions() {
