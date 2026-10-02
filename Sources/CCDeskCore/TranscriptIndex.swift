@@ -7,9 +7,12 @@ public struct HistoryItem: Identifiable, Equatable, Sendable {
     public let title: String
     public let lastPrompt: String?
     public let modifiedAt: Date
+    public let kind: AgentKind
     public var id: String { sessionID }
 
-    public init(sessionID: String, cwd: String, title: String, lastPrompt: String?, modifiedAt: Date) {
+    public init(sessionID: String, cwd: String, title: String, lastPrompt: String?, modifiedAt: Date,
+                kind: AgentKind = .claude) {
+        self.kind = kind
         self.sessionID = sessionID
         self.cwd = cwd
         self.title = title
@@ -56,7 +59,8 @@ public final class TranscriptIndex {
             if live.contains(sessionID) { continue }
             guard let e = entry(for: url), let cwd = e.cwd else { continue }
             let title = e.meta.displayTitle(fallbackName: nil, fallbackIsDerived: true)
-            items.append(HistoryItem(sessionID: sessionID, cwd: cwd, title: title, lastPrompt: e.meta.lastPrompt, modifiedAt: e.mtime))
+            items.append(HistoryItem(sessionID: sessionID, cwd: cwd, title: title, lastPrompt: e.meta.lastPrompt, modifiedAt: e.mtime,
+                                     kind: .claude))
         }
         items.sort { $0.modifiedAt > $1.modifiedAt }
         if items.count > limit { items = Array(items.prefix(limit)) }

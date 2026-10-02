@@ -46,6 +46,7 @@ final class TranscriptIndexTests: XCTestCase {
         XCTAssertEqual(items.map(\.sessionID), ["new", "old"])
         XCTAssertEqual(items.map(\.title), ["新的", "旧的"])
         XCTAssertEqual(items.map(\.cwd), ["/r/b", "/r/a"])
+        XCTAssertEqual(items.map(\.kind), [.claude, .claude])
     }
 
     func testHistoryExcludesLiveSessions() {

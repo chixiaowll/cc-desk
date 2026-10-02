@@ -7,6 +7,8 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
     public let groupTitle: String
     public let subtitle: String?
     public let sourceLabel: String?
+    /// agent 名（如 "Claude"）；普通 shell 为 nil。
+    public let agentLabel: String?
     /// 悬停提示：完整标题 + 运行位置 + （若有）最近一条 prompt。
     public let tooltip: String
     /// Claude 完成一轮（working → idle）时用户没在看它：「已完成·未读」。仅内存中保存，由 App 层维护。
@@ -14,12 +16,13 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
     public var id: String { session.id }
 
     public init(session: AgentSession, displayName: String, groupTitle: String, subtitle: String?,
-                sourceLabel: String?, tooltip: String = "", unread: Bool = false) {
+                sourceLabel: String?, agentLabel: String? = nil, tooltip: String = "", unread: Bool = false) {
         self.session = session
         self.displayName = displayName
         self.groupTitle = groupTitle
         self.subtitle = subtitle
         self.sourceLabel = sourceLabel
+        self.agentLabel = agentLabel
         self.tooltip = tooltip
         self.unread = unread
     }
@@ -135,6 +138,7 @@ public enum SidebarBuilder {
                           groupTitle: groupTitle,
                           subtitle: subtitle(s, ref: ref),
                           sourceLabel: sourceLabel(s.host),
+                          agentLabel: agentLabel(s),
                           tooltip: tooltip(s, displayName: name, meta: meta),
                           unread: unread)
     }
@@ -144,9 +148,17 @@ public enum SidebarBuilder {
         (meta ?? TranscriptMeta()).displayTitle(fallbackName: s.name.isEmpty ? nil : s.name, fallbackIsDerived: s.nameIsDerived)
     }
 
-    /// "<完整标题>\n<运行位置>"，若有 lastPrompt 再加一行 "最近：…"（单行化，最长 80 字）。
+    /// agent 会话取 kind 的显示名；普通 shell 与目录缺失的占位为 nil。
+    static func agentLabel(_ s: AgentSession) -> String? {
+        if case .missing = s.host { return nil }
+        return s.kind.isAgent ? s.kind.displayName : nil
+    }
+
+    /// "<完整标题>\n[Agent：<名>\n]<运行位置>"，若有 lastPrompt 再加一行 "最近：…"（单行化，最长 80 字）。
     static func tooltip(_ s: AgentSession, displayName: String, meta: TranscriptMeta?) -> String {
-        var text = "\(displayName)\n\(whereText(s))"
+        var text = displayName
+        if let agent = agentLabel(s) { text += "\nAgent：\(agent)" }
+        text += "\n\(whereText(s))"
         if let prompt = meta?.lastPrompt {
             let collapsed = singleLine(prompt, maxLength: 80)
             if !collapsed.isEmpty { text += "\n最近：\(collapsed)" }

@@ -30,4 +30,18 @@ final class ModelTests: XCTestCase {
         XCTAssertFalse(SessionHost.vscode.isEmbedded)
         XCTAssertNil(SessionHost.vscode.terminalID)
     }
+
+    func testAgentKindDisplayNames() {
+        XCTAssertEqual(AgentKind.claude.displayName, "Claude")
+        XCTAssertEqual(AgentKind.codex.displayName, "Codex")
+        XCTAssertEqual(AgentKind.pi.displayName, "pi")
+        XCTAssertEqual(AgentKind.other.displayName, "终端")
+        XCTAssertTrue(AgentKind.claude.isAgent)
+        XCTAssertFalse(AgentKind.other.isAgent)
+    }
+
+    func testHistoryItemDefaultsToClaude() {
+        let item = HistoryItem(sessionID: "s", cwd: "/a", title: "t", lastPrompt: nil, modifiedAt: Date())
+        XCTAssertEqual(item.kind, .claude)
+    }
 }

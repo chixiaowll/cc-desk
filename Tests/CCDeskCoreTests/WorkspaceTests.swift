@@ -46,7 +46,7 @@ final class WorkspaceTests: XCTestCase {
         let url = dir.appendingPathComponent("workspace.json")
         let tid = UUID()
         let futureJSON = """
-        {"version":1,"entries":[{"terminalID":"\(tid.uuidString)","cwd":"/a","name":"a","kind":"codex"}]}
+        {"version":1,"entries":[{"terminalID":"\(tid.uuidString)","cwd":"/a","name":"a","kind":"aider"}]}
         """
         try Data(futureJSON.utf8).write(to: url)
 
@@ -72,5 +72,19 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(loaded.entries.count, 1)
         XCTAssertNil(loaded.entries[0].kind)
         XCTAssertEqual(loaded.entries[0].cwd, "/a")
+    }
+
+    func testKnownAgentKindsDecode() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("workspace.json")
+        let json = """
+        {"version":1,"entries":[{"terminalID":"\(UUID().uuidString)","cwd":"/a","name":"a","kind":"codex"},\
+        {"terminalID":"\(UUID().uuidString)","cwd":"/b","name":"b","kind":"pi"}]}
+        """
+        try Data(json.utf8).write(to: url)
+        let loaded = try XCTUnwrap(WorkspaceStore.load(from: url))
+        XCTAssertEqual(loaded.entries.map(\.kind), [.codex, .pi])
     }
 }

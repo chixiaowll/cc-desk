@@ -155,10 +155,10 @@ final class SidebarTests: XCTestCase {
             s("m", cwd: "/r/poems", name: "n", host: .missing(terminalID: tid)),
         ])[0]
         let tooltips = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0.tooltip) })
-        XCTAssertEqual(tooltips["e"], "n\n在 CC Desk 内运行")
-        XCTAssertEqual(tooltips["t"], "n\n在 Terminal 中运行，点击跳转")
-        XCTAssertEqual(tooltips["v"], "n\n在 VS Code 中运行，点击跳转")
-        XCTAssertEqual(tooltips["o"], "n\n在外部终端中运行")
+        XCTAssertEqual(tooltips["e"], "n\nAgent：Claude\n在 CC Desk 内运行")
+        XCTAssertEqual(tooltips["t"], "n\nAgent：Claude\n在 Terminal 中运行，点击跳转")
+        XCTAssertEqual(tooltips["v"], "n\nAgent：Claude\n在 VS Code 中运行，点击跳转")
+        XCTAssertEqual(tooltips["o"], "n\nAgent：Claude\n在外部终端中运行")
         XCTAssertEqual(tooltips["m"], "n\n目录缺失：/r/poems")
     }
 
@@ -166,7 +166,7 @@ final class SidebarTests: XCTestCase {
         let g = build([s("a", cwd: "/r/poems", name: "n")], titles: { _ in
             TranscriptMeta(customTitle: "n", lastPrompt: "帮我\n写一个函数")
         })[0]
-        XCTAssertEqual(g.rows[0].tooltip, "n\n在 VS Code 中运行，点击跳转\n最近：帮我 写一个函数")
+        XCTAssertEqual(g.rows[0].tooltip, "n\nAgent：Claude\n在 VS Code 中运行，点击跳转\n最近：帮我 写一个函数")
     }
 
     func testTooltipTruncatesLastPromptTo80Characters() {
@@ -174,7 +174,7 @@ final class SidebarTests: XCTestCase {
         let g = build([s("a", cwd: "/r/poems", name: "n")], titles: { _ in
             TranscriptMeta(customTitle: "n", lastPrompt: longPrompt)
         })[0]
-        let expected = "n\n在 VS Code 中运行，点击跳转\n最近：" + String(repeating: "字", count: 80) + "…"
+        let expected = "n\nAgent：Claude\n在 VS Code 中运行，点击跳转\n最近：" + String(repeating: "字", count: 80) + "…"
         XCTAssertEqual(g.rows[0].tooltip, expected)
     }
 
@@ -301,5 +301,36 @@ final class SidebarTests: XCTestCase {
                              subtitle: nil, sourceLabel: nil)
         XCTAssertFalse(row.unread)
         XCTAssertFalse(row.showsUnread)
+    }
+
+    func testAgentLabelForAgentRowsAndNilForPlainShells() {
+        let tid = UUID()
+        func session(_ id: String, kind: AgentKind, host: SessionHost) -> AgentSession {
+            AgentSession(id: id, kind: kind, sessionID: nil, pid: nil, tty: nil, cwd: "/r/poems", name: "n",
+                         nameIsDerived: false, host: host, status: .idle, statusChangedAt: Date())
+        }
+        let rows = build([
+            session("c", kind: .claude, host: .vscode),
+            session("x", kind: .codex, host: .vscode),
+            session("p", kind: .pi, host: .vscode),
+            session("sh", kind: .other, host: .embedded(terminalID: tid)),
+            session("m", kind: .other, host: .missing(terminalID: UUID())),
+        ])[0].rows
+        let labels = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.agentLabel) })
+        XCTAssertEqual(labels["c"], "Claude")
+        XCTAssertEqual(labels["x"], "Codex")
+        XCTAssertEqual(labels["p"], "pi")
+        XCTAssertEqual(labels["sh"], .some(nil))
+        XCTAssertEqual(labels["m"], .some(nil))
+        let tooltips = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.tooltip) })
+        XCTAssertEqual(tooltips["x"], "n\nAgent：Codex\n在 VS Code 中运行，点击跳转")
+        XCTAssertEqual(tooltips["sh"], "n\n在 CC Desk 内运行")
+    }
+
+    func testMissingPlaceholderHasNoAgentLabel() {
+        let m = AgentSession(id: "missing:x", kind: .claude, sessionID: "sid", pid: nil, tty: nil, cwd: "/r/poems",
+                             name: "n", nameIsDerived: false, host: .missing(terminalID: UUID()), status: .unknown,
+                             statusChangedAt: Date())
+        XCTAssertNil(build([m])[0].rows[0].agentLabel)
     }
 }

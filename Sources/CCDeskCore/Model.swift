@@ -4,9 +4,29 @@ public enum CCDeskCore {
     public static let version = "0.1.0"
 }
 
-public enum AgentKind: String, Codable, Sendable {
+/// 会话的 agent 种类。原始值写入 workspace.json；未知值由 `WorkspaceEntry` 宽松解码为 nil。
+public enum AgentKind: String, Codable, Sendable, CaseIterable {
     case claude
+    case codex
+    case pi
+    /// 普通 shell（内嵌终端里没有运行任何 agent）。
     case other
+
+    /// 界面上显示的 agent 名。
+    public var displayName: String {
+        switch self {
+        case .claude: return "Claude"
+        case .codex: return "Codex"
+        case .pi: return "pi"
+        case .other: return "终端"
+        }
+    }
+
+    /// 是否是一个 agent（而非普通 shell）。
+    public var isAgent: Bool { self != .other }
+
+    /// 新建会话时可选的 agent，按显示顺序。
+    public static let launchable: [AgentKind] = [.claude, .codex, .pi]
 }
 
 public enum AgentStatus: Equatable, Sendable {
