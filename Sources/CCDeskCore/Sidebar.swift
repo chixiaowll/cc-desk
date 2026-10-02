@@ -60,7 +60,7 @@ public enum SidebarBuilder {
             let title = titles[root] ?? groupTitle(root)
             let rows = members
                 .sorted(by: rowOrder)
-                .map { row(for: $0, ref: refs[$0.cwd] ?? ProjectRef(root: root, branch: nil), groupTitle: title) }
+                .map { row(for: $0, ref: refs[$0.cwd] ?? ProjectRef(root: root, branch: nil, cwd: root), groupTitle: title) }
             return SessionGroup(id: root, title: title, rows: rows)
         }
 
@@ -114,9 +114,8 @@ public enum SidebarBuilder {
         if case .waiting(let reason) = s.status { return reason ?? "等待输入" }
         if case .missing = s.host { return s.cwd }
         if let branch = ref.branch { return branch }
-        let canonicalCwd = ProjectResolver.canonical(s.cwd)
-        if canonicalCwd != ref.root, canonicalCwd.hasPrefix(ref.root + "/") {
-            return String(canonicalCwd.dropFirst(ref.root.count + 1))
+        if ref.cwd != ref.root, ref.cwd.hasPrefix(ref.root + "/") {
+            return String(ref.cwd.dropFirst(ref.root.count + 1))
         }
         return nil
     }

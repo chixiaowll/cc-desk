@@ -10,10 +10,14 @@ public struct ProjectRef: Equatable, Hashable, Sendable {
     public let root: String
     /// cwd 位于 worktree 时的分支名。
     public let branch: String?
+    /// 已 canonicalize（realpath）的 cwd；由 ProjectResolver.compute 填充并按 cwd 缓存，
+    /// 供调用方（如 SidebarBuilder）比较路径前缀而无需再次触碰文件系统。
+    public let cwd: String
 
-    public init(root: String, branch: String?) {
+    public init(root: String, branch: String?, cwd: String) {
         self.root = root
         self.branch = branch
+        self.cwd = cwd
     }
 }
 
@@ -66,7 +70,8 @@ public final class ProjectResolver {
     }
 
     private func compute(_ cwd: String) -> (ProjectRef, Bool) {
-        let nonGit = (ProjectRef(root: Self.canonical(cwd), branch: nil), false)
+        let canonicalCwd = Self.canonical(cwd)
+        let nonGit = (ProjectRef(root: canonicalCwd, branch: nil, cwd: canonicalCwd), false)
 
         guard let raw = git(cwd, ["rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir", "--show-toplevel"]) else {
             return nonGit
@@ -81,7 +86,7 @@ public final class ProjectResolver {
 
         if gitDir == commonDir {
             // 主仓库检出，或子模块（子模块的 toplevel 是子模块自身目录）。
-            return (ProjectRef(root: toplevel, branch: nil), true)
+            return (ProjectRef(root: toplevel, branch: nil, cwd: canonicalCwd), true)
         }
 
         // 关联 worktree：按主仓库（commonDir 的父目录，若其末段是 ".git"；否则 commonDir 本身即裸仓库）分组。
@@ -91,6 +96,6 @@ public final class ProjectResolver {
         if branch == nil || branch == "HEAD" {
             branch = run(cwd, ["rev-parse", "--short", "HEAD"])
         }
-        return (ProjectRef(root: root, branch: branch), true)
+        return (ProjectRef(root: root, branch: branch, cwd: canonicalCwd), true)
     }
 }

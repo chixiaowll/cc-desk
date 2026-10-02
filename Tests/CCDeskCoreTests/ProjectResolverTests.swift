@@ -4,7 +4,7 @@ import XCTest
 final class ProjectResolverTests: XCTestCase {
     func testNonGitDirectoryIsItsOwnCanonicalRoot() {
         let r = ProjectResolver { _, _ in nil }
-        XCTAssertEqual(r.resolve("/tmp/a"), ProjectRef(root: ProjectResolver.canonical("/tmp/a"), branch: nil))
+        XCTAssertEqual(r.resolve("/tmp/a"), ProjectRef(root: ProjectResolver.canonical("/tmp/a"), branch: nil, cwd: ProjectResolver.canonical("/tmp/a")))
     }
 
     func testMainCheckoutUsesToplevel() {
@@ -15,7 +15,7 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/repo/src"), ProjectRef(root: "/repo", branch: nil))
+        XCTAssertEqual(r.resolve("/repo/src"), ProjectRef(root: "/repo", branch: nil, cwd: "/repo/src"))
     }
 
     func testSubmoduleGitDirEqualsCommonDirUsesToplevel() {
@@ -27,7 +27,7 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/super/sub"), ProjectRef(root: "/super/sub", branch: nil))
+        XCTAssertEqual(r.resolve("/super/sub"), ProjectRef(root: "/super/sub", branch: nil, cwd: "/super/sub"))
     }
 
     func testLinkedWorktreeGroupsUnderMainRepoWithBranch() {
@@ -38,7 +38,7 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/repo", branch: "issue/42-fix"))
+        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/repo", branch: "issue/42-fix", cwd: "/wt/fix"))
     }
 
     func testLinkedWorktreeWithDetachedHeadFallsBackToShortSHA() {
@@ -50,7 +50,7 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/repo", branch: "a1b2c3d"))
+        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/repo", branch: "a1b2c3d", cwd: "/wt/fix"))
     }
 
     func testLinkedWorktreeOfBareRepoUsesCommonDirAsRoot() {
@@ -61,7 +61,7 @@ final class ProjectResolverTests: XCTestCase {
             default: return nil
             }
         }
-        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/bare", branch: "main"))
+        XCTAssertEqual(r.resolve("/wt/fix"), ProjectRef(root: "/bare", branch: "main", cwd: "/wt/fix"))
     }
 
     func testResultsAreCached() {

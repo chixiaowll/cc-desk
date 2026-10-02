@@ -10,14 +10,14 @@ final class SidebarTests: XCTestCase {
     }
 
     let projects: [String: ProjectRef] = [
-        "/r/herdr": ProjectRef(root: "/r/herdr", branch: nil),
-        "/r/herdr/src": ProjectRef(root: "/r/herdr", branch: nil),
-        "/wt/fix": ProjectRef(root: "/r/herdr", branch: "issue/1-fix"),
-        "/r/poems": ProjectRef(root: "/r/poems", branch: nil),
+        "/r/herdr": ProjectRef(root: "/r/herdr", branch: nil, cwd: "/r/herdr"),
+        "/r/herdr/src": ProjectRef(root: "/r/herdr", branch: nil, cwd: "/r/herdr/src"),
+        "/wt/fix": ProjectRef(root: "/r/herdr", branch: "issue/1-fix", cwd: "/wt/fix"),
+        "/r/poems": ProjectRef(root: "/r/poems", branch: nil, cwd: "/r/poems"),
     ]
 
     func build(_ sessions: [AgentSession]) -> [SessionGroup] {
-        SidebarBuilder.build(sessions: sessions, project: { self.projects[$0] ?? ProjectRef(root: $0, branch: nil) })
+        SidebarBuilder.build(sessions: sessions, project: { self.projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) })
     }
 
     func testGroupsByProjectRootAndOrdersGroupsByTopStatus() {
@@ -73,9 +73,9 @@ final class SidebarTests: XCTestCase {
 
     func testDuplicateGroupTitlesGetParentDirPrefix() {
         let projectsWithDup: [String: ProjectRef] = [
-            "/work/a/widgets": ProjectRef(root: "/work/a/widgets", branch: nil),
-            "/work/b/widgets": ProjectRef(root: "/work/b/widgets", branch: nil),
-            "/work/unique": ProjectRef(root: "/work/unique", branch: nil),
+            "/work/a/widgets": ProjectRef(root: "/work/a/widgets", branch: nil, cwd: "/work/a/widgets"),
+            "/work/b/widgets": ProjectRef(root: "/work/b/widgets", branch: nil, cwd: "/work/b/widgets"),
+            "/work/unique": ProjectRef(root: "/work/unique", branch: nil, cwd: "/work/unique"),
         ]
         let groups = SidebarBuilder.build(
             sessions: [
@@ -83,7 +83,7 @@ final class SidebarTests: XCTestCase {
                 s("y", cwd: "/work/b/widgets"),
                 s("z", cwd: "/work/unique"),
             ],
-            project: { projectsWithDup[$0] ?? ProjectRef(root: $0, branch: nil) })
+            project: { projectsWithDup[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) })
         let titles = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0.title) })
         XCTAssertEqual(titles["/work/a/widgets"], "a/widgets")
         XCTAssertEqual(titles["/work/b/widgets"], "b/widgets")
@@ -92,9 +92,9 @@ final class SidebarTests: XCTestCase {
 
     func testHomeDirectoryRootIsTitledTilde() {
         let home = NSHomeDirectory()
-        let projectsWithHome: [String: ProjectRef] = ["/x": ProjectRef(root: home, branch: nil)]
+        let projectsWithHome: [String: ProjectRef] = ["/x": ProjectRef(root: home, branch: nil, cwd: "/x")]
         let groups = SidebarBuilder.build(sessions: [s("a", cwd: "/x")],
-                                          project: { projectsWithHome[$0] ?? ProjectRef(root: $0, branch: nil) })
+                                          project: { projectsWithHome[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) })
         XCTAssertEqual(groups.first?.title, "~")
     }
 
@@ -112,19 +112,18 @@ final class SidebarTests: XCTestCase {
         XCTAssertEqual(subs["root"], .some(nil))
     }
 
-    func testSubtitleUsesCanonicalPathForRelativePrefixCheck() throws {
-        // /tmp is a symlink to /private/tmp on macOS; git reports the canonical root,
-        // so the cwd must be canonicalized before the hasPrefix(root) comparison.
-        let uncanonicalBase = "/tmp/\(UUID())"
-        let uncanonicalCwd = "\(uncanonicalBase)/inner"
-        try FileManager.default.createDirectory(atPath: uncanonicalCwd, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: uncanonicalBase) }
-        let canonicalRoot = ProjectResolver.canonical(uncanonicalBase)
-        XCTAssertTrue(canonicalRoot.hasPrefix("/private/"), "expected /tmp to canonicalize under /private")
+    func testSubtitleUsesCanonicalPathForRelativePrefixCheck() {
+        // SidebarBuilder must not touch the filesystem: it trusts ProjectRef.cwd, which
+        // ProjectResolver already canonicalized (e.g. /tmp -> /private/tmp on macOS).
+        let uncanonicalCwd = "/tmp/fake/inner"
+        let canonicalRoot = "/private/tmp/fake"
+        let canonicalCwd = "/private/tmp/fake/inner"
 
-        let projectsCanonical: [String: ProjectRef] = [uncanonicalCwd: ProjectRef(root: canonicalRoot, branch: nil)]
+        let projectsCanonical: [String: ProjectRef] = [
+            uncanonicalCwd: ProjectRef(root: canonicalRoot, branch: nil, cwd: canonicalCwd),
+        ]
         let g = SidebarBuilder.build(sessions: [s("x", cwd: uncanonicalCwd)],
-                                     project: { projectsCanonical[$0] ?? ProjectRef(root: $0, branch: nil) })[0]
+                                     project: { projectsCanonical[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) })[0]
         XCTAssertEqual(g.rows.first?.subtitle, "inner")
     }
 
