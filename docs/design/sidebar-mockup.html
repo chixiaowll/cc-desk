@@ -19,6 +19,7 @@
   --tile-code-bg: #ECE8E2; --tile-code-fg: #6B675F;
   --tile-miss-bg: #F1E4E2; --tile-miss-fg: #8E5A55;
   --ok: #4A7BAD; --accent: #B24E26; --action: #2B2925; --focus: #4A7BAD;
+  --ext-bg: #FFFFFF; --ext-fg: #5C5852; --ext-ring: #DDD8D0; --appicon-filter: drop-shadow(0 1px 1px rgba(60,50,40,.18));
   /* 终端（浅色） */
   --term-bg: #FFFEFC; --term-border: #E4E0D9; --term-fg: #2A2925; --term-dim: #85807A;
   --term-claude: #C4552B; --term-rule: #DDD8D0; --term-cursor: #2A2925; --term-spin: #C4552B;
@@ -37,6 +38,7 @@
   --tile-code-bg: #2E2C29; --tile-code-fg: #A39E96;
   --tile-miss-bg: #352826; --tile-miss-fg: #C9A09A;
   --ok: #82A8CF; --accent: #E2875F; --action: #EDEBE7; --focus: #82A8CF;
+  --ext-bg: #4A4741; --ext-fg: #F2EFEA; --ext-ring: #1F1E1C; --appicon-filter: drop-shadow(0 0 0.6px rgba(255,255,255,.55)) drop-shadow(0 1px 2px rgba(0,0,0,.6));
   --term-bg: #1B1A18; --term-border: #1B1A18; --term-fg: #D8D3CB; --term-dim: #8F8A82;
   --term-claude: #D97757; --term-rule: #3A3834; --term-cursor: #D8D3CB; --term-spin: #E8925F;
 }
@@ -55,6 +57,7 @@
     --tile-code-bg: #2E2C29; --tile-code-fg: #A39E96;
     --tile-miss-bg: #352826; --tile-miss-fg: #C9A09A;
     --ok: #82A8CF; --accent: #E2875F; --action: #EDEBE7; --focus: #82A8CF;
+  --ext-bg: #4A4741; --ext-fg: #F2EFEA; --ext-ring: #1F1E1C; --appicon-filter: drop-shadow(0 0 0.6px rgba(255,255,255,.55)) drop-shadow(0 1px 2px rgba(0,0,0,.6));
     --term-bg: #1B1A18; --term-border: #1B1A18; --term-fg: #D8D3CB; --term-dim: #8F8A82;
     --term-claude: #D97757; --term-rule: #3A3834; --term-cursor: #D8D3CB; --term-spin: #E8925F;
   }
@@ -115,10 +118,10 @@ svg.i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-widt
 .rows .sub { font-size: 11px; line-height: 14px; }
 .rows .time { font-size: 10.5px; line-height: 17px; }
 .badge.idle { display: none; }
-.ext { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--side); color: var(--fg2); box-shadow: 0 0 0 1px var(--line); }
+.ext { position: absolute; top: -3px; right: -3px; width: 12px; height: 12px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--ext-bg); color: var(--ext-fg); box-shadow: 0 0 0 1.5px var(--ext-ring); }
 .ext svg.i { width: 7px !important; height: 7px !important; stroke-width: 2.2; }
-.row.selected .ext { background: var(--sel); }
-.row.waiting .ext { background: var(--wait-row); }
+.row.selected .ext { box-shadow: 0 0 0 1.5px var(--sel); }
+.row.waiting .ext { box-shadow: 0 0 0 1.5px var(--wait-row); }
 :root[data-density="compact"] .rows .ext { display: none; }
 
 /* 紧凑模式：会话一行；只有等批准保留第二行说明原因 */
@@ -188,7 +191,7 @@ button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 .tile.t-term { background: var(--tile-term-bg); color: var(--tile-term-fg); }
 .tile.t-code { background: var(--tile-code-bg); color: var(--tile-code-fg); }
 .tile.t-app { background: transparent; }
-.appicon { width: 100%; height: 100%; object-fit: contain; display: block; }
+.appicon { width: 100%; height: 100%; object-fit: contain; display: block; filter: var(--appicon-filter); }
 .rows .tile.t-app .appicon { width: 26px; height: 26px; }
 .tile.t-miss { background: var(--tile-miss-bg); color: var(--tile-miss-fg); }
 .tile.t-hist { background: transparent; color: var(--fg3); }
