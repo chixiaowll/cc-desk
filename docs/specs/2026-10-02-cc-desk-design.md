@@ -34,9 +34,11 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 
 **v1 只做 Claude Code**，Codex 与 pi 在 v1.1 加入。适配器抽象在 v1 就建好，v1.1 只需新增适配器、hook 和规则文件。
 
+**v1 不安装任何 hook、不做屏幕检测。** 经核实（Claude Code 2.1.280），Claude 自己维护 `~/.claude/sessions/<pid>.json`，其 `status` 取值为 `busy` / `idle` / `waiting`，`waiting` 时 `waitingFor` 给出原因（如 `input needed`、`dialog open` 或权限对话框描述），Esc 中断等情况也由 Claude 自己更新。这已覆盖 v1 的全部状态需求，因此 §4.4 hook 与 §4.5 屏幕检测推迟到 v1.1（Codex / pi 需要）。该文件格式没有公开文档，读取须宽松（§6）。
+
 | Agent | 启动 | 恢复 | 状态来源 |
 |---|---|---|---|
-| Claude Code | `claude` | `claude --resume <id>` | hook + `~/.claude/sessions` 登记文件 + 屏幕规则 |
+| Claude Code | `claude` | `claude --resume <id>` | `~/.claude/sessions` 登记文件（Claude 自己写入 busy / idle / waiting + waitingFor） |
 | Codex（v1.1） | `codex` | `codex resume <id>` | hook（`~/.codex/hooks.json`）+ 屏幕规则 |
 | pi（v1.1） | `pi` | v1.1 实现前验证 | 扩展（`~/.pi/agent/extensions/`）+ 屏幕规则 |
 | 其他命令 | 任意 shell 命令 | 不支持 | 仅「运行中 / 已退出」 |
@@ -101,10 +103,9 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 
 ```
            ┌──────────────── 状态采集 ────────────────┐
-hook/扩展 ─▶ HookStateReader   ~/.cc-desk/state/*.json   │
 登记文件  ─▶ RegistryReader    ~/.claude/sessions/*.json │──▶ SessionStore ──▶ SidebarView
-进程表    ─▶ ProcessScanner    ps（agent 进程 + tty）     │        │           Notifier
-屏幕      ─▶ ScreenDetector    内嵌终端底部缓冲区          │        │           DockBadge
+进程表    ─▶ ProcessScanner    ps（pid / ppid / tty）     │        │           Notifier
+（v1.1）hook ─▶ HookStateReader，屏幕 ─▶ ScreenDetector    │        │           DockBadge
            └───────────────────────────────────────────┘        ▼
                                                         TerminalPool ──▶ TerminalView（右侧）
                                                         Jumper（外部跳转）
@@ -142,6 +143,8 @@ struct AgentSession: Identifiable {
 
 ### 4.2 状态采集与合并
 
+v1 只有登记文件 + 进程两个来源：登记文件给出 session 列表与状态，进程表确认存活并给出 tty 和宿主。下面的多来源合并规则在 v1.1 引入 hook / 屏幕来源时启用，v1 的 `SessionStore` 先按此接口设计：
+
 各来源独立产出 `(tty/pid, status, timestamp)`，`SessionStore` 按优先级合并：
 
 1. **hook / 扩展**（最准确）：agent 主动上报。
@@ -154,9 +157,9 @@ struct AgentSession: Identifiable {
 session 的**存在性**由进程决定：进程不在了就从列表移除，无论其他来源说什么。
 
 **更新机制**：
-- `~/.cc-desk/state/` 和 `~/.claude/sessions/` 用 FSEvents 监听，变化即刷新。
-- 进程扫描每 3 秒一次（`ps -axo pid,ppid,tty,comm,args`），用于发现新 session、确认存活。
-- 屏幕检测在内嵌终端有输出时节流触发（同一终端最多每 500ms 一次），只读底部缓冲区，不读用户滚动位置。
+- v1 每 1 秒轮询一次：读 `~/.claude/sessions/*.json`（文件数等于 session 数，开销可忽略）+ 执行 `ps -axo pid=,ppid=,tty=,comm=`。比 FSEvents 简单，且满足 3 秒内反映变化的目标。
+- 过滤：只保留 `kind == "interactive"` 且 `spare != true` 且进程存活的条目。
+- （v1.1）屏幕检测在内嵌终端有输出时节流触发（同一终端最多每 500ms 一次），只读底部缓冲区，不读用户滚动位置。
 
 ### 4.3 Agent 适配器
 
@@ -174,7 +177,7 @@ protocol AgentAdapter {
 
 v1 实现 `ClaudeAdapter`、`GenericAdapter`；v1.1 增加 `CodexAdapter`、`PiAdapter`。
 
-### 4.4 Hook / 扩展
+### 4.4 Hook / 扩展（v1.1）
 
 所有 hook 写同一种状态文件 `~/.cc-desk/state/<tty>.json`：
 
@@ -196,7 +199,7 @@ v1 实现 `ClaudeAdapter`、`GenericAdapter`；v1.1 增加 `CodexAdapter`、`PiA
 
 **安装流程**：首次启动时在设置页列出可安装的 hook，用户逐个点「安装」。安装前备份原配置文件（`*.cc-desk.bak`），修改用结构化 JSON 合并而非字符串拼接；提供「卸载」按钮，只移除 CC Desk 自己添加的条目。hook 脚本放在 `~/.cc-desk/hooks/`，配置中通过绝对路径引用。
 
-### 4.5 屏幕检测
+### 4.5 屏幕检测（v1.1）
 
 - 复用 herdr（Apache-2.0）的 `src/detect/manifests/claude.toml`（v1.1 加 codex、pi），随 App 打包，在 `NOTICE` 中注明来源与许可。
 - v1 用 Swift 实现规则引擎的子集：区域 `bottom_non_empty_lines(N)`、`whole_recent`、`after_last_prompt_marker`、`osc_title`；匹配 `contains`、`regex`、`line_regex`、`any`、`all`；按 `priority` 取最高命中规则。不支持的区域或字段：跳过该规则并记录日志，不报错。
@@ -250,7 +253,6 @@ hook 写 `state/ttys007.json`（waiting）→ FSEvents → SessionStore 合并�
 |---|---|
 | 登记文件 / 状态文件格式异常或缺字段 | 跳过该文件，记日志；不崩溃 |
 | agent 升级导致屏幕规则失效 | 状态回退到下一优先级来源；规则文件可在 `~/.cc-desk/manifests/` 覆盖，无需重新打包 |
-| hook 未安装 | 左边栏仍能显示（登记文件 / 屏幕 / 进程），设置页提示「安装 hook 可识别等批准状态」 |
 | 自动化权限被拒 | 外部跳转失败时显示提示条，附打开系统设置的按钮 |
 | 恢复 / 接管时原 cwd 不存在 | 不启动，显示「目录缺失」占位行（见 §4.8） |
 | 恢复命令执行失败（session 已不存在） | 终端里会显示 agent 的报错，保留 shell；左边栏标记为普通终端 |
@@ -302,7 +304,7 @@ cc-desk/
 
 1. **SwiftTerm 跑 agent 的体验**：在最小 Demo 中运行 `claude`，确认显示、中文输入、快捷键正常。这是整个方案的前提。
 2. **Terminal.app AppleScript 按 tty 定位**：在当前 macOS 版本验证。
-3. **Claude Code `Notification` hook 载荷**：确认 `message` 字段内容及等批准时是否必定触发。
+3. **登记文件的 waiting 状态**：在真实权限确认、AskUserQuestion、Esc 中断场景下，确认 `status` / `waitingFor` 按预期变化。
 
 v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，参考 herdr `src/integration/assets/codex/`）、pi 的恢复命令与扩展 API（参考 herdr `src/integration/assets/pi/`），并在本机安装 codex 和 pi。
 
