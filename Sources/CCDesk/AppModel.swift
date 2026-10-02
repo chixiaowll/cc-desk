@@ -8,6 +8,8 @@ final class AppModel: ObservableObject {
     @Published private(set) var now = Date()
     @Published var selectedID: String?
     @Published var showNewSession = false
+    /// 由 ContentView 在 onAppear 时注入，用于在窗口已关闭时重新打开（App 设计上关闭窗口不退出）。
+    var openMainWindow: (() -> Void)?
     @Published var collapsed: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsedGroups") ?? []) {
         didSet { UserDefaults.standard.set(Array(collapsed), forKey: "collapsedGroups") }
     }
@@ -66,7 +68,8 @@ final class AppModel: ObservableObject {
         let rows = groups.flatMap(\.rows)
         let events = TransitionDetector.events(previous: lastStatuses, rows: rows)
         lastStatuses = Dictionary(rows.map { ($0.id, $0.session.status) }, uniquingKeysWith: { a, _ in a })
-        for event in events where !(NSApp.isActive && event.sessionKey == selectedID) {
+        let appVisible = NSApp.isActive && NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
+        for event in events where !(appVisible && event.sessionKey == selectedID) {
             notifier.post(event)
         }
         let waiting = rows.filter { $0.session.status.isWaiting }.count
@@ -299,6 +302,7 @@ final class AppModel: ObservableObject {
 
     private func openFromNotification(_ key: String) {
         NSApp.activate(ignoringOtherApps: true)
+        openMainWindow?()
         if let row = groups.lazy.flatMap(\.rows).first(where: { $0.id == key }) { activate(row) }
     }
 

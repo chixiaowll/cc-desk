@@ -16,6 +16,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// 关闭窗口不退出，内嵌 session 继续运行；点 Dock 图标重新打开窗口。
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// 点 Dock 图标时，若没有可见窗口（已被关闭），重新打开主窗口。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows { model.openMainWindow?() }
+        return true
+    }
 }
 
 @main
@@ -29,8 +35,11 @@ struct CCDeskApp: App {
         }
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("新建 Session") { delegate.model.showNewSession = true }
-                    .keyboardShortcut("n")
+                Button("新建 Session") {
+                    delegate.model.openMainWindow?()
+                    delegate.model.showNewSession = true
+                }
+                .keyboardShortcut("n")
             }
             CommandGroup(replacing: .saveItem) {
                 Button("关闭当前 Session") { delegate.model.closeSelected() }

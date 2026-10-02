@@ -4,6 +4,7 @@ import CCDeskCore
 
 struct ContentView: View {
     @ObservedObject var model: AppModel
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         NavigationSplitView {
@@ -13,6 +14,7 @@ struct ContentView: View {
             DetailView(model: model)
         }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
+        .onAppear { model.openMainWindow = { openWindow(id: "main") } }
     }
 }
 
