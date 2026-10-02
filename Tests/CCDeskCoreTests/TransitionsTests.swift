@@ -2,11 +2,11 @@ import XCTest
 @testable import CCDeskCore
 
 final class TransitionsTests: XCTestCase {
-    func row(_ id: String, _ status: AgentStatus, name: String = "旅行攻略") -> SidebarRow {
+    func row(_ id: String, _ status: AgentStatus, name: String = "旅行攻略", groupTitle: String = "poems") -> SidebarRow {
         SidebarRow(session: AgentSession(id: id, kind: .claude, sessionID: id, pid: 1, tty: nil, cwd: "/a",
                                          name: name, nameIsDerived: false, host: .vscode, status: status,
                                          statusChangedAt: Date()),
-                   displayName: name, subtitle: nil, sourceLabel: nil)
+                   displayName: name, groupTitle: groupTitle, subtitle: nil, sourceLabel: nil)
     }
 
     func testFirstSnapshotProducesNoEvents() {
@@ -26,6 +26,12 @@ final class TransitionsTests: XCTestCase {
     func testWorkingToIdleProducesFinished() {
         let ev = TransitionDetector.events(previous: ["a": .working], rows: [row("a", .idle)])
         XCTAssertEqual(ev, [StatusEvent(kind: .finished, sessionKey: "a", title: "旅行攻略 已完成", body: "本轮已结束")])
+    }
+
+    func testNotificationNameUsesGroupTitlePrefixForShortenedDerivedNames() {
+        let ev = TransitionDetector.events(previous: ["a": .working],
+                                            rows: [row("a", .waiting("x"), name: "#06", groupTitle: "poems")])
+        XCTAssertEqual(ev.first?.title, "poems #06 需要批准")
     }
 
     func testNoEventsForUnchangedNewOrOtherTransitions() {

@@ -3,9 +3,24 @@ import Foundation
 public struct SidebarRow: Identifiable, Equatable, Sendable {
     public let session: AgentSession
     public let displayName: String
+    /// 所属分组的标题（可能带去重用的父目录前缀），用于通知文案。
+    public let groupTitle: String
     public let subtitle: String?
     public let sourceLabel: String?
     public var id: String { session.id }
+
+    public init(session: AgentSession, displayName: String, groupTitle: String, subtitle: String?, sourceLabel: String?) {
+        self.session = session
+        self.displayName = displayName
+        self.groupTitle = groupTitle
+        self.subtitle = subtitle
+        self.sourceLabel = sourceLabel
+    }
+
+    /// 通知标题用的名字；仅当 displayName 被缩短为 "#xx" 形式时补上分组前缀，避免通知歧义。
+    public var notificationName: String {
+        displayName.hasPrefix("#") ? "\(groupTitle) \(displayName)" : displayName
+    }
 }
 
 public struct SessionGroup: Identifiable, Equatable, Sendable {
@@ -26,8 +41,17 @@ public enum SidebarBuilder {
             buckets[ref.root, default: []].append(session)
         }
 
+        var titles: [String: String] = [:]
+        for root in buckets.keys { titles[root] = groupTitle(root) }
+        var titleCounts: [String: Int] = [:]
+        for title in titles.values { titleCounts[title, default: 0] += 1 }
+        for root in titles.keys where (titleCounts[titles[root]!] ?? 0) > 1 {
+            let parent = URL(fileURLWithPath: root).deletingLastPathComponent().lastPathComponent
+            if !parent.isEmpty { titles[root] = "\(parent)/\(titles[root]!)" }
+        }
+
         let groups = buckets.map { root, members -> SessionGroup in
-            let title = groupTitle(root)
+            let title = titles[root] ?? groupTitle(root)
             let rows = members
                 .sorted(by: rowOrder)
                 .map { row(for: $0, ref: refs[$0.cwd] ?? ProjectRef(root: root, branch: nil), groupTitle: title) }
@@ -59,6 +83,7 @@ public enum SidebarBuilder {
     static func row(for s: AgentSession, ref: ProjectRef, groupTitle: String) -> SidebarRow {
         SidebarRow(session: s,
                    displayName: displayName(s, groupTitle: groupTitle),
+                   groupTitle: groupTitle,
                    subtitle: subtitle(s, ref: ref),
                    sourceLabel: sourceLabel(s.host))
     }
@@ -67,17 +92,25 @@ public enum SidebarBuilder {
         if s.name.isEmpty { return groupTitle }
         if s.nameIsDerived, let dash = s.name.lastIndex(of: "-") {
             let suffix = s.name[s.name.index(after: dash)...]
-            if !suffix.isEmpty, suffix.count <= 4 { return "#\(suffix)" }
+            if isLowercaseHexSuffix(suffix) { return "#\(suffix)" }
         }
         return s.name
+    }
+
+    /// 真实的 Claude 派生名后缀形如 "4a"、"88"、"06"、"c7"：1-4 位小写十六进制字符。
+    /// 其它后缀（如 "my-app" 的 "app"）不应被当成短 id 缩写。
+    static func isLowercaseHexSuffix(_ s: Substring) -> Bool {
+        guard !s.isEmpty, s.count <= 4 else { return false }
+        return s.allSatisfy { ("0"..."9").contains($0) || ("a"..."f").contains($0) }
     }
 
     static func subtitle(_ s: AgentSession, ref: ProjectRef) -> String? {
         if case .waiting(let reason) = s.status { return reason ?? "等待输入" }
         if case .missing = s.host { return s.cwd }
         if let branch = ref.branch { return branch }
-        if s.cwd != ref.root, s.cwd.hasPrefix(ref.root + "/") {
-            return String(s.cwd.dropFirst(ref.root.count + 1))
+        let canonicalCwd = ProjectResolver.canonical(s.cwd)
+        if canonicalCwd != ref.root, canonicalCwd.hasPrefix(ref.root + "/") {
+            return String(canonicalCwd.dropFirst(ref.root.count + 1))
         }
         return nil
     }

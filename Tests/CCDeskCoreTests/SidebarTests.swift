@@ -46,11 +46,56 @@ final class SidebarTests: XCTestCase {
             s("a", cwd: "/r/poems", name: "poems-06", derived: true),
             s("b", cwd: "/r/poems", name: "travel-guide-pipeline", derived: false),
             s("c", cwd: "/r/poems", name: "", derived: false),
+            s("d", cwd: "/r/poems", name: "claude-4a", derived: true),
+            s("e", cwd: "/r/poems", name: "claude-88", derived: true),
+            s("f", cwd: "/r/poems", name: "shop-backend-service-c7", derived: true),
+            s("g", cwd: "/r/poems", name: "my-app", derived: true),
         ])[0]
         let names = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0.displayName) })
         XCTAssertEqual(names["a"], "#06")
         XCTAssertEqual(names["b"], "travel-guide-pipeline")
         XCTAssertEqual(names["c"], "poems")
+        XCTAssertEqual(names["d"], "#4a")
+        XCTAssertEqual(names["e"], "#88")
+        XCTAssertEqual(names["f"], "#c7")
+        XCTAssertEqual(names["g"], "my-app", "suffix 'app' is not lowercase hex, so it must not be shortened")
+    }
+
+    func testNotificationNameAddsGroupPrefixOnlyWhenShortened() {
+        let g = build([
+            s("a", cwd: "/r/poems", name: "poems-06", derived: true),
+            s("b", cwd: "/r/poems", name: "travel-guide-pipeline", derived: false),
+        ])[0]
+        let byID = Dictionary(uniqueKeysWithValues: g.rows.map { ($0.id, $0) })
+        XCTAssertEqual(byID["a"]?.notificationName, "poems #06")
+        XCTAssertEqual(byID["b"]?.notificationName, "travel-guide-pipeline")
+    }
+
+    func testDuplicateGroupTitlesGetParentDirPrefix() {
+        let projectsWithDup: [String: ProjectRef] = [
+            "/work/a/widgets": ProjectRef(root: "/work/a/widgets", branch: nil),
+            "/work/b/widgets": ProjectRef(root: "/work/b/widgets", branch: nil),
+            "/work/unique": ProjectRef(root: "/work/unique", branch: nil),
+        ]
+        let groups = SidebarBuilder.build(
+            sessions: [
+                s("x", cwd: "/work/a/widgets"),
+                s("y", cwd: "/work/b/widgets"),
+                s("z", cwd: "/work/unique"),
+            ],
+            project: { projectsWithDup[$0] ?? ProjectRef(root: $0, branch: nil) })
+        let titles = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0.title) })
+        XCTAssertEqual(titles["/work/a/widgets"], "a/widgets")
+        XCTAssertEqual(titles["/work/b/widgets"], "b/widgets")
+        XCTAssertEqual(titles["/work/unique"], "unique")
+    }
+
+    func testHomeDirectoryRootIsTitledTilde() {
+        let home = NSHomeDirectory()
+        let projectsWithHome: [String: ProjectRef] = ["/x": ProjectRef(root: home, branch: nil)]
+        let groups = SidebarBuilder.build(sessions: [s("a", cwd: "/x")],
+                                          project: { projectsWithHome[$0] ?? ProjectRef(root: $0, branch: nil) })
+        XCTAssertEqual(groups.first?.title, "~")
     }
 
     func testSubtitleShowsWaitingReasonOrRelativePathOrBranch() {
@@ -65,6 +110,22 @@ final class SidebarTests: XCTestCase {
         XCTAssertEqual(subs["sub"], "src")
         XCTAssertEqual(subs["wt"], "issue/1-fix")
         XCTAssertEqual(subs["root"], .some(nil))
+    }
+
+    func testSubtitleUsesCanonicalPathForRelativePrefixCheck() throws {
+        // /tmp is a symlink to /private/tmp on macOS; git reports the canonical root,
+        // so the cwd must be canonicalized before the hasPrefix(root) comparison.
+        let uncanonicalBase = "/tmp/\(UUID())"
+        let uncanonicalCwd = "\(uncanonicalBase)/inner"
+        try FileManager.default.createDirectory(atPath: uncanonicalCwd, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: uncanonicalBase) }
+        let canonicalRoot = ProjectResolver.canonical(uncanonicalBase)
+        XCTAssertTrue(canonicalRoot.hasPrefix("/private/"), "expected /tmp to canonicalize under /private")
+
+        let projectsCanonical: [String: ProjectRef] = [uncanonicalCwd: ProjectRef(root: canonicalRoot, branch: nil)]
+        let g = SidebarBuilder.build(sessions: [s("x", cwd: uncanonicalCwd)],
+                                     project: { projectsCanonical[$0] ?? ProjectRef(root: $0, branch: nil) })[0]
+        XCTAssertEqual(g.rows.first?.subtitle, "inner")
     }
 
     func testSourceLabels() {
