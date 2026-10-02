@@ -23,7 +23,14 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
     static var stored: AppearancePreference {
         AppearancePreference(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .system
     }
-    func apply() { NSApp.appearance = nsAppearance }
+    /// 同步切换：在同一个 CATransaction 里设置 App 外观并给所有终端换色，避免「先侧栏、后终端」两步跳变。
+    func apply(pool: TerminalPool?) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        NSApp.appearance = nsAppearance
+        pool?.apply(TerminalTheme.of(NSApp.effectiveAppearance))
+        CATransaction.commit()
+    }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -32,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
-        AppearancePreference.stored.apply()
+        AppearancePreference.stored.apply(pool: model.pool)
         model.start()
     }
 
@@ -89,12 +96,16 @@ struct CCDeskApp: App {
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
                 Divider()
-                Picker("外观", selection: $appearance) {
-                    ForEach(AppearancePreference.allCases) { Text($0.label).tag($0.rawValue) }
-                }
-                .pickerStyle(.inline)
-                .onChange(of: appearance) { _, value in
-                    (AppearancePreference(rawValue: value) ?? .system).apply()
+                Section("外观") {
+                    ForEach(AppearancePreference.allCases) { pref in
+                        Toggle(pref.label, isOn: Binding(
+                            get: { appearance == pref.rawValue },
+                            set: { on in
+                                guard on else { return }
+                                appearance = pref.rawValue
+                                pref.apply(pool: delegate.model.pool)
+                            }))
+                    }
                 }
             }
             CommandMenu("Session") {
