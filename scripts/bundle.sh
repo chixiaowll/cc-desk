@@ -9,6 +9,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/CCDesk"
 cp scripts/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 SWIFTTERM_BUNDLE="$BIN_DIR/SwiftTerm_SwiftTerm.bundle"
 if [ -e "$SWIFTTERM_BUNDLE" ]; then
     cp -R "$SWIFTTERM_BUNDLE" "$APP/Contents/Resources/"

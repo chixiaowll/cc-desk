@@ -35,6 +35,7 @@ h1 { margin: 0; font-size: 22px; }
 .menu { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg2); padding: 4px 10px; border-radius: 6px; background: var(--line); width: max-content; }
 .pros { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 20px; color: var(--fg2); }
 .rec { border-color: #C4552B; box-shadow: 0 0 0 1px #C4552B inset; }
+.card h2 .tag.new { background: #3F6E9E; }
 .card h2 .tag { font-size: 11px; font-weight: 600; color: #fff; background: #C4552B; border-radius: 5px; padding: 1px 6px; }
 </style>
 </head>
@@ -43,7 +44,7 @@ h1 { margin: 0; font-size: 22px; }
 <header>
   <div>
     <h1>CC Desk 图标方案</h1>
-    <p class="sub">四个方向；配色沿用界面：米白、暖墨、陶土橙（等批准）、雾蓝（处理中）。每个方向含大图、Dock、菜单栏与 16px 小尺寸预览。</p>
+    <p class="sub">九个方向（E–I 为新增）；配色沿用界面：米白、暖墨、陶土橙（等批准）、雾蓝（处理中）。每个方向含大图、Dock、菜单栏与 16px 小尺寸预览。</p>
   </div>
   <div class="seg" role="group" aria-label="背景">
     <button type="button" data-t="auto" aria-pressed="true">跟随系统</button>
@@ -120,6 +121,74 @@ h1 { margin: 0; font-size: 22px; }
       </g>
       <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
     </symbol>
+
+    <!-- E. 文件夹 + 提示符 -->
+    <symbol id="logoE" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#cream)"/>
+        <path d="M226 352a48 48 0 0 1 48-48h170a40 40 0 0 1 28 12l52 52h226a48 48 0 0 1 48 48v318a48 48 0 0 1-48 48H274a48 48 0 0 1-48-48z" fill="url(#clay)"/>
+        <path d="M226 430h572v-14a48 48 0 0 0-48-48H226z" fill="#000" opacity=".08"/>
+        <path d="M368 500l92 74-92 74" fill="none" stroke="#FFF7F1" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="508" y="628" width="168" height="44" rx="22" fill="#FFF7F1"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".12"/>
+    </symbol>
+
+    <!-- F. 状态灯 -->
+    <symbol id="logoF" viewBox="0 0 1024 1024">
+      <defs>
+        <radialGradient id="glowC" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#E2875F" stop-opacity=".55"/><stop offset="1" stop-color="#E2875F" stop-opacity="0"/></radialGradient>
+      </defs>
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <rect x="100" y="100" width="824" height="412" fill="url(#gloss)" opacity=".14"/>
+        <rect x="392" y="214" width="240" height="596" rx="120" fill="#36322D" stroke="#47423B" stroke-width="8"/>
+        <circle cx="512" cy="334" r="64" fill="none" stroke="#8A857D" stroke-width="18"/>
+        <circle cx="512" cy="512" r="70" fill="#4A7BAD"/>
+        <circle cx="512" cy="690" r="150" fill="url(#glowC)"/>
+        <circle cx="512" cy="690" r="70" fill="url(#clay)"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+
+    <!-- G. CC 字母 -->
+    <symbol id="logoG" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#cream)"/>
+        <path d="M720 316A270 270 0 1 0 720 708" fill="none" stroke="url(#clay)" stroke-width="84" stroke-linecap="round"/>
+        <path d="M638 408A140 140 0 1 0 638 616" fill="none" stroke="#3F6E9E" stroke-width="72" stroke-linecap="round"/>
+        <rect x="476" y="462" width="56" height="100" rx="10" fill="#2A2925"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".12"/>
+    </symbol>
+
+    <!-- H. 深色分栏窗口 -->
+    <symbol id="logoH" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <rect x="100" y="100" width="824" height="412" fill="url(#gloss)" opacity=".14"/>
+        <rect x="212" y="262" width="600" height="500" rx="64" fill="#F6F2EB"/>
+        <path d="M212 326a64 64 0 0 1 64-64h96v500h-96a64 64 0 0 1-64-64z" fill="#E2DBCF"/>
+        <circle cx="292" cy="360" r="30" fill="#C4552B"/>
+        <circle cx="292" cy="460" r="30" fill="#3F6E9E"/>
+        <circle cx="292" cy="560" r="25" fill="none" stroke="#9C9488" stroke-width="12"/>
+        <path d="M450 438l84 72-84 72" fill="none" stroke="#2A2925" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="574" y="560" width="150" height="42" rx="21" fill="#2A2925"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+
+    <!-- I. cd + 文件夹标签 -->
+    <symbol id="logoI" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <rect x="100" y="100" width="824" height="412" fill="url(#gloss)" opacity=".16"/>
+        <path d="M232 400v-62a40 40 0 0 1 40-40h150a36 36 0 0 1 26 11l44 45h260a40 40 0 0 1 40 40v6" fill="none" stroke="url(#clay)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="228" y="700" font-family="SF Mono, Menlo, monospace" font-size="300" font-weight="700" fill="#F3EEE6" letter-spacing="-8">cd</text>
+        <rect x="664" y="458" width="92" height="262" rx="12" fill="url(#clay)"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -139,12 +208,27 @@ const OPTIONS = [
     pros: ['色块大，小尺寸清楚', '状态体系的视觉延伸', '缺点：不直观体现「终端」'] },
   { id: 'logoD', name: 'D · 提示符 + 状态点',
     desc: '最简的 `>_` 提示符，右上角一个陶土橙状态点，像「有会话在等你」的通知徽标。',
-    pros: ['极简、现代', '小尺寸最清楚', '缺点：终端类 App 常见，辨识度一般'] }
+    pros: ['极简、现代', '小尺寸最清楚', '缺点：终端类 App 常见，辨识度一般'] },
+  { id: 'logoE', name: 'E · 文件夹提示符', tag: '新',
+    desc: '陶土橙文件夹上印着 `>_`。直接讲「按目录管理终端会话」，米白底在 Dock 里很温暖。',
+    pros: ['语义清楚：目录 + 终端', '橙色大面积，Dock 里醒目', '缺点：文件夹图形较常见'] },
+  { id: 'logoF', name: 'F · 状态灯', tag: '新',
+    desc: '暗色面板上竖排三颗灯：空闲（灰环）、处理中（雾蓝）、等批准（发光的陶土橙）。像机柜指示灯，讲的是「一眼看清所有会话状态」。',
+    pros: ['状态语言最纯粹', '造型独特，不撞终端类图标', '缺点：竖排三灯可能联想到红绿灯'] },
+  { id: 'logoG', name: 'G · CC 字母', tag: '新',
+    desc: '两个嵌套的 C：外圈陶土橙、内圈雾蓝，中间一个光标块。字母标识 + 两种状态色，适合做品牌字标。',
+    pros: ['品牌感强，可延展成字标', '两种状态色都在', '缺点：16px 下内圈会变细'] },
+  { id: 'logoH', name: 'H · 深色分栏窗口', tag: '新',
+    desc: 'B 方案的简化版：暗墨底上一个米白窗口，左栏三个状态点，右边大号提示符。元素少而大，小尺寸也能看清。',
+    pros: ['直观 + 小尺寸可读', '深底在浅色 Dock 中对比强', '缺点：仍偏「示意图」'] },
+  { id: 'logoI', name: 'I · cd + 文件夹', tag: '新',
+    desc: 'A 与 E 的结合：「cd▍」上方一条陶土橙的文件夹标签轮廓，把「进入目录」这个双关画得更明确。',
+    pros: ['保留 A 的记忆点', '文件夹轮廓补足语义', '缺点：比 A 多一层信息，略复杂'] },
 ];
 const use = (id, size) => `<svg width="${size}" height="${size}" viewBox="0 0 1024 1024" role="img" aria-label="图标预览"><use href="#${id}"/></svg>`;
 document.getElementById('grid').innerHTML = OPTIONS.map((o) => `
-  <section class="card${o.tag ? ' rec' : ''}">
-    <h2>${o.name} ${o.tag ? `<span class="tag">${o.tag}</span>` : ''}</h2>
+  <section class="card${o.tag === '推荐' ? ' rec' : ''}">
+    <h2>${o.name} ${o.tag ? `<span class="tag${o.tag === '新' ? ' new' : ''}">${o.tag}</span>` : ''}</h2>
     <div class="hero">
       <svg class="big" viewBox="0 0 1024 1024" role="img" aria-label="${o.name}"><use href="#${o.id}"/></svg>
       <div style="display:flex;flex-direction:column;gap:14px">

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CC Desk 图标 · 简洁版</title>
+<style>
+:root { --page: #EFECE6; --card: #FBFAF8; --line: #E2DDD5; --fg1: #1F1E1C; --fg2: #6B675F; --fg3: #8A857D; }
+:root[data-theme="dark"] { --page: #151413; --card: #1F1E1C; --line: #34322E; --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #151413; --card: #1F1E1C; --line: #34322E; --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; } }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 32px 16px 64px; background: var(--page); color: var(--fg1); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+h1 { margin: 0; font-size: 22px; }
+.sub { margin: 4px 0 0; color: var(--fg2); font-size: 13px; line-height: 20px; }
+.seg { display: inline-flex; background: var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--fg2); font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--fg1); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.card.rec { box-shadow: 0 0 0 1.5px #C4552B inset; border-color: #C4552B; }
+.card h2 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.card h2 .tag { font-size: 11px; font-weight: 600; color: #fff; background: #C4552B; border-radius: 5px; padding: 1px 6px; }
+.hero { display: flex; gap: 20px; align-items: center; }
+.hero .big { width: 132px; height: 132px; flex-shrink: 0; filter: drop-shadow(0 8px 14px rgba(40,30,20,.18)) drop-shadow(0 2px 4px rgba(40,30,20,.12)); }
+.sizes { display: flex; gap: 14px; align-items: flex-end; }
+.sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 11px; color: var(--fg3); }
+.menu { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--fg2); padding: 4px 10px; border-radius: 6px; background: var(--line); width: max-content; margin-top: 10px; }
+.point { font-size: 12px; font-weight: 600; color: #C4552B; }
+.card p { margin: 0; font-size: 13px; line-height: 20px; color: var(--fg2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>CC Desk 图标 · 简洁版</h1>
+    <p class="sub">只表达 App 的核心：<b>多个会话集中在一处</b>、<b>一眼看清状态</b>、<b>有会话需要你时提醒你</b>。每个方案最多两种元素，陶土橙只用来表示「需要你」。</p>
+  </div>
+  <div class="seg" role="group" aria-label="背景">
+    <button type="button" data-t="auto" aria-pressed="true">跟随系统</button>
+    <button type="button" data-t="light" aria-pressed="false">浅色</button>
+    <button type="button" data-t="dark" aria-pressed="false">深色</button>
+  </div>
+</header>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2F2C28"/><stop offset="1" stop-color="#1A1816"/></linearGradient>
+    <linearGradient id="cream" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBF8F2"/><stop offset="1" stop-color="#ECE6DB"/></linearGradient>
+    <linearGradient id="clay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D66A40"/><stop offset="1" stop-color="#B94C25"/></linearGradient>
+
+    <!-- J. 列表里有一个在等你 -->
+    <symbol id="J" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <rect x="262" y="318" width="500" height="80" rx="40" fill="#F3EEE6" opacity=".9"/>
+        <rect x="262" y="472" width="500" height="80" rx="40" fill="url(#clay)"/>
+        <rect x="262" y="626" width="500" height="80" rx="40" fill="#F3EEE6" opacity=".9"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+
+    <!-- K. 提示符 + 提醒点 -->
+    <symbol id="K" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <path d="M352 352l176 160-176 160" fill="none" stroke="#F3EEE6" stroke-width="84" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="682" cy="512" r="74" fill="url(#clay)"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+
+    <!-- L. 一排会话点，一个亮起 -->
+    <symbol id="L" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#cream)"/>
+        <circle cx="352" cy="352" r="70" fill="#2A2925"/>
+        <circle cx="672" cy="352" r="70" fill="#2A2925"/>
+        <circle cx="352" cy="672" r="70" fill="#2A2925"/>
+        <circle cx="672" cy="672" r="92" fill="url(#clay)"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".12"/>
+    </symbol>
+
+    <!-- M. 叠放的终端，最前面的在等你 -->
+    <symbol id="M" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <rect x="318" y="246" width="430" height="330" rx="56" fill="#5A554E"/>
+        <rect x="276" y="318" width="472" height="360" rx="60" fill="#8E877D"/>
+        <rect x="234" y="396" width="514" height="384" rx="64" fill="#F3EEE6"/>
+        <path d="M330 520l92 70-92 70" fill="none" stroke="#2A2925" stroke-width="46" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="748" cy="396" r="70" fill="url(#clay)" stroke="#1F1D1A" stroke-width="22"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+
+    <!-- N. 文件夹 + 提醒点 -->
+    <symbol id="N" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <path d="M232 380a56 56 0 0 1 56-56h150a44 44 0 0 1 31 13l50 50h217a56 56 0 0 1 56 56v263a56 56 0 0 1-56 56H288a56 56 0 0 1-56-56z" fill="#F3EEE6"/>
+        <circle cx="736" cy="388" r="72" fill="url(#clay)" stroke="#1F1D1A" stroke-width="22"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="grid" id="grid"></div>
+</div>
+<script>
+const OPTIONS = [
+  { id: 'J', name: 'J · 列表里有一个在等你', tag: '推荐', point: '多会话 + 等你处理',
+    desc: '三条横线就是侧栏里的会话列表，中间那条是陶土橙——「有一个会话在等你」。这正是 CC Desk 最核心的一件事：一堆会话里，一眼看到需要你的那个。' },
+  { id: 'K', name: 'K · 提示符 + 提醒点', point: '终端 + 等你处理',
+    desc: '一个终端提示符 `>`，后面跟着一个陶土橙的点，像通知徽标。读作「终端里有事等你」。最少的元素，16px 依然清楚。' },
+  { id: 'L', name: 'L · 一组会话，一个亮起', point: '一眼看清状态',
+    desc: '四个点代表一组会话，三个安静、一个亮起并稍大。米白底，和浅色界面一致；不画终端，只讲「状态一目了然」。' },
+  { id: 'M', name: 'M · 叠放的终端', point: '多会话集中 + 等你处理',
+    desc: '三个叠放的终端窗口（多个会话收在一处），最前面那个右上角有陶土橙提醒点。比 J 具体一点，能看出是终端。' },
+  { id: 'N', name: 'N · 文件夹 + 提醒点', point: '按目录组织 + 等你处理',
+    desc: '一个米白文件夹，右上角陶土橙提醒点：「某个项目目录里有会话需要你」。对应 App 按目录分组的结构。' },
+];
+const use = (id, s) => `<svg width="${s}" height="${s}" viewBox="0 0 1024 1024" role="img" aria-label="预览"><use href="#${id}"/></svg>`;
+document.getElementById('grid').innerHTML = OPTIONS.map((o) => `
+  <section class="card${o.tag ? ' rec' : ''}">
+    <h2>${o.name}${o.tag ? `<span class="tag">${o.tag}</span>` : ''}</h2>
+    <div class="hero">
+      <svg class="big" viewBox="0 0 1024 1024" role="img" aria-label="${o.name}"><use href="#${o.id}"/></svg>
+      <div>
+        <div class="sizes">
+          <figure>${use(o.id, 64)}<figcaption>64</figcaption></figure>
+          <figure>${use(o.id, 32)}<figcaption>32</figcaption></figure>
+          <figure>${use(o.id, 16)}<figcaption>16</figcaption></figure>
+        </div>
+        <div class="menu">${use(o.id, 16)}<span>CC Desk</span></div>
+      </div>
+    </div>
+    <div class="point">切中：${o.point}</div>
+    <p>${o.desc.replace(/`([^`]+)`/g, '<code>$1</code>')}</p>
+  </section>`).join('');
+document.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.dataset.t;
+  if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+  document.querySelectorAll('[data-t]').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+}));
+const h = location.hash.slice(1); if (h === 'dark' || h === 'light') document.documentElement.setAttribute('data-theme', h);
+</script>
+</body>
+</html>

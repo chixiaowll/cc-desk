@@ -3,6 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key><string>dev.local.ccdesk</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleName</key><string>CC Desk</string>
     <key>CFBundleDisplayName</key><string>CC Desk</string>
     <key>CFBundleExecutable</key><string>CCDesk</string>

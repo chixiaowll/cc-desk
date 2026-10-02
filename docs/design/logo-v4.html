@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CC Desk 图标 · 简洁浅色</title>
+<style>
+:root { --page: #EFECE6; --card: #FBFAF8; --line: #E2DDD5; --fg1: #1F1E1C; --fg2: #6B675F; --fg3: #8A857D; --dock: rgba(255,255,255,.5); }
+:root[data-theme="dark"] { --page: #151413; --card: #1F1E1C; --line: #34322E; --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; --dock: rgba(50,47,43,.6); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #151413; --card: #1F1E1C; --line: #34322E; --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; --dock: rgba(50,47,43,.6); } }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 32px 16px 64px; background: var(--page); color: var(--fg1); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+h1 { margin: 0; font-size: 22px; }
+.sub { margin: 4px 0 0; color: var(--fg2); font-size: 13px; }
+.seg { display: inline-flex; background: var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--fg2); font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--fg1); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.row { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 18px 18px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.card .big { width: 148px; height: 148px; filter: drop-shadow(0 8px 14px rgba(40,30,20,.16)) drop-shadow(0 1px 3px rgba(40,30,20,.12)); }
+.card h2 { margin: 0; font-size: 14px; }
+.card p { margin: 0; font-size: 12px; line-height: 18px; color: var(--fg2); text-align: center; }
+.sizes { display: flex; gap: 12px; align-items: flex-end; }
+.sizes svg { filter: drop-shadow(0 1px 2px rgba(40,30,20,.2)); }
+.dockrow { display: flex; justify-content: center; }
+.dock { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-radius: 20px; background: var(--dock); border: 1px solid var(--line); }
+.dock svg { filter: drop-shadow(0 3px 5px rgba(40,30,20,.2)); }
+.dock .other { width: 56px; height: 56px; border-radius: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>CC Desk 图标 · 简洁浅色</h1>
+    <p class="sub">只有两个元素：终端提示符和一个点（「有会话在等你」）。平面 + 一点柔和渐变，不用黑底、不加光影浮雕。</p>
+  </div>
+  <div class="seg" role="group" aria-label="背景">
+    <button type="button" data-t="auto" aria-pressed="true">跟随系统</button>
+    <button type="button" data-t="light" aria-pressed="false">浅色</button>
+    <button type="button" data-t="dark" aria-pressed="false">深色</button>
+  </div>
+</header>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <linearGradient id="cream" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FDFBF7"/><stop offset="1" stop-color="#EFE8DD"/></linearGradient>
+    <linearGradient id="clay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DA7550"/><stop offset="1" stop-color="#C05028"/></linearGradient>
+    <linearGradient id="peach" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FCEFE6"/><stop offset="1" stop-color="#F3D9C8"/></linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F1E7D8"/><stop offset="1" stop-color="#E2D3BE"/></linearGradient>
+    <linearGradient id="hi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset=".25" stop-color="#fff" stop-opacity="0"/></linearGradient>
+
+    <!-- S1 米白底 · 墨色 > · 陶土点 -->
+    <symbol id="S1" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="url(#cream)"/></g>
+      <path d="M356 360l168 152-168 152" fill="none" stroke="#2F2B27" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="680" cy="600" r="64" fill="#C4552B"/>
+      <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#000" stroke-opacity=".08" stroke-width="2"/>
+    </symbol>
+
+    <!-- S2 陶土底 · 米白 > · 米白点 -->
+    <symbol id="S2" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="url(#clay)"/><rect x="100" y="100" width="824" height="824" fill="url(#hi)" opacity=".35"/></g>
+      <path d="M356 360l168 152-168 152" fill="none" stroke="#FFF8F2" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="680" cy="600" r="64" fill="#FFF8F2"/>
+      <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#7A2E12" stroke-opacity=".2" stroke-width="2"/>
+    </symbol>
+
+    <!-- S3 米白底 · 墨色 >_ · 光标是陶土色 -->
+    <symbol id="S3" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="url(#cream)"/></g>
+      <path d="M316 368l152 144-152 144" fill="none" stroke="#2F2B27" stroke-width="76" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="532" y="614" width="190" height="76" rx="38" fill="#C4552B"/>
+      <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#000" stroke-opacity=".08" stroke-width="2"/>
+    </symbol>
+
+    <!-- S4 蜜桃底 · 陶土 > · 墨点 -->
+    <symbol id="S4" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="url(#peach)"/></g>
+      <path d="M356 360l168 152-168 152" fill="none" stroke="#C4552B" stroke-width="80" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="680" cy="600" r="64" fill="#2F2B27"/>
+      <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#7A2E12" stroke-opacity=".1" stroke-width="2"/>
+    </symbol>
+
+    <!-- S5 沙色底 · 墨色 > · 陶土点在右上（通知徽标） -->
+    <symbol id="S5" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="url(#sand)"/></g>
+      <path d="M332 384l156 136-156 136" fill="none" stroke="#2F2B27" stroke-width="76" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="540" y="618" width="172" height="76" rx="38" fill="#2F2B27"/>
+      <circle cx="716" cy="330" r="70" fill="#C4552B"/>
+      <rect x="101" y="101" width="822" height="822" rx="184" fill="none" stroke="#000" stroke-opacity=".08" stroke-width="2"/>
+    </symbol>
+
+    <!-- Dock 里的邻居（示意，不是任何真实 App） -->
+    <symbol id="nb1" viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="#3E7BD6"/></g></symbol>
+    <symbol id="nb2" viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="#2B2926"/></g></symbol>
+    <symbol id="nb3" viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect x="100" y="100" width="824" height="824" fill="#F2F2F2"/></g></symbol>
+  </defs>
+</svg>
+
+<div class="row" id="row"></div>
+<div class="dockrow"><div class="dock" id="dock"></div></div>
+</div>
+<script>
+const O = [
+  { id: 'S1', name: 'S1 · 米白 + 墨色 + 陶土点', desc: '米白底，墨色提示符 >，陶土橙圆点代替下划线——「终端里有事等你」。' },
+  { id: 'S2', name: 'S2 · 陶土底 + 米白', desc: '陶土橙底，米白提示符和圆点。暖色、醒目，品牌色最强。' },
+  { id: 'S3', name: 'S3 · 米白 + 陶土光标', desc: '完整的 >_，但光标下划线是陶土橙——光标本身就是「在等你」的状态。' },
+  { id: 'S4', name: 'S4 · 蜜桃底 + 陶土 >', desc: '浅蜜桃底，陶土橙提示符，墨色圆点。更柔和、更轻。' },
+  { id: 'S5', name: 'S5 · 沙色 + 通知点', desc: '沙色底上 >_，右上角一个陶土橙通知点，像 App 角标。' },
+];
+const use = (id, s) => `<svg width="${s}" height="${s}" viewBox="0 0 1024 1024" role="img" aria-label="预览"><use href="#${id}"/></svg>`;
+document.getElementById('row').innerHTML = O.map((o) => `
+  <section class="card">
+    <svg class="big" viewBox="0 0 1024 1024" role="img" aria-label="${o.name}"><use href="#${o.id}"/></svg>
+    <div class="sizes">${use(o.id, 64)}${use(o.id, 32)}${use(o.id, 16)}</div>
+    <h2>${o.name}</h2>
+    <p>${o.desc.replace(/>_/g, '<code>&gt;_</code>')}</p>
+  </section>`).join('');
+document.getElementById('dock').innerHTML = [use('nb3', 56), use('nb1', 56), ...O.map((o) => use(o.id, 56)), use('nb2', 56)].join('');
+document.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.dataset.t;
+  if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+  document.querySelectorAll('[data-t]').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+}));
+const h = location.hash.slice(1); if (h === 'dark' || h === 'light') document.documentElement.setAttribute('data-theme', h);
+</script>
+</body>
+</html>
