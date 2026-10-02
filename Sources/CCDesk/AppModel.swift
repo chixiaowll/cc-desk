@@ -230,10 +230,6 @@ final class AppModel: ObservableObject {
         poll()
     }
 
-    func toggleCollapsed(_ group: SessionGroup) {
-        if collapsed.contains(group.id) { collapsed.remove(group.id) } else { collapsed.insert(group.id) }
-    }
-
     func chooseDirectoryAndCreate() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true

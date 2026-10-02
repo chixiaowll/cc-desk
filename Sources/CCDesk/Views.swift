@@ -37,14 +37,16 @@ struct SidebarView: View {
     var body: some View {
         List {
             ForEach(model.groups) { group in
-                Section {
-                    if !model.collapsed.contains(group.id) {
-                        ForEach(group.rows) { row in
-                            RowView(row: row, selected: row.id == model.selectedID, now: model.now)
-                                .contentShape(Rectangle())
-                                .onTapGesture { model.activate(row) }
-                                .contextMenu { RowMenu(model: model, row: row) }
-                        }
+                Section(isExpanded: Binding(
+                    get: { !model.collapsed.contains(group.id) },
+                    set: { expanded in
+                        if expanded { model.collapsed.remove(group.id) } else { model.collapsed.insert(group.id) }
+                    })) {
+                    ForEach(group.rows) { row in
+                        RowView(row: row, selected: row.id == model.selectedID, now: model.now)
+                            .contentShape(Rectangle())
+                            .onTapGesture { model.activate(row) }
+                            .contextMenu { RowMenu(model: model, row: row) }
                     }
                 } header: {
                     GroupHeader(model: model, group: group)
@@ -73,10 +75,6 @@ struct GroupHeader: View {
     var body: some View {
         let collapsed = model.collapsed.contains(group.id)
         HStack(spacing: 6) {
-            Button { model.toggleCollapsed(group) } label: {
-                Image(systemName: collapsed ? "chevron.right" : "chevron.down").frame(width: 12)
-            }
-            .buttonStyle(.plain)
             StatusIcon(status: group.topStatus).font(.caption)
             Text(group.title).font(.headline)
             if collapsed { Text("(\(group.rows.count))").foregroundStyle(.secondary) }
