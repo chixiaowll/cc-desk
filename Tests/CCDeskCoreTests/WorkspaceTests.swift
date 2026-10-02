@@ -39,6 +39,24 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(movedContents, "not json at all")
     }
 
+    func testUnknownKindValueDecodesLenientlyToNil() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let url = dir.appendingPathComponent("workspace.json")
+        let tid = UUID()
+        let futureJSON = """
+        {"version":1,"entries":[{"terminalID":"\(tid.uuidString)","cwd":"/a","name":"a","kind":"codex"}]}
+        """
+        try Data(futureJSON.utf8).write(to: url)
+
+        let loaded = try XCTUnwrap(WorkspaceStore.load(from: url))
+        XCTAssertEqual(loaded.entries.count, 1)
+        XCTAssertNil(loaded.entries[0].kind)
+        XCTAssertEqual(loaded.entries[0].cwd, "/a")
+        XCTAssertEqual(loaded.entries[0].name, "a")
+    }
+
     func testOldJSONWithoutKindFieldStillDecodes() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

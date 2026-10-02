@@ -15,6 +15,21 @@ public struct WorkspaceEntry: Codable, Equatable, Sendable {
         self.name = name
         self.kind = kind
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case terminalID, cwd, sessionID, name, kind
+    }
+
+    /// 自定义解码：`kind` 用 `try?` 容错，避免未来新增的 agent 种类（如 "codex"）让整份
+    /// workspace 文件解码失败而被 WorkspaceStore.load 挪到一边。
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        terminalID = try c.decode(UUID.self, forKey: .terminalID)
+        cwd = try c.decode(String.self, forKey: .cwd)
+        sessionID = try c.decodeIfPresent(String.self, forKey: .sessionID)
+        name = try c.decode(String.self, forKey: .name)
+        kind = (try? c.decodeIfPresent(AgentKind.self, forKey: .kind)) ?? nil
+    }
 }
 
 public struct WorkspaceFile: Codable, Equatable, Sendable {
