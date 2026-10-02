@@ -1,0 +1,87 @@
+import AppKit
+import SwiftTerm
+import CCDeskCore
+
+final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
+    let id: UUID
+    let cwd: String
+    let title: String
+    let createdAt = Date()
+    let view: LocalProcessTerminalView
+    var onTerminated: ((UUID) -> Void)?
+
+    init(id: UUID, cwd: String, title: String, command: String?) {
+        self.id = id
+        self.cwd = cwd
+        self.title = title
+        self.view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        super.init()
+        view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        view.processDelegate = self
+        let shell = Self.userShell()
+        view.startProcess(
+            executable: shell,
+            args: LaunchSpec.shellArgs(command: command),
+            environment: LaunchSpec.environment(base: ProcessInfo.processInfo.environment, shell: shell, terminalID: id),
+            currentDirectory: cwd)
+    }
+
+    var shellPID: Int32 { view.process.shellPid }
+
+    /// 写入文本（遵循 bracketed paste 模式），submit 时稍后补回车。为语音输入等后续功能预留。
+    func send(text: String, submit: Bool) {
+        let bracketed = view.getTerminal().bracketedPasteMode
+        view.send(txt: LaunchSpec.inputPayload(text: text, bracketed: bracketed))
+        if submit {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.view.send(txt: "\r") }
+        }
+    }
+
+    func terminate() { view.terminate() }
+
+    static func userShell() -> String {
+        if let pw = getpwuid(getuid()), let shell = pw.pointee.pw_shell {
+            let path = String(cString: shell)
+            if !path.isEmpty { return path }
+        }
+        return "/bin/zsh"
+    }
+
+    // MARK: LocalProcessTerminalViewDelegate
+    func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
+    func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
+    func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+    func processTerminated(source: TerminalView, exitCode: Int32?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.onTerminated?(self.id)
+        }
+    }
+}
+
+/// 只在主线程使用。
+final class TerminalPool {
+    private(set) var terminals: [EmbeddedTerminal] = []
+
+    @discardableResult
+    func create(id: UUID = UUID(), cwd: String, title: String, command: String?) -> EmbeddedTerminal {
+        let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, command: command)
+        terminals.append(terminal)
+        return terminal
+    }
+
+    func terminal(_ id: UUID) -> EmbeddedTerminal? {
+        terminals.first { $0.id == id }
+    }
+
+    func remove(_ id: UUID) {
+        terminals.removeAll { $0.id == id }
+    }
+
+    func infos(processes: ProcessTable) -> [EmbeddedTerminalInfo] {
+        terminals.map {
+            EmbeddedTerminalInfo(id: $0.id, cwd: $0.cwd, tty: processes.tty(of: $0.shellPID),
+                                 title: $0.title, createdAt: $0.createdAt)
+        }
+    }
+}
