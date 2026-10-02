@@ -72,6 +72,13 @@ struct GroupHeader: View {
     @ObservedObject var model: AppModel
     let group: SessionGroup
 
+    private var allMissing: Bool {
+        group.rows.allSatisfy {
+            if case .missing = $0.session.host { return true }
+            return false
+        }
+    }
+
     var body: some View {
         let collapsed = model.collapsed.contains(group.id)
         HStack(spacing: 6) {
@@ -79,9 +86,11 @@ struct GroupHeader: View {
             Text(group.title).font(.headline)
             if collapsed { Text("(\(group.rows.count))").foregroundStyle(.secondary) }
             Spacer()
-            Button { model.newSession(cwd: group.id) } label: { Image(systemName: "plus") }
-                .buttonStyle(.plain)
-                .help("在 \(group.id) 新建 Session")
+            if !allMissing {
+                Button { model.newSession(cwd: group.id) } label: { Image(systemName: "plus") }
+                    .buttonStyle(.plain)
+                    .help("在 \(group.id) 新建 Session")
+            }
         }
     }
 }
@@ -153,6 +162,10 @@ struct DetailView: View {
             if let row = model.selectedRow, row.session.host.isEmbedded {
                 HStack {
                     Text(row.displayName).font(.headline)
+                    if row.session.kind == .claude {
+                        Text("·").foregroundStyle(.secondary)
+                        Text("Claude").foregroundStyle(.secondary)
+                    }
                     Text("·").foregroundStyle(.secondary)
                     Text(row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                         .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)

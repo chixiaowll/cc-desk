@@ -29,6 +29,11 @@ final class AppModel: ObservableObject {
     private var knownSessionIDs: [UUID: String] = [:]
     /// 正在接管中的外部进程 pid，防止同一进程被重复接管。
     private var takingOver: Set<Int32> = []
+    /// 曾经在某个内嵌终端里观测到过 Claude session 的终端 id；用于区分"claude 已退出留下普通 shell"
+    /// 与"刚恢复、claude 还没来得及注册"两种情况。
+    private var observedClaude: Set<UUID> = []
+    /// 最近一次 poll 的进程表，供「激活 .other 宿主」时查找宿主 App。
+    private var lastProcesses: ProcessTable?
     private var tick = 0
 
     // MARK: 生命周期
@@ -60,10 +65,18 @@ final class AppModel: ObservableObject {
     private func apply(registry: [RegistryEntry], processes: ProcessTable, projects: [String: ProjectRef]) {
         polling = false
         now = Date()
+        lastProcesses = processes
         sessions = SessionBuilder.build(registry: registry, processes: processes,
                                         embedded: pool.infos(processes: processes), missing: missing)
         for s in sessions {
-            if case .embedded(let tid) = s.host, let sid = s.sessionID { knownSessionIDs[tid] = sid }
+            guard case .embedded(let tid) = s.host else { continue }
+            if s.kind == .claude {
+                observedClaude.insert(tid)
+                if let sid = s.sessionID { knownSessionIDs[tid] = sid }
+            } else if observedClaude.contains(tid) {
+                // claude 已退出，只留下普通 shell：忘掉旧 sessionId，下次恢复时不要再尝试 resume。
+                knownSessionIDs[tid] = nil
+            }
         }
         groups = SidebarBuilder.build(sessions: sessions) { projects[$0] ?? ProjectRef(root: $0, branch: nil, cwd: $0) }
 
@@ -105,16 +118,31 @@ final class AppModel: ObservableObject {
             selectedID = row.id
         case .terminalApp(let tty):
             if !Jumper.jumpToTerminalApp(tty: tty) {
-                alert("无法跳转到 Terminal",
-                      "请在「系统设置 → 隐私与安全性 → 自动化」中允许 CC Desk 控制 Terminal，或该标签已关闭。")
+                alertAutomationDenied()
             }
         case .vscode:
             Jumper.openInVSCode(cwd: row.session.cwd)
         case .other:
-            alert("无法跳转", "这个 session 运行在不支持定位的终端中。可以右键「在这里接管」。")
+            if let pid = row.session.pid, let processes = lastProcesses,
+               let appPath = Self.hostAppBundlePath(ofPID: pid, processes: processes) {
+                NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: appPath),
+                                                   configuration: NSWorkspace.OpenConfiguration())
+            } else {
+                alert("无法跳转", "这个 session 运行在不支持定位的终端中。可以右键「在这里接管」。")
+            }
         case .missing:
             break
         }
+    }
+
+    /// 沿着祖先进程往上找第一个来自 `*.app/Contents/MacOS/*` 的命令，返回其 `.app` bundle 路径。
+    private static func hostAppBundlePath(ofPID pid: Int32, processes: ProcessTable) -> String? {
+        for ancestor in processes.ancestors(of: pid) {
+            guard let range = ancestor.command.range(of: "/Contents/MacOS/") else { continue }
+            let appPath = String(ancestor.command[..<range.lowerBound])
+            if appPath.hasSuffix(".app") { return appPath }
+        }
+        return nil
     }
 
     func selectEmbedded(index: Int) {
@@ -295,6 +323,7 @@ final class AppModel: ObservableObject {
     private func removeTerminal(_ tid: UUID) {
         pool.remove(tid)
         knownSessionIDs[tid] = nil
+        observedClaude.remove(tid)
         if selectedTerminalID == tid { selectedID = nil }
         saveWorkspace()
         poll()
@@ -326,5 +355,17 @@ final class AppModel: ObservableObject {
         alert.messageText = title
         alert.informativeText = info
         alert.runModal()
+    }
+
+    private func alertAutomationDenied() {
+        let alert = NSAlert()
+        alert.messageText = "无法跳转到 Terminal"
+        alert.informativeText = "请在「系统设置 → 隐私与安全性 → 自动化」中允许 CC Desk 控制 Terminal，或该标签已关闭。"
+        alert.addButton(withTitle: "打开系统设置")
+        alert.addButton(withTitle: "好")
+        if alert.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
