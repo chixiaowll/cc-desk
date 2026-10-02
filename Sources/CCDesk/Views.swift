@@ -27,6 +27,14 @@ struct ContentView: View {
 struct DetailView: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
+    /// 详情区宽度，用于限制标题宽度：长标题截断，不把右侧的状态胶囊挤走。
+    @State private var width: CGFloat = 0
+
+    /// 给胶囊（约 90pt）和两侧留白预留空间；宽度未知时沿用 520。
+    private var titleMaxWidth: CGFloat {
+        guard width > 0 else { return 520 }
+        return min(520, max(120, width - 190))
+    }
 
     var body: some View {
         let theme = Theme.of(colorScheme)
@@ -45,13 +53,22 @@ struct DetailView: View {
             .background(Color(nsColor: theme.terminal.background))
         }
         .background(theme.main.ignoresSafeArea())
+        .background(GeometryReader { proxy in
+            Color.clear
+                .onAppear { width = proxy.size.width }
+                .onChange(of: proxy.size.width) { _, new in width = new }
+        })
         .toolbarBackground(.hidden, for: .windowToolbar)
         .toolbar {
+            // 标题在左（navigation）；状态胶囊用 .automatic 放在工具栏最右侧。
+            // macOS 上 .primaryAction 会被放在工具栏前端、紧挨标题，所以不用它。
             ToolbarItem(placement: .navigation) {
-                if let row { DetailTitle(row: row, theme: theme) }
+                if let row { DetailTitle(row: row, theme: theme, maxWidth: titleMaxWidth) }
             }
-            ToolbarItem(placement: .primaryAction) {
-                if let row { StatusPill(status: row.session.status, missing: false, theme: theme) }
+            ToolbarItem(placement: .automatic) {
+                if let row {
+                    StatusPill(status: row.session.status, label: row.statusLabel, missing: false, theme: theme)
+                }
             }
         }
     }
@@ -60,6 +77,7 @@ struct DetailView: View {
 struct DetailTitle: View {
     let row: SidebarRow
     let theme: Theme
+    var maxWidth: CGFloat = 520
 
     var body: some View {
         let path = row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~")
@@ -77,7 +95,7 @@ struct DetailTitle: View {
                 .truncationMode(.middle)
                 .frame(height: 15)
         }
-        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: maxWidth, alignment: .leading)
         .help(row.tooltip)
     }
 }
@@ -85,6 +103,8 @@ struct DetailTitle: View {
 /// 状态胶囊（详情区标题栏右侧）。
 struct StatusPill: View {
     let status: AgentStatus
+    /// 显示文字（如内嵌普通 shell 的「终端」）；nil 时取 status.label。
+    var label: String? = nil
     let missing: Bool
     let theme: Theme
 
@@ -103,9 +123,9 @@ struct StatusPill: View {
     private var colors: (Color, Color, String) {
         if missing { return (theme.pillMissBg, theme.pillMissFg, "目录缺失") }
         switch status {
-        case .waiting: return (theme.pillWaitBg, theme.pillWaitFg, status.label)
-        case .working: return (theme.pillWorkBg, theme.pillWorkFg, status.label)
-        case .idle, .ended, .unknown: return (theme.pillIdleBg, theme.pillIdleFg, status.label)
+        case .waiting: return (theme.pillWaitBg, theme.pillWaitFg, label ?? status.label)
+        case .working: return (theme.pillWorkBg, theme.pillWorkFg, label ?? status.label)
+        case .idle, .ended, .unknown: return (theme.pillIdleBg, theme.pillIdleFg, label ?? status.label)
         }
     }
 }

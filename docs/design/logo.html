@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CC Desk 图标方案</title>
+<style>
+:root {
+  --page: #EFECE6; --card: #FBFAF8; --line: #E2DDD5; --fg1: #1F1E1C; --fg2: #6B675F; --fg3: #8A857D;
+  --dock: rgba(255,255,255,.55);
+}
+:root[data-theme="dark"] { --page: #151413; --card: #1F1E1C; --line: #34322E; --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; --dock: rgba(40,38,35,.7); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #151413; --card: #1F1E1C; --line: #34322E; --fg1: #EDEBE7; --fg2: #A39E96; --fg3: #837E76; --dock: rgba(40,38,35,.7); } }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 32px 16px 64px; background: var(--page); color: var(--fg1); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; }
+h1 { margin: 0; font-size: 22px; }
+.sub { margin: 4px 0 0; color: var(--fg2); font-size: 13px; }
+.seg { display: inline-flex; background: var(--line); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--fg2); font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--fg1); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(540px, 1fr)); gap: 20px; }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+.card h2 { margin: 0; font-size: 16px; display: flex; gap: 8px; align-items: baseline; }
+.card h2 span { font-size: 12px; font-weight: 500; color: var(--fg3); }
+.card p { margin: 0; font-size: 13px; line-height: 20px; color: var(--fg2); }
+.hero { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.hero svg.big { width: 168px; height: 168px; flex-shrink: 0; filter: drop-shadow(0 10px 18px rgba(40,30,20,.18)) drop-shadow(0 2px 4px rgba(40,30,20,.12)); }
+.sizes { display: flex; gap: 18px; align-items: flex-end; }
+.sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--fg3); }
+.dock { display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 16px; background: var(--dock); border: 1px solid var(--line); backdrop-filter: blur(8px); }
+.dock .fake { width: 44px; height: 44px; border-radius: 10px; background: var(--line); opacity: .7; }
+.menu { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fg2); padding: 4px 10px; border-radius: 6px; background: var(--line); width: max-content; }
+.pros { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 20px; color: var(--fg2); }
+.rec { border-color: #C4552B; box-shadow: 0 0 0 1px #C4552B inset; }
+.card h2 .tag { font-size: 11px; font-weight: 600; color: #fff; background: #C4552B; border-radius: 5px; padding: 1px 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>CC Desk 图标方案</h1>
+    <p class="sub">四个方向；配色沿用界面：米白、暖墨、陶土橙（等批准）、雾蓝（处理中）。每个方向含大图、Dock、菜单栏与 16px 小尺寸预览。</p>
+  </div>
+  <div class="seg" role="group" aria-label="背景">
+    <button type="button" data-t="auto" aria-pressed="true">跟随系统</button>
+    <button type="button" data-t="light" aria-pressed="false">浅色</button>
+    <button type="button" data-t="dark" aria-pressed="false">深色</button>
+  </div>
+</header>
+
+<!-- 共用的 SVG 定义 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <!-- macOS 图标网格：824 内容区居中于 1024 画布，圆角约 185 -->
+    <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <linearGradient id="cream" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FBF8F2"/><stop offset="1" stop-color="#EDE7DC"/></linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2E2B27"/><stop offset="1" stop-color="#1A1816"/></linearGradient>
+    <linearGradient id="clay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D2683F"/><stop offset="1" stop-color="#B84C25"/></linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+
+    <!-- A. cd：终端里的「换目录」 -->
+    <symbol id="logoA" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <rect x="100" y="100" width="824" height="412" fill="url(#gloss)" opacity=".18"/>
+        <text x="236" y="640" font-family="SF Mono, Menlo, monospace" font-size="330" font-weight="700" fill="#F3EEE6" letter-spacing="-8">cd</text>
+        <rect x="688" y="372" width="104" height="290" rx="14" fill="url(#clay)"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+
+    <!-- B. 分栏书桌：左侧会话列表 + 右侧终端 -->
+    <symbol id="logoB" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#cream)"/>
+        <rect x="190" y="210" width="644" height="604" rx="70" fill="#FFFEFC" stroke="#DDD6CA" stroke-width="10"/>
+        <path d="M190 280a70 70 0 0 1 70-70h150v604H260a70 70 0 0 1-70-70z" fill="#EDE7DC"/>
+        <circle cx="262" cy="320" r="26" fill="#C4552B"/>
+        <rect x="306" y="306" width="74" height="28" rx="14" fill="#B9B1A4"/>
+        <circle cx="262" cy="410" r="26" fill="#3F6E9E"/>
+        <rect x="306" y="396" width="74" height="28" rx="14" fill="#B9B1A4"/>
+        <circle cx="262" cy="500" r="22" fill="none" stroke="#9C9488" stroke-width="10"/>
+        <rect x="306" y="486" width="74" height="28" rx="14" fill="#CFC7BA"/>
+        <path d="M486 400l78 64-78 64" fill="none" stroke="#2A2925" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="604" y="508" width="150" height="38" rx="19" fill="#2A2925"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".12"/>
+    </symbol>
+
+    <!-- C. 状态叠层：三张会话卡片，颜色即状态 -->
+    <symbol id="logoC" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#cream)"/>
+        <rect x="236" y="236" width="552" height="150" rx="56" fill="#E2DBCF"/>
+        <circle cx="318" cy="311" r="30" fill="none" stroke="#9C9488" stroke-width="12"/>
+        <rect x="380" y="294" width="300" height="34" rx="17" fill="#C8BFB2"/>
+        <rect x="236" y="437" width="552" height="150" rx="56" fill="#3F6E9E"/>
+        <circle cx="318" cy="512" r="32" fill="#E5ECF3"/>
+        <rect x="380" y="495" width="300" height="34" rx="17" fill="#A9C0D8"/>
+        <rect x="236" y="638" width="552" height="150" rx="56" fill="url(#clay)"/>
+        <circle cx="318" cy="713" r="32" fill="#FFF4EE"/>
+        <rect x="380" y="696" width="220" height="34" rx="17" fill="#F2B79D"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".12"/>
+    </symbol>
+
+    <!-- D. 提示符 + 状态点：极简 -->
+    <symbol id="logoD" viewBox="0 0 1024 1024">
+      <g clip-path="url(#sq)">
+        <rect x="100" y="100" width="824" height="824" fill="url(#ink)"/>
+        <rect x="100" y="100" width="824" height="412" fill="url(#gloss)" opacity=".16"/>
+        <path d="M300 380l150 132-150 132" fill="none" stroke="#F3EEE6" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="520" y="604" width="200" height="64" rx="32" fill="#F3EEE6"/>
+        <circle cx="742" cy="330" r="58" fill="#C4552B"/>
+        <circle cx="742" cy="330" r="58" fill="none" stroke="#1A1816" stroke-width="22"/>
+      </g>
+      <rect x="100.5" y="100.5" width="823" height="823" rx="185" fill="none" stroke="#000" stroke-opacity=".25"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="grid" id="grid"></div>
+</div>
+
+<script>
+const OPTIONS = [
+  { id: 'logoA', name: 'A · cd', tag: '推荐',
+    desc: '`cd` 是终端里「进入目录」的命令，正好呼应 CC Desk 按目录组织会话；也恰好是 CC Desk 的缩写。暖墨底 + 米白等宽字 + 陶土橙光标块，光标暗示「正在运行」。',
+    pros: ['一语双关，记忆点强', '16px 下仍能认出光标块', '和终端类 App 气质一致，但不撞 Terminal 图标'] },
+  { id: 'logoB', name: 'B · 分栏书桌',
+    desc: '直接画出 App 的样子：左边会话列表带三个状态点（橙 / 蓝 / 灰），右边终端提示符。米白底，和浅色界面一致。',
+    pros: ['一眼看出 App 是做什么的', '状态色直接进图标', '缺点：细节多，16px 下会糊'] },
+  { id: 'logoC', name: 'C · 状态叠层',
+    desc: '三张叠放的会话卡片，从上到下：空闲、处理中、等批准。颜色就是状态语言，抽象但和界面强相关。',
+    pros: ['色块大，小尺寸清楚', '状态体系的视觉延伸', '缺点：不直观体现「终端」'] },
+  { id: 'logoD', name: 'D · 提示符 + 状态点',
+    desc: '最简的 `>_` 提示符，右上角一个陶土橙状态点，像「有会话在等你」的通知徽标。',
+    pros: ['极简、现代', '小尺寸最清楚', '缺点：终端类 App 常见，辨识度一般'] }
+];
+const use = (id, size) => `<svg width="${size}" height="${size}" viewBox="0 0 1024 1024" role="img" aria-label="图标预览"><use href="#${id}"/></svg>`;
+document.getElementById('grid').innerHTML = OPTIONS.map((o) => `
+  <section class="card${o.tag ? ' rec' : ''}">
+    <h2>${o.name} ${o.tag ? `<span class="tag">${o.tag}</span>` : ''}</h2>
+    <div class="hero">
+      <svg class="big" viewBox="0 0 1024 1024" role="img" aria-label="${o.name}"><use href="#${o.id}"/></svg>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="sizes">
+          <figure>${use(o.id, 64)}<figcaption>64</figcaption></figure>
+          <figure>${use(o.id, 32)}<figcaption>32</figcaption></figure>
+          <figure>${use(o.id, 16)}<figcaption>16</figcaption></figure>
+        </div>
+        <div class="dock"><span class="fake"></span>${use(o.id, 52)}<span class="fake"></span></div>
+        <div class="menu">${use(o.id, 16)}<span>CC Desk</span></div>
+      </div>
+    </div>
+    <p>${o.desc.replace(/`([^`]+)`/g, '<code>$1</code>')}</p>
+    <ul class="pros">${o.pros.map((p) => `<li>${p}</li>`).join('')}</ul>
+  </section>`).join('');
+document.querySelectorAll('[data-t]').forEach((b) => b.addEventListener('click', () => {
+  const v = b.dataset.t;
+  if (v === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', v);
+  document.querySelectorAll('[data-t]').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+}));
+const h = location.hash.slice(1); if (h === 'dark' || h === 'light') document.documentElement.setAttribute('data-theme', h);
+</script>
+</body>
+</html>
