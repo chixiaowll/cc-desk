@@ -20,6 +20,10 @@ protocol AssistantHost: AnyObject {
     func assistantResume(sessionID: String) -> String?
     /// 关闭内嵌会话（不再弹确认框：语音已确认过）。
     func assistantClose(_ rowID: String)
+    /// 外部终端里的会话能否接管到 CC Desk（有会话 id、agent 支持恢复）。
+    func assistantCanTakeOver(_ rowID: String) -> Bool
+    /// 接管外部会话（语音已确认过，不再弹确认框）并选中它。
+    func assistantTakeOver(_ rowID: String)
     /// 读会话记录尾部（后台），completion 在主线程。rowID 为 nil 时取选中的会话。
     func assistantDigest(rowID: String?, completion: @escaping (AssistantDigest?) -> Void)
 }
@@ -40,12 +44,19 @@ final class VoiceAssistant {
 
     /// 意图解析。模型不可用 / 超时 / 输出无效时退回为插入原话。
     func decide(utterance: String, context: AssistantContext, completion: @escaping (AssistantDecision) -> Void) {
+        AssistantDiag.log("decide \"\(utterance)\" sessions=" + context.sessions.map {
+            "\($0.title)@\($0.dir)\($0.isSelected ? "*" : "")"
+        }.joined(separator: " | "))
         client.complete(system: AssistantPrompt.intentSystem,
                         message: AssistantPrompt.intentMessage(utterance: utterance, context: context)) { result in
             switch result {
             case .success(let reply):
-                completion(AssistantResponse.decide(modelText: reply.text, utterance: utterance, context: context))
-            case .failure:
+                let decision = AssistantResponse.decide(modelText: reply.text, utterance: utterance, context: context)
+                AssistantDiag.log(String(format: "model %.2fs in=%d out=%d raw=%@ -> %@", reply.latency, reply.inputTokens,
+                                         reply.outputTokens, reply.text, String(describing: decision.command)))
+                completion(decision)
+            case .failure(let error):
+                AssistantDiag.log("model failed: \(error)")
                 completion(AssistantDecision(command: .insert(utterance), speak: L("assistant.unavailable"), isFallback: true))
             }
         }

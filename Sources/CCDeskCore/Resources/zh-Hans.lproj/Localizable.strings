@@ -103,3 +103,12 @@
 "assistant.waiting.one" = "%@在等你";
 "assistant.waiting.many" = "%1$d 个在等你：%2$@";
 "assistant.list.separator" = "、";
+"assistant.list.none" = "现在没有会话";
+"assistant.list.item" = "%1$@%2$@";
+"assistant.list.summary" = "共 %1$d 个会话：%2$@";
+"assistant.list.more" = "，还有 %d 个";
+"assistant.status.working" = "在处理";
+"assistant.status.waiting" = "等你批准";
+"assistant.status.idle" = "空闲";
+"assistant.status.ended" = "已退出";
+"assistant.status.unknown" = "状态未知";

@@ -202,7 +202,15 @@
 "voice.speech.premium" = "%@（高级）";
 "voice.speech.enhanced" = "%@（增强）";
 "voice.speech.sample" = "你好，我是 CC Desk 助手";
+"menu.autoStartConversation" = "启动时开启助手";
+"menu.persistentConversation" = "常驻对话";
 "menu.turnSummaries" = "回复摘要";
 "menu.speechVoice" = "朗读声音";
 "menu.speechVoice.auto" = "自动（音质最好）";
 "menu.speechVoice.download" = "下载更多声音…";
+"assistant.noTarget" = "先选一个 CC Desk 里的会话";
+"assistant.switch.offerTakeOver" = "它在终端窗口里，说「确认」移过来";
+"assistant.toast.confirmTakeOver" = "说「确认」接管：%@";
+"assistant.toast.takenOver" = "已接管：%@";
+"assistant.takeOver.done" = "好，已移过来";
+"assistant.toast.cancelled" = "已取消";

@@ -157,6 +157,8 @@ struct CCDeskApp: App {
                 }
                 ConversationMenuItem(model: delegate.model, conversation: delegate.model.conversation)
                 TurnSummaryMenuItem()
+                PersistentConversationMenuItem()
+                AutoStartConversationMenuItem()
                 SpeechVoiceMenu(conversation: delegate.model.conversation)
                 Divider()
                 ForEach(1...9, id: \.self) { index in
@@ -178,7 +180,6 @@ private struct ConversationMenuItem: View {
             get: { conversation.isOn },
             set: { _ in conversation.toggle() }))
             .keyboardShortcut("v", modifiers: [.command, .option])
-            .disabled(!conversation.isOn && model.selectedTerminalID == nil)
     }
 }
 
@@ -188,6 +189,24 @@ private struct TurnSummaryMenuItem: View {
 
     var body: some View {
         Toggle(L("menu.turnSummaries"), isOn: $on)
+    }
+}
+
+/// 菜单「Session → 启动时开启助手」。
+private struct AutoStartConversationMenuItem: View {
+    @AppStorage(ConversationMode.autoStartDefaultsKey) private var on = true
+
+    var body: some View {
+        Toggle(L("menu.autoStartConversation"), isOn: $on)
+    }
+}
+
+/// 菜单「Session → 常驻对话」：唤醒后一直在线，不因沉默或发送而回到待命。
+private struct PersistentConversationMenuItem: View {
+    @AppStorage(ConversationMode.persistentDefaultsKey) private var on = true
+
+    var body: some View {
+        Toggle(L("menu.persistentConversation"), isOn: $on)
     }
 }
 

@@ -47,6 +47,15 @@ extension AppModel: AssistantHost {
         if let row = row(rowID) { closeWithoutConfirmation(row) }
     }
 
+    func assistantCanTakeOver(_ rowID: String) -> Bool {
+        guard let row = row(rowID) else { return false }
+        return canTakeOver(row)
+    }
+
+    func assistantTakeOver(_ rowID: String) {
+        if let row = row(rowID) { takeOver(row, confirmed: true) }
+    }
+
     func assistantDigest(rowID: String?, completion: @escaping (AssistantDigest?) -> Void) {
         guard let row = rowID.flatMap(row) ?? selectedRow else { return completion(nil) }
         transcriptDigest(for: row, completion: completion)

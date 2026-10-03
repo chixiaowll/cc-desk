@@ -158,6 +158,8 @@ public enum ConversationCommand: Equatable, Sendable {
     case stop
     case approve
     case deny
+    /// 回到待命（常驻模式下结束这一轮对话，需要再次唤醒）。
+    case rest
 }
 
 /// 把整句识别结果解析成指令（整句匹配，容忍标点、首尾语气词）。批准 / 拒绝只在 agent 等批准时生效。
@@ -167,6 +169,10 @@ public enum ConversationCommands {
     static let stop: Set<String> = [
         "退出对话模式", "停止对话", "退出对话", "结束对话", "关闭对话模式", "停止对话模式", "停止聆听", "停止监听",
         "stoplistening", "exitconversationmode", "stopconversation", "endconversation", "stopconversationmode",
+    ]
+    static let rest: Set<String> = [
+        "休息一下", "休息", "你先休息", "先休息", "待命", "先这样", "没事了", "去休息", "你休息",
+        "rest", "standby", "thatsall", "gotosleep",
     ]
     static let approve: Set<String> = [
         "同意", "可以", "好的", "是", "确认", "是的", "允许", "批准", "可以的", "好",
@@ -182,6 +188,7 @@ public enum ConversationCommands {
             if send.contains(candidate) { return .send }
             if cancel.contains(candidate) { return .cancel }
             if stop.contains(candidate) { return .stop }
+            if rest.contains(candidate) { return .rest }
             if waiting, approve.contains(candidate) { return .approve }
             if waiting, deny.contains(candidate) { return .deny }
         }
@@ -361,6 +368,8 @@ public struct ConversationSession: Equatable {
     public let wakePrefix: TimeInterval
     /// 对话中没命中本地指令的话交给语音助手（`.assist`），否则直接插入（`.insert`）。
     public var routesToAssistant = false
+    /// 常驻：唤醒后一直保持对话（不超时、发送 / 取消后不回待命），说「休息一下」才回到待命。
+    public var persistent = false
     private var lastActivity: TimeInterval = 0
     private var waitingAnnouncedAt: TimeInterval?
 
@@ -385,6 +394,14 @@ public struct ConversationSession: Equatable {
         state = .standby
     }
 
+    /// 发送 / 取消之后：非常驻时回到待命。返回是否回到了待命。
+    @discardableResult
+    public mutating func finishTurn() -> Bool {
+        guard !persistent else { return false }
+        state = .standby
+        return true
+    }
+
     /// 检测到有人在说话（对话中时推迟超时）。
     public mutating func noteSpeech(now: TimeInterval) {
         if state == .active { lastActivity = now }
@@ -396,7 +413,7 @@ public struct ConversationSession: Equatable {
     }
 
     public mutating func tick(now: TimeInterval) -> [ConversationAction] {
-        guard state == .active, now - lastActivity >= idleTimeout else { return [] }
+        guard state == .active, !persistent, now - lastActivity >= idleTimeout else { return [] }
         state = .standby
         return [.standby]
     }
@@ -430,11 +447,12 @@ public struct ConversationSession: Equatable {
         guard ConversationText.isMeaningful(text) else { return [] }
         switch ConversationCommands.parse(text, waiting: waiting) {
         case .send?:
-            state = .standby
-            return [.send, .standby]
+            return finishTurn() ? [.send, .standby] : [.send]
         case .cancel?:
+            return finishTurn() ? [.cancel, .standby] : [.cancel]
+        case .rest?:
             state = .standby
-            return [.cancel, .standby]
+            return [.standby]
         case .stop?:
             state = .standby
             return [.stop]

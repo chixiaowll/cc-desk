@@ -202,7 +202,15 @@
 "voice.speech.premium" = "%@ (Premium)";
 "voice.speech.enhanced" = "%@ (Enhanced)";
 "voice.speech.sample" = "Hi, I’m your CC Desk assistant";
+"menu.autoStartConversation" = "Start Assistant at Launch";
+"menu.persistentConversation" = "Stay Awake After Wake Word";
 "menu.turnSummaries" = "Spoken Turn Summaries";
 "menu.speechVoice" = "Speaking Voice";
 "menu.speechVoice.auto" = "Automatic (Best Quality)";
 "menu.speechVoice.download" = "Get More Voices…";
+"assistant.noTarget" = "Select a session in CC Desk first";
+"assistant.switch.offerTakeOver" = "It's in a terminal window. Say confirm to move it here";
+"assistant.toast.confirmTakeOver" = "Say \"confirm\" to take over: %@";
+"assistant.toast.takenOver" = "Taken over: %@";
+"assistant.takeOver.done" = "Done, moved it here";
+"assistant.toast.cancelled" = "Cancelled";

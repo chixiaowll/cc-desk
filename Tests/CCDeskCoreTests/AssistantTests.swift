@@ -210,4 +210,22 @@ final class AssistantTests: ZhHansTestCase {
         ]
         XCTAssertEqual(AssistantLocal.waitingAnswer(sessions: many), "2 个在等你：中国诗歌视频课程、另一个")
     }
+
+    // MARK: 会话列表
+
+    func testListQuestionAnsweredLocally() {
+        XCTAssertTrue(AssistantLocal.isListQuestion("现在有哪些会话？"))
+        XCTAssertTrue(AssistantLocal.isListQuestion("帮我列出会话"))
+        XCTAssertFalse(AssistantLocal.isListQuestion("它刚才改了哪些文件"))
+        XCTAssertEqual(AssistantLocal.listAnswer(sessions: context().sessions), "共 2 个会话：poems空闲、herdr在处理")
+        XCTAssertEqual(AssistantLocal.listAnswer(sessions: []), "现在没有会话")
+    }
+
+    func testAnswerActionSpeaksText() {
+        let text = #"{"action":"answer","args":{"text":"poems 空闲，herdr 在处理"},"speak":""}"#
+        let d = AssistantResponse.decide(modelText: text, utterance: "几个在跑", context: context())
+        XCTAssertEqual(d.command, .none)
+        XCTAssertEqual(d.speak, "poems 空闲，herdr 在处理")
+        XCTAssertFalse(d.isFallback)
+    }
 }

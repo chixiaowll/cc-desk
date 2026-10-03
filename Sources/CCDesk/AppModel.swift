@@ -131,6 +131,7 @@ final class AppModel: ObservableObject {
         refreshHistory()
         refreshUsage()
         voice.start()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.conversation.autoStartIfEnabled() }
     }
 
     /// 只在主窗口为 key、且没有弹出表单 / 历史面板 / 面板窗口时响应右 ⌥。
@@ -569,12 +570,18 @@ final class AppModel: ObservableObject {
         return takingOver.contains(pid)
     }
 
-    func takeOver(_ row: SidebarRow) {
+    func canTakeOver(_ row: SidebarRow) -> Bool {
+        row.session.pid != nil && row.session.sessionID != nil && !row.session.host.isEmbedded
+            && AgentAdapters.adapter(for: row.session.kind) != nil
+    }
+
+    /// confirmed：调用方已确认过（如语音助手），忙碌时不再弹确认框。
+    func takeOver(_ row: SidebarRow, confirmed: Bool = false) {
         guard let pid = row.session.pid, let sid = row.session.sessionID, !row.session.host.isEmbedded,
               let adapter = AgentAdapters.adapter(for: row.session.kind) else { return }
         let kind = row.session.kind
         guard !takingOver.contains(pid) else { return }
-        if row.session.status.isActive,
+        if !confirmed, row.session.status.isActive,
            !confirm(L("confirm.takeOver.title", row.displayName), L("confirm.takeOver.message", row.session.status.label)) { return }
         let cwd = ProjectResolver.canonical(row.session.cwd)
         guard FileManager.default.fileExists(atPath: cwd) else {

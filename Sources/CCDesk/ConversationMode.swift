@@ -40,8 +40,9 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     weak var host: AssistantHost?
     /// 选中会话最近一轮的回复摘要（作为意图解析的上下文）。
     private var lastSummaries: [UUID: String] = [:]
-    /// 等待语音确认关闭的会话与截止时间。
-    private var pendingClose: (rowID: String, deadline: TimeInterval)?
+    /// 等待语音确认的操作（关闭忙碌的会话 / 接管外部会话）与截止时间。
+    private enum PendingAction { case close, takeOver }
+    private var pendingClose: (action: PendingAction, rowID: String, deadline: TimeInterval)?
     static let closeConfirmWindow: TimeInterval = 15
 
     private var session = ConversationSession()
@@ -49,7 +50,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private var inserted = ""
     private var insertedTarget: UUID?
     /// 等待识别的片段（与说话时选中的终端）。
-    private var queue: [(samples: [Float], target: UUID)] = []
+    private var queue: [(samples: [Float], target: UUID?)] = []
     private var timer: Timer?
     private var toastWork: DispatchWorkItem?
     private var resumeWork: DispatchWorkItem?
@@ -87,6 +88,27 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     static let summariesDefaultsKey = "voiceTurnSummaries"
+    static let persistentDefaultsKey = "conversationPersistent"
+    static let autoStartDefaultsKey = "conversationAutoStart"
+
+    /// 「启动时开启助手」：App 启动后自动进入对话模式待命（默认开；需已有麦克风权限和语音模型）。
+    static var autoStartEnabled: Bool {
+        UserDefaults.standard.object(forKey: autoStartDefaultsKey) as? Bool ?? true
+    }
+
+    /// 启动时自动开启：不触发模型下载；麦克风未授权过时会弹系统授权框，被拒绝过就保持关闭。
+    func autoStartIfEnabled() {
+        let mic = AVCaptureDevice.authorizationStatus(for: .audio)
+        let downloaded = WhisperTranscriber.shared.isDownloaded
+        AssistantDiag.log("auto start enabled=\(Self.autoStartEnabled) mic=\(mic.rawValue) model=\(downloaded)")
+        guard Self.autoStartEnabled, !isOn, mic == .authorized || mic == .notDetermined, downloaded else { return }
+        turnOn()
+    }
+
+    /// 「常驻对话」：唤醒一次后一直在线，说「休息一下」才回到待命（默认开）。
+    static var persistentEnabled: Bool {
+        UserDefaults.standard.object(forKey: persistentDefaultsKey) as? Bool ?? true
+    }
 
     /// 「回复摘要」：一轮完成时播报摘要而不是「已完成」（默认开）。
     static var summariesEnabled: Bool {
@@ -105,7 +127,6 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
 
     func turnOn() {
         guard !isOn else { return }
-        guard selectedTerminalID() != nil else { return voice.showHint(L("voice.hint.selectSession")) }
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             break
@@ -123,6 +144,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         generation += 1
         let current = generation
         session = ConversationSession(wakeWord: Self.storedWakeWord)
+        session.persistent = Self.persistentEnabled
         session.routesToAssistant = assistant.isAvailable != false
         state = session.state
         thinking = false
@@ -130,6 +152,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         assistant.prepare { [weak self] ok in
             guard let self, self.isOn, self.generation == current else { return }
             self.session.routesToAssistant = ok
+            AssistantDiag.log("assistant prepare ok=\(ok)")
         }
         if SpeechVoices.takeQualityHint() { voice.showHint(L("voice.hint.betterVoice")) }
         isOn = true
@@ -198,6 +221,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         let value = currentLevel
         levelLock.unlock()
         level = speaking ? 0 : value
+        session.persistent = Self.persistentEnabled
         for action in session.tick(now: ProcessInfo.processInfo.systemUptime) { perform(action, target: nil) }
         state = session.state
     }
@@ -230,8 +254,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         case .utterance(let samples):
             capturing = false
             session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
-            guard let target = selectedTerminalID() else { return }
-            queue.append((samples, target))
+            // 助手常驻：没选中内嵌会话时也照常识别（列会话 / 切换 / 新建不需要目标终端）。
+            queue.append((samples, selectedTerminalID()))
             transcribeNext()
         }
     }
@@ -267,10 +291,13 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func apply(_ text: String, target: UUID) {
+    private func apply(_ text: String, target: UUID?) {
         if session.state == .active, pendingClose != nil, resolvePendingClose(text) { return }
-        let waiting = statusOf(target)?.isWaiting ?? false
+        let waiting = target.flatMap(statusOf)?.isWaiting ?? false
+        session.persistent = Self.persistentEnabled
+        let before = session.state
         let actions = session.handle(transcript: text, waiting: waiting, now: ProcessInfo.processInfo.systemUptime)
+        AssistantDiag.log("heard \"\(text)\" state=\(before) assistant=\(session.routesToAssistant) -> \(actions)")
         for action in actions { perform(action, target: target) }
         state = session.state
     }
@@ -290,15 +317,15 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         case .standby:
             NSSound(named: "Pop")?.play()
         case .assist(let text):
-            guard let target else { return }
             assist(text, target: target)
         case .insert(let text):
-            guard let terminal else { return voice.showHint(L("voice.hint.targetClosed")) }
+            guard let terminal else { return noTarget() }
             let payload = ConversationText.insertion(text, after: inserted)
             terminal.send(text: payload, submit: false)
             inserted += payload
         case .send:
-            terminal?.sendKeys("\r")
+            guard let terminal else { return noTarget() }
+            terminal.sendKeys("\r")
             inserted = ""
             showToast(L("conversation.toast.sent"))
         case .cancel:
@@ -320,6 +347,12 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// 要往终端里输入，但当前没选中 CC Desk 里的会话。
+    private func noTarget() {
+        showToast(L("assistant.noTarget"))
+        speak(L("assistant.noTarget"))
+    }
+
     private func showToast(_ text: String) {
         toastWork?.cancel()
         toast = text
@@ -331,12 +364,15 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     // MARK: 语音助手
 
     /// 本地规则没命中的话：「哪些在等我」本地回答，其余交给意图模型（期间提示音 +「思考中…」）。
-    private func assist(_ text: String, target: UUID) {
+    private func assist(_ text: String, target: UUID?) {
         guard let host else { return perform(.insert(text), target: target) }
         let context = host.assistantContext(pendingText: insertedTarget == target ? inserted : "",
-                                            lastSummary: lastSummaries[target])
+                                            lastSummary: target.flatMap { lastSummaries[$0] })
         if AssistantLocal.isWaitingQuestion(text) {
             return speak(AssistantLocal.waitingAnswer(sessions: context.sessions))
+        }
+        if AssistantLocal.isListQuestion(text) {
+            return speak(AssistantLocal.listAnswer(sessions: context.sessions))
         }
         let current = generation
         beginThinking()
@@ -360,7 +396,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
     }
 
-    private func execute(_ decision: AssistantDecision, target: UUID) {
+    private func execute(_ decision: AssistantDecision, target: UUID?) {
         let reply = decision.speak
         func say() { if !reply.isEmpty { speak(reply) } }
         switch decision.command {
@@ -373,12 +409,10 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             }
         case .send:
             perform(.send, target: target)
-            session.standby()
-            perform(.standby, target: target)
+            if session.finishTurn() { perform(.standby, target: target) }
         case .cancel:
             perform(.cancel, target: target)
-            session.standby()
-            perform(.standby, target: target)
+            if session.finishTurn() { perform(.standby, target: target) }
         case .approve:
             perform(.approve, target: target)
         case .deny:
@@ -386,8 +420,17 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         case .stop:
             perform(.stop, target: target)
         case .switchTo(let rowID):
-            guard let host, let row = host.assistantRow(rowID) else { return }
-            guard row.isEmbedded else { return speak(L("assistant.switch.external")) }
+            guard let host, let row = host.assistantRow(rowID) else {
+                AssistantDiag.log("switch: row \(rowID) not found")
+                return
+            }
+            guard row.isEmbedded else {
+                // 外部终端里的会话：语音没法输入进去，问一句是否接管到 CC Desk。
+                guard host.assistantCanTakeOver(rowID) else { return speak(L("assistant.switch.external")) }
+                pendingClose = (.takeOver, rowID, ProcessInfo.processInfo.systemUptime + Self.closeConfirmWindow)
+                showToast(L("assistant.toast.confirmTakeOver", row.title))
+                return speak(L("assistant.switch.offerTakeOver"))
+            }
             host.assistantSwitch(to: rowID)
             showToast(L("assistant.toast.switched", row.title))
             say()
@@ -406,7 +449,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             guard row.isEmbedded else { return speak(L("assistant.close.external")) }
             if row.status.isActive {
                 // 正在处理 / 等批准的会话：要求 15 秒内说「确认」。
-                pendingClose = (rowID, ProcessInfo.processInfo.systemUptime + Self.closeConfirmWindow)
+                pendingClose = (.close, rowID, ProcessInfo.processInfo.systemUptime + Self.closeConfirmWindow)
                 showToast(L("assistant.toast.confirmClose", row.title))
                 speak(L("assistant.close.confirm"))
             } else {
@@ -441,21 +484,29 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         pendingClose = nil
         guard ProcessInfo.processInfo.systemUptime <= pending.deadline else { return false }
         let spoken = session.matcher.match(text) ?? text
-        if ConversationCommands.parse(spoken, waiting: true) == .approve || Self.isCloseConfirmation(spoken) {
+        if ConversationCommands.parse(spoken, waiting: true) == .approve || Self.isConfirmation(spoken) {
             let title = host?.assistantRow(pending.rowID)?.title ?? ""
-            host?.assistantClose(pending.rowID)
-            showToast(L("assistant.toast.closed", title))
+            switch pending.action {
+            case .close:
+                host?.assistantClose(pending.rowID)
+                showToast(L("assistant.toast.closed", title))
+            case .takeOver:
+                host?.assistantTakeOver(pending.rowID)
+                showToast(L("assistant.toast.takenOver", title))
+                speak(L("assistant.takeOver.done"))
+            }
             return true
         }
-        showToast(L("assistant.toast.closeCancelled"))
+        showToast(pending.action == .close ? L("assistant.toast.closeCancelled") : L("assistant.toast.cancelled"))
         // 明确的「不要 / 取消」到此为止；其他话照常处理。
         let command = ConversationCommands.parse(spoken, waiting: true)
         return command == .deny || command == .cancel
     }
 
-    static func isCloseConfirmation(_ text: String) -> Bool {
+    static func isConfirmation(_ text: String) -> Bool {
         let n = ConversationCommands.normalize(text)
-        return ["确认关闭", "关闭", "关吧", "关掉", "关了吧", "确定", "确定关闭", "closeit", "confirm"].contains(n)
+        return ["确认关闭", "关闭", "关吧", "关掉", "关了吧", "确定", "确定关闭", "接管", "移过来", "要", "行", "对",
+                "closeit", "confirm", "takeover", "sure"].contains(n)
     }
 
     /// 选中会话一轮完成：读记录尾部生成摘要；仍选中且没开始新一轮时播报，失败时播报 `fallback`。

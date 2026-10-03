@@ -146,7 +146,7 @@ public enum AssistantPrompt {
     You are the voice-control router of CC Desk, a macOS app that hosts several coding-agent terminal sessions \
     (Claude Code, Codex, pi). The user speaks; each utterance is a speech-to-text transcript (it may contain \
     homophone errors). Decide what the utterance means and reply with ONE JSON object only, no prose, no code fence:
-    {"action":"insert|send|cancel|approve|deny|switch|new|resume|close|query|stop|none","args":{...},"speak":"..."}
+    {"action":"insert|send|cancel|approve|deny|switch|new|resume|close|query|answer|stop|none","args":{...},"speak":"..."}
 
     Actions:
     - insert {"text"}: content meant for the coding agent (a task, an instruction about code, an answer to the agent). \
@@ -164,6 +164,9 @@ public enum AssistantPrompt {
     - close {"session_id"}: close a session ("关掉这个会话"; "this" means the selected one).
     - query {"question","session_id"?}: a question about what a session did or is doing ("它在干嘛", \
     "刚才改了哪些文件", "测试过了吗"); session_id defaults to the selected one.
+    - answer {"text"}: a question about CC Desk itself that the context answers ("有哪些会话", "几个在跑", \
+    "poems 那个是什么状态", "现在选中的是哪个"). text is the spoken answer in the uiLanguage (zh-Hans: at most 80 \
+    Chinese characters; en: at most 40 words): name sessions by dir and short title, say their status in plain words.
     - stop {}: leave conversation mode ("退出对话模式").
     - none {}: nothing to do (noise, chit-chat, thanks).
 
@@ -255,7 +258,7 @@ public struct AssistantDecision: Equatable, Sendable {
 public enum AssistantResponse {
     public static let speakLimit = 40
     public static let actions: Set<String> = [
-        "insert", "send", "cancel", "approve", "deny", "switch", "new", "resume", "close", "query", "stop", "none",
+        "insert", "send", "cancel", "approve", "deny", "switch", "new", "resume", "close", "query", "answer", "stop", "none",
     ]
 
     /// 模型文字里的 JSON 对象：容忍 ```json 围栏与前后多余文字（取第一个 `{` 到最后一个 `}`）。
@@ -325,6 +328,9 @@ public enum AssistantResponse {
                 return AssistantDecision(command: .query(question: question, rowID: s.rowID), speak: speak)
             }
             return AssistantDecision(command: .query(question: question, rowID: selected?.rowID), speak: speak)
+        case "answer":
+            guard let text = cleanSpokenAnswer(arg("text") ?? (obj["speak"] as? String ?? "")) else { return fallback }
+            return AssistantDecision(command: .none, speak: text)
         case "stop":
             return AssistantDecision(command: .stop, speak: speak)
         default:
@@ -408,6 +414,37 @@ public enum AssistantLocal {
         let en = ["whatswaitingforme", "whoswaitingforme", "whatiswaitingforme", "whoiswaitingforme",
                   "anythingwaitingforme", "whichsessionsarewaiting", "whatswaiting", "anythingwaiting"]
         return zh.contains(where: n.contains) || en.contains(where: n.contains)
+    }
+
+    /// 「有哪些会话」类问题：不调用模型，直接念出侧栏里的会话与状态。
+    public static func isListQuestion(_ utterance: String) -> Bool {
+        let n = ConversationCommands.normalize(utterance)
+        let zh = ["有哪些会话", "哪些会话", "有几个会话", "几个会话", "列出会话", "列一下会话", "会话列表", "所有会话",
+                  "有什么会话", "都有哪些会话", "开了哪些", "开着哪些", "有哪些session", "哪些session", "session列表",
+                  "列出所有", "现在都有哪些", "现在有哪些"]
+        let en = ["listsessions", "listthesessions", "whatsessions", "whichsessions", "howmanysessions", "listallsessions"]
+        return zh.contains(where: n.contains) || en.contains(where: n.contains)
+    }
+
+    static let listLimit = 8
+
+    public static func listAnswer(sessions: [AssistantSessionInfo]) -> String {
+        guard !sessions.isEmpty else { return L("assistant.list.none") }
+        let items = sessions.prefix(listLimit).map { s -> String in
+            L("assistant.list.item", AssistantContext.clip(s.dir, 16), statusWord(s.status))
+        }.joined(separator: L("assistant.list.separator"))
+        let more = sessions.count > listLimit ? L("assistant.list.more", sessions.count - listLimit) : ""
+        return L("assistant.list.summary", sessions.count, items) + more
+    }
+
+    static func statusWord(_ status: AgentStatus) -> String {
+        switch status {
+        case .working: return L("assistant.status.working")
+        case .waiting: return L("assistant.status.waiting")
+        case .idle: return L("assistant.status.idle")
+        case .ended: return L("assistant.status.ended")
+        case .unknown: return L("assistant.status.unknown")
+        }
     }
 
     public static func waitingAnswer(sessions: [AssistantSessionInfo]) -> String {

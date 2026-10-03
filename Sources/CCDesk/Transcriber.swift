@@ -51,11 +51,11 @@ actor WhisperTranscriber: Transcriber {
     }
 
     /// WhisperKit / HubApi 的本地布局：<base>/models/<repo>/<variant>
-    var modelFolder: URL {
+    nonisolated var modelFolder: URL {
         baseDir.appendingPathComponent("models").appendingPathComponent(Self.repo).appendingPathComponent(model)
     }
 
-    var isDownloaded: Bool {
+    nonisolated var isDownloaded: Bool {
         FileManager.default.fileExists(atPath: modelFolder.appendingPathComponent(Self.completeMarker).path)
     }
 

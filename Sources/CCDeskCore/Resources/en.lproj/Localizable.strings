@@ -103,3 +103,12 @@
 "assistant.waiting.one" = "%@ is waiting for you";
 "assistant.waiting.many" = "%1$d are waiting: %2$@";
 "assistant.list.separator" = ", ";
+"assistant.list.none" = "No sessions right now";
+"assistant.list.item" = "%1$@ %2$@";
+"assistant.list.summary" = "%1$d sessions: %2$@";
+"assistant.list.more" = ", and %d more";
+"assistant.status.working" = "working";
+"assistant.status.waiting" = "waiting for you";
+"assistant.status.idle" = "idle";
+"assistant.status.ended" = "ended";
+"assistant.status.unknown" = "unknown";

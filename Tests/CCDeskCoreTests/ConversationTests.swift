@@ -249,6 +249,19 @@ final class ConversationSessionTests: XCTestCase {
         XCTAssertEqual(session.state, .standby)
     }
 
+    func testPersistentStaysActiveUntilRest() {
+        session.persistent = true
+        XCTAssertEqual(session.handle(transcript: "嬴政同学", waiting: false, now: 0), [.wake])
+        XCTAssertEqual(session.tick(now: 600), [])
+        XCTAssertEqual(session.handle(transcript: "发送", waiting: false, now: 601), [.send])
+        XCTAssertEqual(session.handle(transcript: "取消", waiting: false, now: 602), [.cancel])
+        XCTAssertEqual(session.state, .active)
+        XCTAssertFalse(session.finishTurn())
+        XCTAssertEqual(session.handle(transcript: "休息一下吧", waiting: false, now: 603), [.standby])
+        XCTAssertEqual(session.state, .standby)
+        XCTAssertEqual(session.handle(transcript: "帮我跑测试", waiting: false, now: 604), [])
+    }
+
     func testWakeWithRemainderInSameUtterance() {
         XCTAssertEqual(session.handle(transcript: "嬴政同学，帮我跑一下测试", waiting: false, now: 0),
                        [.wake, .insert("帮我跑一下测试")])
