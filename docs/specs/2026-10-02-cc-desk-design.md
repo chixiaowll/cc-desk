@@ -437,6 +437,9 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - **反馈**：VoiceBar 显示「听到：…」和正在执行的工具（「→ 往 poems 输入：跑一下测试」）。
 - **撤销**：说「撤销」撤回上一个可撤销动作（新建 → 关闭它；打字未发送 → 清除；切换 → 切回）。
 - **安全**：控制接口只在本机、只限本用户；type_text / press_key 只作用于 CC Desk 内嵌终端；外部终端只能读状态、接管。
+- **口令**：只限本用户还不够——内嵌终端里的 agent 也是本用户，能连上 control.sock，自己批准自己的权限请求或往别的会话里打字。所以 App 每次启动在内存里随机生成 32 字节口令（`ControlToken`），每条请求必须带 `"token"`，缺少或不对时返回 `unauthorized`（-32003）。口令不写进任何文件：常驻助手的 `claude` 进程环境里带 `CCDESK_CONTROL_TOKEN`，claude 把自己的环境传给 MCP 子进程（2.1.280 实测，`mcp.json` 的 `env` 只合并在上面），`CCDesk --mcp` 从环境读出并随请求发送。`LaunchSpec.sanitizedEnvironment` 去掉这个变量，所以内嵌终端（直连 PTY 与 tmux 服务器的全局环境）里都没有它。`~/.cc-desk/assistant` 目录 0700、`mcp.json` 0600（里面只有可执行文件与 socket 路径）。
+- **限制**：同一用户的进程原则上仍能读到助手进程的环境（`ps eww`）——口令挡住的是「顺手连上 socket」，不是有意针对 CC Desk 的本用户恶意程序。CC Desk 的 tmux socket（`/private/tmp/tmux-<uid>/ccdesk`，目录 0700）同样只限本用户：本用户进程可以直接 `tmux -L ccdesk send-keys` 往会话里输入，这与用户自己的 tmux 服务器一样，不在防护范围内。
+- **请求 id**：每次请求用新的 UUID 作 id，客户端只接受 id 相同的响应；服务端按连接对象投递回复，连接断开后迟到的回复被丢弃，不会写给复用了同一 fd 的新连接。
 
 **v1.3 实现记录（已实现）**
 - **CLI 参数（claude 2.1.280 实测）**：`--mcp-config ~/.cc-desk/assistant/mcp.json --strict-mcp-config --tools "" --allowedTools "mcp__ccdesk__*"`。init 事件里的工具只有 15 个 `mcp__ccdesk__*`，没有任何内置工具（让它「用 bash 跑 ls」时只能往会话里打字）；不加 `--allowedTools` 时 -p 模式下 MCP 调用被拒绝（`permission_denials` 里能看到），加上后不弹权限。`mcp.json` 每次启动会话时重写：`command` = 当前可执行文件，`args` = `["--mcp"]`，`env.CCDESK_CONTROL_SOCKET` = 控制接口路径。

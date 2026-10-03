@@ -16,6 +16,11 @@ enum AssistantError: Error, Equatable {
     case failed(String)
 }
 
+/// 控制接口的本次启动口令（设计 §13）：只在内存里，经环境变量交给助手会话；每次启动不同。
+enum ControlAuth {
+    static let token = ControlToken.generate()
+}
+
 /// 语音助手的模型客户端（设计 §12/§13）：解析 `claude` 路径，持有常驻助手会话。
 ///
 /// - `claude` 的路径用登录交互 shell 解析一次并缓存（GUI App 的 PATH 不含用户目录），之后直接 exec，省掉每次约 1.5 秒的 shell 启动。

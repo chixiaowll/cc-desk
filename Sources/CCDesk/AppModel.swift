@@ -920,7 +920,8 @@ final class AppModel: ObservableObject {
     /// 启动控制接口；已有另一个 CC Desk 占用时不启动（助手工具会连到那个实例）。
     private func startControlServer() {
         let toolbox = self.toolbox
-        let server = ControlServer(path: ControlProtocol.socketPath(), log: { AssistantDiag.log($0) }) { request, reply in
+        let server = ControlServer(path: ControlProtocol.socketPath(), token: ControlAuth.token,
+                                   log: { AssistantDiag.log($0) }) { request, reply in
             DispatchQueue.main.async { toolbox.handle(request, reply: reply) }
         }
         if server.start() { controlServer = server }

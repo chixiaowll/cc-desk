@@ -1,9 +1,12 @@
 import Foundation
+import Security
 
 /// CC Desk 控制接口（设计 §13）：`~/.cc-desk/control.sock` 上的 JSON 行协议。
-/// 请求 `{"id","method","params"}` → 响应 `{"id","result"}` 或 `{"id","error":{"code","message"}}`，每条一行。
+/// 请求 `{"id","method","params","token"}` → 响应 `{"id","result"}` 或 `{"id","error":{"code","message"}}`，每条一行。
 public enum ControlProtocol {
     public static let socketEnvironmentKey = "CCDESK_CONTROL_SOCKET"
+    /// 本次启动的控制接口口令（App 启动时随机生成，只经环境变量交给助手会话 → `--mcp`；内嵌终端里去掉）。
+    public static let tokenEnvironmentKey = "CCDESK_CONTROL_TOKEN"
     /// 单行上限，防止异常客户端占满内存。
     public static let maxLineBytes = 1 << 20
 
@@ -15,15 +18,40 @@ public enum ControlProtocol {
     }
 }
 
+/// 控制接口口令：每次启动随机生成 32 字节（64 个十六进制字符）。
+public enum ControlToken {
+    public static func generate() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        if SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) != errSecSuccess {
+            // 退路：系统随机数（arc4random 由内核熵播种）。
+            for i in bytes.indices { bytes[i] = UInt8.random(in: 0...255) }
+        }
+        return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// 等长时逐字节比较全部内容（不因第一个不同的字节提前返回）。
+    public static func matches(_ given: String?, expected: String) -> Bool {
+        guard let given else { return false }
+        let a = Array(given.utf8), b = Array(expected.utf8)
+        guard a.count == b.count, !b.isEmpty else { return false }
+        var diff: UInt8 = 0
+        for i in a.indices { diff |= a[i] ^ b[i] }
+        return diff == 0
+    }
+}
+
 public struct ControlRequest: Equatable, Sendable {
     public let id: JSONValue
     public let method: String
     public let params: [String: JSONValue]
+    /// 控制接口口令；服务端配置了口令时必须一致。
+    public let token: String?
 
-    public init(id: JSONValue, method: String, params: [String: JSONValue] = [:]) {
+    public init(id: JSONValue, method: String, params: [String: JSONValue] = [:], token: String? = nil) {
         self.id = id
         self.method = method
         self.params = params
+        self.token = token
     }
 
     /// 解析一行请求；无效时返回错误响应（id 能取到就带上）。
@@ -41,11 +69,13 @@ public struct ControlRequest: Equatable, Sendable {
         case .object(let o)?: params = o
         default: return .failure(ControlResponse(id: id, error: ControlError(.invalidParams, "params must be an object")))
         }
-        return .success(ControlRequest(id: id, method: method, params: params))
+        return .success(ControlRequest(id: id, method: method, params: params, token: obj["token"]?.stringValue))
     }
 
     public var line: String {
-        JSONValue.object(["id": id, "method": .string(method), "params": .object(params)]).compact
+        var obj: [String: JSONValue] = ["id": id, "method": .string(method), "params": .object(params)]
+        if let token { obj["token"] = .string(token) }
+        return JSONValue.object(obj).compact
     }
 }
 
@@ -57,6 +87,8 @@ public struct ControlError: Error, Equatable, Sendable {
         case failed = -32000
         case timeout = -32001
         case unavailable = -32002
+        /// 缺少或口令不对。
+        case unauthorized = -32003
     }
 
     public let code: Code

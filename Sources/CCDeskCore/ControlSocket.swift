@@ -1,11 +1,14 @@
 import Foundation
 
 /// 控制接口服务端（设计 §13）：Unix socket（目录 0700、socket 0600），只接受同一用户的连接，JSON 行协议。
+/// 配置了 `token` 时每条请求必须带上同一口令（同一用户的其他进程——如内嵌终端里的 agent——拿不到它），否则拒绝。
 /// 读写在后台队列；每条请求交给 `handler`（由调用方切到主线程执行），handler 可以异步回复（需确认的工具会等待用户）。
+/// 回复按连接对象投递：连接断开后迟到的回复被丢弃，不会写给复用了同一 fd 的新连接。
 public final class ControlServer: @unchecked Sendable {
     public typealias Handler = (ControlRequest, @escaping (ControlResponse) -> Void) -> Void
 
     public let path: String
+    private let token: String?
     private let handler: Handler
     private let log: @Sendable (String) -> Void
     private let queue = DispatchQueue(label: "cc-desk.control")
@@ -24,9 +27,11 @@ public final class ControlServer: @unchecked Sendable {
         }
     }
 
-    /// log：诊断信息（App 里写 AssistantDiag）。
-    public init(path: String, log: @escaping @Sendable (String) -> Void = { _ in }, handler: @escaping Handler) {
+    /// log：诊断信息（App 里写 AssistantDiag）。token：nil 时不鉴权（只用于测试）。
+    public init(path: String, token: String? = nil, log: @escaping @Sendable (String) -> Void = { _ in },
+                handler: @escaping Handler) {
         self.path = path
+        self.token = token
         self.log = log
         self.handler = handler
     }
@@ -124,19 +129,28 @@ public final class ControlServer: @unchecked Sendable {
         for line in lines {
             switch ControlRequest.parse(line) {
             case .failure(let response):
-                write(response, to: connection.fd)
+                write(response, to: connection)
             case .success(let request):
-                let fd = connection.fd
-                handler(request) { [weak self] response in
-                    self?.queue.async { self?.write(response, to: fd) }
+                if let token, !ControlToken.matches(request.token, expected: token) {
+                    log("control: rejected \(request.method): missing or wrong token")
+                    write(ControlResponse(id: request.id, error: ControlError(.unauthorized, "unauthorized")), to: connection)
+                    continue
+                }
+                handler(request) { [weak self, weak connection] response in
+                    guard let self else { return }
+                    self.queue.async {
+                        guard let connection else { return }
+                        self.write(response, to: connection)
+                    }
                 }
             }
         }
     }
 
-    private func write(_ response: ControlResponse, to fd: Int32) {
-        // 连接可能已断开（客户端超时）；fd 也可能已被复用，只写给仍登记的连接。
-        guard connections[fd] != nil else { return }
+    private func write(_ response: ControlResponse, to connection: Connection) {
+        // 连接可能已断开（客户端超时）；fd 也可能已被新连接复用：只写给仍登记的同一个连接对象。
+        let fd = connection.fd
+        guard connections[fd] === connection else { return }
         let bytes = Array((response.line + "\n").utf8)
         var offset = 0
         while offset < bytes.count {
@@ -152,7 +166,7 @@ public final class ControlServer: @unchecked Sendable {
     }
 
     private func drop(_ connection: Connection) {
-        connections[connection.fd] = nil
+        if connections[connection.fd] === connection { connections[connection.fd] = nil }
         connection.source.cancel()
     }
 }
@@ -198,15 +212,17 @@ public enum ControlClient {
         return true
     }
 
-    /// 发一条请求并等待响应；连不上 / 超时返回对应的错误。
-    public static func call(path: String, method: String, params: [String: JSONValue], timeout: TimeInterval) -> Result<JSONValue, ControlError> {
+    /// 发一条请求并等待响应；连不上 / 超时返回对应的错误。每次请求用唯一的 id，只接受 id 相同的响应。
+    public static func call(path: String, method: String, params: [String: JSONValue], timeout: TimeInterval,
+                            token: String? = nil) -> Result<JSONValue, ControlError> {
         guard let fd = connect(path: path) else {
             return .failure(ControlError(.unavailable, "CC Desk is not running (no control socket at \(path))"))
         }
         defer { close(fd) }
         var tv = timeval(tv_sec: Int(timeout), tv_usec: Int32((timeout - floor(timeout)) * 1_000_000))
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-        let request = ControlRequest(id: .number(1), method: method, params: params)
+        let requestID = JSONValue.string(UUID().uuidString)
+        let request = ControlRequest(id: requestID, method: method, params: params, token: token)
         let bytes = Array((request.line + "\n").utf8)
         var offset = 0
         while offset < bytes.count {
@@ -223,11 +239,13 @@ public enum ControlClient {
             guard n > 0 else { break }
             let (lines, overflow) = buffer.append(Data(chunk[0..<n]))
             if overflow { return .failure(ControlError(.failed, "response too large")) }
-            if let line = lines.first {
+            for line in lines {
                 guard let response = ControlResponse.parse(line) else {
                     return .failure(ControlError(.failed, "invalid response from CC Desk"))
                 }
-                return response.outcome
+                if response.id == requestID { return response.outcome }
+                // 服务端没能解析请求时 id 为 null。
+                if response.id == .null, case .failure = response.outcome { return response.outcome }
             }
         }
         return .failure(ControlError(.timeout, "CC Desk did not answer in time"))

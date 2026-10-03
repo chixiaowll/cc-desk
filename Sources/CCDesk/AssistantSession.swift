@@ -142,6 +142,9 @@ final class AssistantSession: @unchecked Sendable {
         var env = LaunchSpec.sanitizedEnvironment(base: ProcessInfo.processInfo.environment)
         if let path = exe.searchPath { env["PATH"] = path }
         env["CC_DESK"] = "1"
+        // 控制接口的本次启动口令：claude 把自己的环境传给 MCP 子进程（2.1.280 实测），`--mcp` 据此通过鉴权。
+        // 不写进任何文件；内嵌终端的环境里会去掉它（LaunchSpec.sanitizedEnvironment）。
+        env[ControlProtocol.tokenEnvironmentKey] = ControlAuth.token
         // 关掉扩展思考：haiku 默认会先想几百上千个 token，延迟明显变长，而这里的任务很简单。
         env["MAX_THINKING_TOKENS"] = "0"
 

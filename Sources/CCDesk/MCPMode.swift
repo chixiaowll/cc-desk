@@ -10,10 +10,12 @@ enum MCPMode {
     static func run() -> Never {
         signal(SIGPIPE, SIG_IGN)
         let socket = ControlProtocol.socketPath()
+        // 口令由 CC Desk 经助手会话（claude）的环境传下来；没有时请求会被拒绝。
+        let token = ProcessInfo.processInfo.environment[ControlProtocol.tokenEnvironmentKey]
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         var core = MCPServerCore(version: version) { name, arguments in
             MCPServerCore.outcome(from: ControlClient.call(path: socket, method: name, params: arguments,
-                                                           timeout: callTimeout))
+                                                           timeout: callTimeout, token: token))
         }
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }

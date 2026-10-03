@@ -125,4 +125,119 @@ final class ControlSocketTests: XCTestCase {
         let down = try XCTUnwrap(JSONValue.parse(try XCTUnwrap(core.handle(line: line))))
         XCTAssertEqual(down["result"]?["isError"], true)
     }
+
+    // MARK: 口令与请求 id
+
+    func testTokenRequired() throws {
+        let server = ControlServer(path: path, token: "secret-token") { request, reply in
+            reply(ControlResponse(id: request.id, result: ["ok": true]))
+        }
+        XCTAssertTrue(server.start())
+        defer { server.stop() }
+        for token in [nil, "", "secret-tokeX", "secret-token-longer"] as [String?] {
+            guard case .failure(let error) = ControlClient.call(path: path, method: "respond_approval", params: [:],
+                                                                timeout: 2, token: token) else {
+                return XCTFail("request with token \(token ?? "nil") must be rejected")
+            }
+            XCTAssertEqual(error.code, .unauthorized)
+        }
+        XCTAssertNoThrow(try ControlClient.call(path: path, method: "list_sessions", params: [:], timeout: 2,
+                                                token: "secret-token").get())
+    }
+
+    func testTokenHelpers() {
+        let a = ControlToken.generate(), b = ControlToken.generate()
+        XCTAssertEqual(a.count, 64)
+        XCTAssertNotEqual(a, b)
+        XCTAssertTrue(ControlToken.matches(a, expected: a))
+        XCTAssertFalse(ControlToken.matches(b, expected: a))
+        XCTAssertFalse(ControlToken.matches(nil, expected: a))
+        XCTAssertFalse(ControlToken.matches("", expected: ""))
+        // 请求行带上口令，解析后取回。
+        let line = ControlRequest(id: 1, method: "x", token: a).line
+        guard case .success(let parsed) = ControlRequest.parse(line) else { return XCTFail("parse failed") }
+        XCTAssertEqual(parsed.token, a)
+    }
+
+    func testRequestIDsAreUnique() {
+        let ids = Locked<[JSONValue]>([])
+        let server = ControlServer(path: path) { request, reply in
+            ids.withLock { $0.append(request.id) }
+            reply(ControlResponse(id: request.id, result: ["ok": true]))
+        }
+        XCTAssertTrue(server.start())
+        defer { server.stop() }
+        for _ in 0..<3 { XCTAssertNoThrow(try ControlClient.call(path: path, method: "x", params: [:], timeout: 2).get()) }
+        let seen = ids.withLock { $0 }
+        XCTAssertEqual(seen.count, 3)
+        XCTAssertEqual(Set(seen.compactMap(\.stringValue)).count, 3)
+    }
+
+    func testClientIgnoresResponseWithAnotherID() {
+        // 服务端先回一条别人的 id，再回自己的：客户端只接受自己的。
+        let server = ControlServer(path: path) { request, reply in
+            reply(ControlResponse(id: "someone-else", result: ["who": "other"]))
+            reply(ControlResponse(id: request.id, result: ["who": "me"]))
+        }
+        XCTAssertTrue(server.start())
+        defer { server.stop() }
+        XCTAssertEqual(try ControlClient.call(path: path, method: "x", params: [:], timeout: 2).get()["who"], "me")
+    }
+
+    func testLateReplyIsNotDeliveredToNextConnection() throws {
+        let server = ControlServer(path: path) { request, reply in
+            let delay: TimeInterval = request.method == "slow" ? 0.5 : 0
+            DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+                reply(ControlResponse(id: request.id, result: ["method": .string(request.method)]))
+            }
+        }
+        XCTAssertTrue(server.start())
+        defer { server.stop() }
+        guard case .failure(let error) = ControlClient.call(path: path, method: "slow", params: [:], timeout: 0.1) else {
+            return XCTFail("expected timeout")
+        }
+        XCTAssertEqual(error.code, .timeout)
+        usleep(100_000) // 让服务端处理断开，下一个连接多半复用同一个 fd
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        defer { close(fd) }
+        var address = try XCTUnwrap(ControlClient.address(path))
+        let ok = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        XCTAssertEqual(ok, 0)
+        var tv = timeval(tv_sec: 1, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+        let payload = Array("{\"id\":\"second\",\"method\":\"fast\"}\n".utf8)
+        XCTAssertEqual(Darwin.write(fd, payload, payload.count), payload.count)
+        var buffer = LineBuffer()
+        var lines: [String] = []
+        var chunk = [UInt8](repeating: 0, count: 4096)
+        let deadline = Date().addingTimeInterval(1.0)
+        while Date() < deadline {
+            let n = Darwin.read(fd, &chunk, chunk.count)
+            guard n > 0 else { break }
+            lines += buffer.append(Data(chunk[0..<n])).lines
+        }
+        XCTAssertEqual(lines.count, 1, "only this connection's reply: \(lines)")
+        XCTAssertEqual(lines.first.flatMap(ControlResponse.parse)?.id, "second")
+    }
+
+    func testEmbeddedEnvironmentDropsControlToken() {
+        let env = LaunchSpec.sanitizedEnvironment(base: [ControlProtocol.tokenEnvironmentKey: "t", "HOME": "/h"])
+        XCTAssertNil(env[ControlProtocol.tokenEnvironmentKey])
+        XCTAssertEqual(env["HOME"], "/h")
+        let launch = LaunchSpec.environment(base: [ControlProtocol.tokenEnvironmentKey: "t"], shell: "/bin/zsh", terminalID: nil)
+        XCTAssertFalse(launch.contains { $0.hasPrefix(ControlProtocol.tokenEnvironmentKey + "=") })
+    }
+}
+
+private final class Locked<Value>: @unchecked Sendable {
+    private var value: Value
+    private let lock = NSLock()
+    init(_ value: Value) { self.value = value }
+    func withLock<T>(_ body: (inout Value) -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&value)
+    }
 }
