@@ -6,7 +6,7 @@ public enum ShellQuote {
     }
 }
 
-/// v1 只有 Claude；v1.1 增加 Codex / pi 时实现同一协议。
+/// 各 agent 的启动 / 恢复命令。
 public protocol AgentAdapter: Sendable {
     var kind: AgentKind { get }
     func launchCommand() -> String
@@ -20,12 +20,29 @@ public struct ClaudeAdapter: AgentAdapter {
     public func resumeCommand(sessionID: String) -> String { "claude --resume \(ShellQuote.quote(sessionID))" }
 }
 
+public struct CodexAdapter: AgentAdapter {
+    public init() {}
+    public var kind: AgentKind { .codex }
+    public func launchCommand() -> String { "codex" }
+    public func resumeCommand(sessionID: String) -> String { "codex resume \(ShellQuote.quote(sessionID))" }
+}
+
+/// pi：`pi --session <path|id>`（id 可为前缀；按当前目录查找会话，所以须在原 cwd 下执行）。
+public struct PiAdapter: AgentAdapter {
+    public init() {}
+    public var kind: AgentKind { .pi }
+    public func launchCommand() -> String { "pi" }
+    public func resumeCommand(sessionID: String) -> String { "pi --session \(ShellQuote.quote(sessionID))" }
+}
+
 public enum AgentAdapters {
-    /// 可启动的 agent 适配器；v1.1 前只有 Claude，其他种类返回 nil。
+    /// 可启动的 agent 适配器；普通 shell 返回 nil。
     public static func adapter(for kind: AgentKind) -> AgentAdapter? {
         switch kind {
         case .claude: return ClaudeAdapter()
-        case .codex, .pi, .other: return nil
+        case .codex: return CodexAdapter()
+        case .pi: return PiAdapter()
+        case .other: return nil
         }
     }
 }
@@ -36,14 +53,13 @@ public enum AgentAvailability: Equatable, Sendable {
     /// 还在检测本机是否安装。
     case checking
     case notInstalled
-    /// 已安装，但 CC Desk 尚未支持启动。
-    case comingSoon
 
-    /// `installed` 为检测到的已安装 agent；nil 表示检测尚未完成。
+    /// `installed` 为检测到的已安装 agent（codex / pi）；nil 表示检测尚未完成。Claude 始终可用。
     public static func of(_ kind: AgentKind, installed: Set<AgentKind>?) -> AgentAvailability {
-        if AgentAdapters.adapter(for: kind) != nil { return .available }
+        guard AgentAdapters.adapter(for: kind) != nil else { return .notInstalled }
+        if kind == .claude { return .available }
         guard let installed else { return .checking }
-        return installed.contains(kind) ? .comingSoon : .notInstalled
+        return installed.contains(kind) ? .available : .notInstalled
     }
 
     public var isEnabled: Bool { self == .available }
@@ -53,7 +69,6 @@ public enum AgentAvailability: Equatable, Sendable {
         case .available: return nil
         case .checking: return "检测中…"
         case .notInstalled: return "未安装"
-        case .comingSoon: return "即将支持"
         }
     }
 }
@@ -82,8 +97,9 @@ public enum LaunchSpec {
         return ["-l", "-i", "-c", "\(command)\nexec \"$SHELL\" -l -i"]
     }
 
-    /// 会话级 Claude Code 变量：进程特有，不应被子终端继承。
+    /// 会话级 Claude Code / Codex 变量：进程特有，不应被子终端继承。
     private static let sessionScopedDenylist: Set<String> = [
+        "CODEX_THREAD_ID",
         "CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_MESSAGING_SOCKET", "CLAUDE_CODE_MESSAGING_TOKEN",
         "CLAUDE_CODE_EXECPATH", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_CHILD_SESSION",
         "CLAUDE_CODE_SESSION_ATTENDED", "CLAUDE_CODE_SSE_PORT", "CLAUDE_PID", "CLAUDE_EFFORT",

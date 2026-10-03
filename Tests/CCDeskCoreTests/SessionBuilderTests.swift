@@ -192,4 +192,55 @@ final class SessionBuilderTests: XCTestCase {
         XCTAssertEqual(out[0].sessionID, "new")
         XCTAssertEqual(out[0].status, .working)
     }
+
+    // MARK: Codex / pi
+
+    func agent(_ pid: Int32, _ kind: AgentKind, tty: String?, sid: String? = "s", status: AgentStatus = .idle) -> AgentProcessInfo {
+        AgentProcessInfo(pid: pid, kind: kind, tty: tty, cwd: "/p/\(kind.rawValue)", sessionID: sid,
+                         status: status, statusChangedAt: Date(timeIntervalSince1970: 300))
+    }
+
+    func testCodexAndPiExternalSessionsUseKindPrefixedIDs() {
+        let out = SessionBuilder.build(registry: [], processes: ps, embedded: [], missing: [],
+                                       agents: [agent(700, .codex, tty: "ttys007", status: .working),
+                                                agent(961, .pi, tty: "ttys030", sid: nil)])
+        let byID = Dictionary(uniqueKeysWithValues: out.map { ($0.id, $0) })
+        XCTAssertEqual(byID["codex-pid:700"]?.host, .terminalApp(tty: "ttys007"))
+        XCTAssertEqual(byID["codex-pid:700"]?.kind, .codex)
+        XCTAssertEqual(byID["codex-pid:700"]?.status, .working)
+        XCTAssertEqual(byID["codex-pid:700"]?.cwd, "/p/codex")
+        XCTAssertEqual(byID["pi-pid:961"]?.host, .other(tty: "ttys030"))
+        XCTAssertNil(byID["pi-pid:961"]?.sessionID)
+        XCTAssertEqual(byID["pi-pid:961"]?.statusChangedAt, Date(timeIntervalSince1970: 300))
+    }
+
+    func testEmbeddedCodexClaimsTerminalByTTY() {
+        let tid = UUID()
+        let info = EmbeddedTerminalInfo(id: tid, cwd: "/p/e", tty: "ttys020", title: "e", createdAt: Date(timeIntervalSince1970: 1))
+        let out = SessionBuilder.build(registry: [], processes: ps, embedded: [info], missing: [],
+                                       agents: [agent(901, .codex, tty: "ttys020", status: .waiting("Bash"))])
+        XCTAssertEqual(out.count, 1)
+        XCTAssertEqual(out[0].id, "term:\(tid.uuidString)")
+        XCTAssertEqual(out[0].kind, .codex)
+        XCTAssertEqual(out[0].status, .waiting("Bash"))
+        XCTAssertEqual(out[0].host, .embedded(terminalID: tid))
+    }
+
+    func testEndedRowKeepsAgentKind() {
+        let info = EmbeddedTerminalInfo(id: UUID(), cwd: "/p/x", tty: nil, title: "x",
+                                        createdAt: Date(timeIntervalSince1970: 5), lastSessionID: "pi-sid", lastKind: .pi)
+        let out = SessionBuilder.build(registry: [], processes: ps, embedded: [info], missing: [])
+        XCTAssertEqual(out.first?.kind, .pi)
+        XCTAssertEqual(out.first?.status, .ended)
+    }
+
+    func testMissingEntryUsesStoredKind() {
+        let tid = UUID()
+        let out = SessionBuilder.build(registry: [], processes: ps, embedded: [], missing: [
+            WorkspaceEntry(terminalID: tid, cwd: "/gone", sessionID: "c1", name: "n", kind: .codex),
+            WorkspaceEntry(terminalID: UUID(), cwd: "/gone", sessionID: "c2", name: "n", kind: nil),
+            WorkspaceEntry(terminalID: UUID(), cwd: "/gone", sessionID: nil, name: "n", kind: .codex),
+        ])
+        XCTAssertEqual(out.map(\.kind), [.codex, .claude, .other])
+    }
 }

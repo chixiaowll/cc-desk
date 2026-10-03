@@ -141,14 +141,14 @@ final class AgentsTests: XCTestCase {
         XCTAssertNil(AgentAvailability.available.hint)
     }
 
-    func testAgentAvailabilityOthersDisabledWithHint() {
+    func testAgentAvailabilityCodexAndPiFollowInstallation() {
         XCTAssertEqual(AgentAvailability.of(.codex, installed: nil), .checking)
         XCTAssertEqual(AgentAvailability.of(.codex, installed: []), .notInstalled)
-        XCTAssertEqual(AgentAvailability.of(.pi, installed: [.pi]), .comingSoon)
+        XCTAssertEqual(AgentAvailability.of(.pi, installed: [.pi]), .available)
+        XCTAssertEqual(AgentAvailability.of(.codex, installed: [.pi]), .notInstalled)
+        XCTAssertEqual(AgentAvailability.of(.other, installed: [.pi]), .notInstalled)
         XCTAssertEqual(AgentAvailability.notInstalled.hint, "未安装")
-        XCTAssertEqual(AgentAvailability.comingSoon.hint, "即将支持")
         XCTAssertFalse(AgentAvailability.notInstalled.isEnabled)
-        XCTAssertFalse(AgentAvailability.comingSoon.isEnabled)
         XCTAssertFalse(AgentAvailability.checking.isEnabled)
     }
 
@@ -162,8 +162,15 @@ final class AgentsTests: XCTestCase {
 
     func testAdapterOnlyForClaude() {
         XCTAssertEqual(AgentAdapters.adapter(for: .claude)?.kind, .claude)
-        XCTAssertNil(AgentAdapters.adapter(for: .codex))
-        XCTAssertNil(AgentAdapters.adapter(for: .pi))
+        XCTAssertEqual(AgentAdapters.adapter(for: .codex)?.kind, .codex)
+        XCTAssertEqual(AgentAdapters.adapter(for: .pi)?.kind, .pi)
         XCTAssertNil(AgentAdapters.adapter(for: .other))
+    }
+
+    func testCodexAndPiCommands() {
+        XCTAssertEqual(CodexAdapter().launchCommand(), "codex")
+        XCTAssertEqual(CodexAdapter().resumeCommand(sessionID: "01a1-x"), "codex resume '01a1-x'")
+        XCTAssertEqual(PiAdapter().launchCommand(), "pi")
+        XCTAssertEqual(PiAdapter().resumeCommand(sessionID: "01a1-y"), "pi --session '01a1-y'")
     }
 }
