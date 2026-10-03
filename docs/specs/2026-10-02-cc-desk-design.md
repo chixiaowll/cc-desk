@@ -377,6 +377,18 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - **撤销**：说「撤销」撤回上一个可撤销动作（新建 → 关闭它；打字未发送 → 清除；切换 → 切回）。
 - **安全**：控制接口只在本机、只限本用户；type_text / press_key 只作用于 CC Desk 内嵌终端；外部终端只能读状态、接管。
 
+**v1.3 实现记录（已实现）**
+- **CLI 参数（claude 2.1.280 实测）**：`--mcp-config ~/.cc-desk/assistant/mcp.json --strict-mcp-config --tools "" --allowedTools "mcp__ccdesk__*"`。init 事件里的工具只有 15 个 `mcp__ccdesk__*`，没有任何内置工具（让它「用 bash 跑 ls」时只能往会话里打字）；不加 `--allowedTools` 时 -p 模式下 MCP 调用被拒绝（`permission_denials` 里能看到），加上后不弹权限。`mcp.json` 每次启动会话时重写：`command` = 当前可执行文件，`args` = `["--mcp"]`，`env.CCDESK_CONTROL_SOCKET` = 控制接口路径。
+- **MCP**：协议版本按客户端请求协商（支持 2025-11-25 / 2025-06-18 / 2025-03-26 / 2024-11-05，claude 发的是 2025-06-18）；`--mcp` 在 `main()` 最开头判断，不创建 NSApplication；每个工具调用新建一次 socket 连接，最多等 45 秒（含 15 秒语音确认）。CC Desk 没运行时工具返回 isError「CC Desk is not running」。
+- **控制接口**：`CCDESK_CONTROL_SOCKET` 可覆盖路径（测试用）；启动时若已有活着的实例在监听就不启动（单实例），残留的 socket 文件删除重建；用 `getpeereid` 拒绝其他用户。
+- **会话短 id 稳定**：s1、s2… 在 App 运行期间固定对应一个会话、不复用（侧栏按状态重排不变），上下文与 list_sessions 用同一套 id；历史为 h1、h2…。
+- **每句话仍附带侧栏上下文**（变化时；会话 + 项目名 + 未发送内容），模型多数情况下不必先调 list_sessions，省一次往返。历史会话改为 list_history 工具取。
+- **偏离工具表**：新增 `clear_input(session)`（删掉 CC Desk 输入、还没发送的文字，对应「刚才那句不要了」）；`close_session` 一律确认（不再只在忙碌时）；`read_transcript(turns)` 按最近 N 条用户消息截取（默认 1，最多 5）。
+- **[QUESTION] 去掉**：问答由模型自己调 read_transcript / read_screen 再回答；[SUMMARIZE] 保留。只调用了 type_text(submit=false) 的一轮（逐句口述）不朗读回复，只显示在提示条；朗读的是最后一次工具调用之后的文字（haiku 偶尔在调用前先说「我来看看」）。
+- **会话轮换**：session.json 记录提示词版本（现为 2），版本不同就换新会话；上下文超限按最后一次模型调用的输入计算（多次调用工具时合计会虚高）。
+- **撤销 / 取消**：CC Desk 往各终端输入的未发送文字统一记账（本地口述与 type_text 共用），「取消」「撤销」都能删掉任一方输入的内容；记录 10 分钟内有效、最多 10 条。
+- **实测（haiku，假控制接口 + 真实 `CCDesk --mcp` + 真实 `claude -p`，MAX_THINKING_TOKENS=0）**：不调工具的一句约 0.8–1.5 秒；调一次工具约 2.0–2.5 秒（两次模型调用）；首句含启动约 3.5–4.5 秒；「新开一个 codex 在 herdr，让它看下 README」→ `new_session(project=herdr, agent=codex, prompt="看下 README")` 一步完成；需确认的工具阻塞 16 秒后正常返回（claude 不超时）。额度：工具定义约 3.5k token，每次模型调用约 7k 输入（约 95% 命中缓存），调一次工具的一句约 13–14k 输入、约 100 输出。
+
 ## 14. 顾问、派活与专业 agent（v1.4，已确认）
 
 **三层**：前台接线员（haiku 常驻，快）→ 顾问（更强模型，只读，异步）→ 干活的会话（侧栏里可见的真实 agent 会话）。原则：**改代码的事放在你看得见的会话里做，后台只做只读的思考和查看**。
