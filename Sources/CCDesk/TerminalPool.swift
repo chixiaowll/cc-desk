@@ -132,10 +132,13 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         if screenStatus?.status != status { screenStatus = StatusObservation(status: status, at: Date()) }
     }
 
-    /// 当前活动缓冲区底部一屏（不受用户滚动位置影响），每行去掉行尾空白，去掉末尾空行。
     /// 必须在主线程调用（SwiftTerm 在主线程写缓冲区）。
     private func bottomScreenText() -> String {
-        let terminal = view.getTerminal()
+        Self.bottomText(of: view.getTerminal())
+    }
+
+    /// 当前活动缓冲区底部一屏（不受用户滚动位置影响），每行去掉行尾空白，去掉末尾空行。
+    static func bottomText(of terminal: Terminal) -> String {
         let rows = terminal.rows
         let top = terminal.buffer.totalLinesTrimmed
         guard terminal.getScrollInvariantLine(row: top) != nil else { return "" }
@@ -149,7 +152,10 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         var lines: [String] = []
         lines.reserveCapacity(rows)
         for row in first...lo {
-            lines.append(terminal.getScrollInvariantLine(row: row)?.translateToString(trimRight: true) ?? "")
+            // translateToString(trimRight:) 只去掉空单元格；程序显式写入的空格也要去掉，规则里的 `$` / `\z` 依赖这一点。
+            var line = terminal.getScrollInvariantLine(row: row)?.translateToString(trimRight: true) ?? ""
+            while let c = line.last, c == " " || c == "\t" || c == "\u{00A0}" { line.removeLast() }
+            lines.append(line)
         }
         while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
         return lines.joined(separator: "\n")
