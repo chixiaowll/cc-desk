@@ -256,3 +256,4 @@
 "notify.approval.notWaiting" = "它已不在等待批准。";
 "notify.approval.gone" = "该会话已不在 CC Desk 中运行。";
 "notify.approval.unknownSession" = "会话";
+"menu.showMainWindow" = "显示主窗口";

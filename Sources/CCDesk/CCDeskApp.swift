@@ -69,10 +69,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 关闭窗口不退出，内嵌 session 继续运行；点 Dock 图标重新打开窗口。
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    /// 点 Dock 图标时，若没有可见窗口（已被关闭），重新打开主窗口。
+    /// 点 Dock 图标 / 再次打开 App 时显示主窗口。不依赖 hasVisibleWindows：语音浮层等辅助窗口也会被算作「可见」，
+    /// 导致主窗口关掉后再也打不开。
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        if !hasVisibleWindows { model.openMainWindow?() }
+        showMainWindow()
         return true
+    }
+
+    /// 主窗口还在（被关闭 / 最小化）就拿到最前；已经销毁则重新打开。
+    func showMainWindow() {
+        let main = NSApp.windows.first { window in
+            guard let id = window.identifier?.rawValue else { return false }
+            return id == "main" || id.hasPrefix("main-")
+        }
+        if let main {
+            if main.isMiniaturized { main.deminiaturize(nil) }
+            main.makeKeyAndOrderFront(nil)
+        } else {
+            model.openMainWindow?()
+        }
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
@@ -123,6 +139,11 @@ struct CCDeskApp: App {
                     }
                 }
                 .keyboardShortcut("w")
+            }
+            // 菜单「窗口 → 显示主窗口」（⌘0）：主窗口被关掉时也能从菜单栏找回来。
+            CommandGroup(after: .windowArrangement) {
+                Button(L("menu.showMainWindow")) { delegate.showMainWindow() }
+                    .keyboardShortcut("0")
             }
             CommandGroup(after: .sidebar) {
                 Button(L("menu.history")) {

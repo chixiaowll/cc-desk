@@ -256,3 +256,4 @@
 "notify.approval.notWaiting" = "It is no longer waiting for approval.";
 "notify.approval.gone" = "The session is no longer running in CC Desk.";
 "notify.approval.unknownSession" = "Session";
+"menu.showMainWindow" = "Show Main Window";
