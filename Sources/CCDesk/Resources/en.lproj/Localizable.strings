@@ -383,3 +383,4 @@
 "settings.usage.refresh" = "Refresh Now";
 "settings.usage.alertNote" = "You get one alert per reset period when any limit reaches %d%%.";
 "statusMenu.settings" = "Settings…";
+"action.done" = "Done";

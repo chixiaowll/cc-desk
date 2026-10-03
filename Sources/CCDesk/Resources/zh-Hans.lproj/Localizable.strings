@@ -383,3 +383,4 @@
 "settings.usage.refresh" = "立即刷新";
 "settings.usage.alertNote" = "任一额度达到 %d%% 时，每个重置周期提醒一次。";
 "statusMenu.settings" = "设置…";
+"action.done" = "完成";
