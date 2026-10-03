@@ -189,7 +189,7 @@ public enum ConversationCommands {
     }
 
     /// 繁转简、小写，只保留字母数字（含汉字）。
-    static func normalize(_ s: String) -> String {
+    public static func normalize(_ s: String) -> String {
         let simplified = s.applyingTransform(StringTransform("Hant-Hans"), reverse: false) ?? s
         return TranscriptCleaner.normalized(simplified)
     }

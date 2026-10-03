@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import CCDeskCore
 
 /// App 内外观偏好：跟随系统 / 浅色 / 深色。设置 NSApp.appearance，SwiftUI 的 colorScheme 与终端配色随之更新。
 enum AppearancePreference: String, CaseIterable, Identifiable {
@@ -155,6 +156,8 @@ struct CCDeskApp: App {
                     delegate.model.voice.predownload()
                 }
                 ConversationMenuItem(model: delegate.model, conversation: delegate.model.conversation)
+                TurnSummaryMenuItem()
+                SpeechVoiceMenu(conversation: delegate.model.conversation)
                 Divider()
                 ForEach(1...9, id: \.self) { index in
                     Button(L("menu.switchTo", index)) { delegate.model.selectEmbedded(index: index - 1) }
@@ -176,5 +179,42 @@ private struct ConversationMenuItem: View {
             set: { _ in conversation.toggle() }))
             .keyboardShortcut("v", modifiers: [.command, .option])
             .disabled(!conversation.isOn && model.selectedTerminalID == nil)
+    }
+}
+
+/// 菜单「Session → 回复摘要」：对话模式下一轮完成时播报摘要而不是「已完成」（占用 Claude 订阅额度）。
+private struct TurnSummaryMenuItem: View {
+    @AppStorage(ConversationMode.summariesDefaultsKey) private var on = true
+
+    var body: some View {
+        Toggle(L("menu.turnSummaries"), isOn: $on)
+    }
+}
+
+/// 菜单「Session → 朗读声音」：自动（音质最好）或指定一个已安装的声音；可跳到系统设置下载更多声音。
+private struct SpeechVoiceMenu: View {
+    @ObservedObject var conversation: ConversationMode
+    @AppStorage(SpeechVoiceRanking.defaultsKey) private var chosen = ""
+
+    var body: some View {
+        Menu(L("menu.speechVoice")) {
+            Toggle(L("menu.speechVoice.auto"), isOn: binding(""))
+            Divider()
+            ForEach(SpeechVoices.candidates(), id: \.identifier) { voice in
+                Toggle(SpeechVoices.label(voice), isOn: binding(voice.identifier))
+            }
+            Divider()
+            Button(L("menu.speechVoice.download")) {
+                if let url = SpeechVoices.spokenContentSettingsURL { NSWorkspace.shared.open(url) }
+            }
+        }
+    }
+
+    private func binding(_ id: String) -> Binding<Bool> {
+        Binding(get: { chosen == id }, set: { on in
+            guard on else { return }
+            chosen = id
+            if !conversation.isOn { SpeechVoices.preview() }
+        })
     }
 }

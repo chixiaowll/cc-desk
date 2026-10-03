@@ -197,6 +197,7 @@ struct ConversationStatus: View {
     private var text: String {
         if let toast = conversation.toast { return toast }
         if conversation.preparing { return L("conversation.status.preparing") }
+        if conversation.thinking { return L("conversation.status.thinking") }
         if conversation.speaking { return L("conversation.status.speaking") }
         if conversation.transcribing { return L("conversation.status.transcribing") }
         switch conversation.state {

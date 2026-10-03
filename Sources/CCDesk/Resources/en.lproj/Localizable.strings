@@ -182,3 +182,27 @@
 "conversation.indicator" = "Conversation";
 "conversation.indicator.help" = "Conversation mode is on: the microphone is listening";
 "voice.hint.micUnavailable" = "No microphone input is available";
+
+/* Voice assistant */
+"conversation.status.thinking" = "Thinking…";
+"assistant.unavailable" = "Assistant didn’t respond, typed it in";
+"assistant.query.noTranscript" = "I couldn’t read this session’s transcript";
+"assistant.query.failed" = "Sorry, I couldn’t answer that";
+"assistant.switch.external" = "That session isn’t in CC Desk";
+"assistant.close.external" = "I can only close sessions in CC Desk";
+"assistant.close.confirm" = "Close it? Say “confirm”";
+"assistant.resume.notFound" = "Couldn’t find that past session";
+"assistant.toast.switched" = "Switched to: %@";
+"assistant.toast.new" = "New: %1$@ · %2$@";
+"assistant.toast.resumed" = "Resumed: %@";
+"assistant.toast.confirmClose" = "Say “confirm” to close: %@";
+"assistant.toast.closed" = "Closed: %@";
+"assistant.toast.closeCancelled" = "Close cancelled";
+"voice.hint.betterVoice" = "Get a more natural voice in System Settings → Accessibility → Spoken Content";
+"voice.speech.premium" = "%@ (Premium)";
+"voice.speech.enhanced" = "%@ (Enhanced)";
+"voice.speech.sample" = "Hi, I’m your CC Desk assistant";
+"menu.turnSummaries" = "Spoken Turn Summaries";
+"menu.speechVoice" = "Speaking Voice";
+"menu.speechVoice.auto" = "Automatic (Best Quality)";
+"menu.speechVoice.download" = "Get More Voices…";

@@ -182,3 +182,27 @@
 "conversation.indicator" = "对话模式";
 "conversation.indicator.help" = "对话模式已开启：麦克风正在聆听";
 "voice.hint.micUnavailable" = "没有可用的麦克风输入";
+
+/* Voice assistant */
+"conversation.status.thinking" = "思考中…";
+"assistant.unavailable" = "助手没响应，已填入";
+"assistant.query.noTranscript" = "没有读到这个会话的记录";
+"assistant.query.failed" = "暂时答不上来";
+"assistant.switch.external" = "那个会话不在 CC Desk 里";
+"assistant.close.external" = "只能关闭 CC Desk 里的会话";
+"assistant.close.confirm" = "确认关闭吗？";
+"assistant.resume.notFound" = "没找到这个历史会话";
+"assistant.toast.switched" = "切换到：%@";
+"assistant.toast.new" = "新建：%1$@ · %2$@";
+"assistant.toast.resumed" = "恢复：%@";
+"assistant.toast.confirmClose" = "说「确认」关闭：%@";
+"assistant.toast.closed" = "已关闭：%@";
+"assistant.toast.closeCancelled" = "已取消关闭";
+"voice.hint.betterVoice" = "可在 系统设置 → 辅助功能 → 朗读内容 下载更自然的声音";
+"voice.speech.premium" = "%@（高级）";
+"voice.speech.enhanced" = "%@（增强）";
+"voice.speech.sample" = "你好，我是 CC Desk 助手";
+"menu.turnSummaries" = "回复摘要";
+"menu.speechVoice" = "朗读声音";
+"menu.speechVoice.auto" = "自动（音质最好）";
+"menu.speechVoice.download" = "下载更多声音…";

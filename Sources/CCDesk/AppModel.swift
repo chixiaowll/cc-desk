@@ -122,6 +122,7 @@ final class AppModel: ObservableObject {
     // MARK: 生命周期
 
     func start() {
+        conversation.host = self
         notifier.onOpen = { [weak self] key in self?.openFromNotification(key) }
         notifier.setup()
         restore()
@@ -542,6 +543,16 @@ final class AppModel: ObservableObject {
         removeTerminal(tid)
     }
 
+    /// 不再确认、直接关闭内嵌会话（语音已确认过）。关闭的是选中的会话时先选中另一个内嵌会话，对话模式得以继续。
+    func closeWithoutConfirmation(_ row: SidebarRow) {
+        guard case .embedded(let tid) = row.session.host, let terminal = pool.terminal(tid) else { return }
+        if selectedID == row.id, let next = embeddedRowsInOrder.first(where: { $0.id != row.id }) {
+            selectedID = next.id
+        }
+        terminal.terminate()
+        removeTerminal(tid)
+    }
+
     func closeSelected() {
         if let row = selectedRow { close(row) }
     }
@@ -661,6 +672,25 @@ final class AppModel: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         showNewSession = false
         newSession(cwd: url.path, kind: kind)
+    }
+
+    /// 在后台读某个会话记录的尾部（≤256KB），抽取紧凑的上下文；completion 在主线程（找不到记录时为 nil）。
+    func transcriptDigest(for row: SidebarRow, completion: @escaping (AssistantDigest?) -> Void) {
+        guard let sid = row.session.sessionID, row.session.kind.isAgent else { return completion(nil) }
+        let kind = row.session.kind
+        let title = row.displayName
+        let status = row.session.status
+        let transcripts = self.transcripts
+        let agentIndex = self.agentIndex
+        queue.async {
+            let url: URL? = kind == .claude
+                ? transcripts.path(forSession: sid)
+                : agentIndex.locate(kind: kind, sessionID: sid).map { URL(fileURLWithPath: $0) }
+            let digest = url.map { TurnDigest.digest(kind: kind, tail: TranscriptReader.readTail($0, bytes: TurnDigest.tailBytes)) }
+            DispatchQueue.main.async {
+                completion(digest.map { AssistantDigest(title: title, status: status, digest: $0) })
+            }
+        }
     }
 
     // MARK: 状态集成
