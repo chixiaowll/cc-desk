@@ -1,7 +1,7 @@
 import AppKit
 import CCDeskCore
 
-/// tmux 托管的内嵌终端（设计 §14）：附着 / 重新附着、关闭会话、复制模式与修饰键的处理。
+/// tmux 托管的内嵌终端（设计 §4.9）：附着 / 重新附着、关闭会话、复制模式与修饰键的处理。
 extension EmbeddedTerminal {
     private static let returnKeyCodes: Set<UInt16> = [36, 76]
     /// 客户端意外退出后最多自动重新附着几次（防止反复失败时死循环）。

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 内嵌终端托管在 CC Desk 专用的 tmux 服务器里（设计 §14）：会话命名、生成的配置、命令参数与输出解析。
+/// 内嵌终端托管在 CC Desk 专用的 tmux 服务器里（设计 §4.9）：会话命名、生成的配置、命令参数与输出解析。
 /// 这里只有纯逻辑，不起子进程；执行在 App 层（TmuxHost）。
 public enum TmuxNaming {
     /// 专用服务器的 socket 名（`tmux -L ccdesk`），从不使用用户默认的 tmux 服务器与配置。

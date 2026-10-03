@@ -1,6 +1,6 @@
 import Foundation
 
-/// 启动时如何恢复 workspace 里的一个内嵌终端（设计 §14.3）。
+/// 启动时如何恢复 workspace 里的一个内嵌终端（设计 §4.9）。
 public enum TerminalRestoreDecision: Equatable, Sendable {
     /// tmux 会话还在：直接附着，不发恢复命令（agent 仍在运行）。
     case attach

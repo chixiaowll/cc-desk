@@ -1,7 +1,7 @@
 import Foundation
 import CCDeskCore
 
-/// CC Desk 专用 tmux 服务器的执行层（设计 §14）：解析 tmux、写配置、同步执行短命令（每次几毫秒）。
+/// CC Desk 专用 tmux 服务器的执行层（设计 §4.9）：解析 tmux、写配置、同步执行短命令（每次几毫秒）。
 /// 每个内嵌终端一个 `ccdesk-<终端 id>` 会话；SwiftTerm 里运行的只是 `tmux attach` 客户端，
 /// App 退出 / 崩溃时客户端断开，会话与其中的 agent 继续运行，下次启动时重新附着。
 final class TmuxHost: @unchecked Sendable {

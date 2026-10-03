@@ -1,7 +1,7 @@
 import AppKit
 import CCDeskCore
 
-/// 启动时恢复内嵌终端（设计 §14.3）：读 workspace、列出 CC Desk tmux 服务器里存活的会话、
+/// 启动时恢复内嵌终端（设计 §4.9）：读 workspace、列出 CC Desk tmux 服务器里存活的会话、
 /// 决定每个终端是附着还是新建并恢复，并清理没有记录的残留会话。
 struct TerminalRestore {
     let plan: TerminalRestorePlan
