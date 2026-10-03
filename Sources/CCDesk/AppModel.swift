@@ -9,6 +9,10 @@ final class AppModel: ObservableObject {
     @Published var selectedID: String? {
         didSet {
             if let id = selectedID { clearUnread(id) }
+            // 记住选中的内嵌终端，下次启动恢复时选回它。
+            if let terminalID = selectedTerminalID {
+                UserDefaults.standard.set(terminalID.uuidString, forKey: Self.lastSelectedTerminalKey)
+            }
             // 对话模式只作用于选中的内嵌 session；没有选中内嵌 session 时自动关闭。
             if selectedTerminalID == nil { conversation.turnOff() }
         }
@@ -858,8 +862,14 @@ final class AppModel: ObservableObject {
                 missing.append(entry)
             }
         }
-        if let first = pool.terminals.first { selectedID = "term:\(first.id.uuidString)" }
+        // 选回上次选中的终端；它没能恢复时选第一个。
+        let last = UserDefaults.standard.string(forKey: Self.lastSelectedTerminalKey).flatMap(UUID.init(uuidString:))
+        if let terminal = pool.terminals.first(where: { $0.id == last }) ?? pool.terminals.first {
+            selectedID = "term:\(terminal.id.uuidString)"
+        }
     }
+
+    static let lastSelectedTerminalKey = "lastSelectedTerminal"
 
     // MARK: 内部
 
