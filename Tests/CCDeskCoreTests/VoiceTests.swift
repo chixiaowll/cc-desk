@@ -156,6 +156,11 @@ final class TranscriptCleanerTests: XCTestCase {
         XCTAssertEqual(TranscriptCleaner.clean("好的。好的。好的。然后提交"), "好的。然后提交")
     }
 
+    func testDropsReplacementCharacters() {
+        XCTAssertEqual(TranscriptCleaner.clean("帮我跑一下测试\u{FFFD}"), "帮我跑一下测试")
+        XCTAssertEqual(TranscriptCleaner.clean("\u{FFFD}"), "")
+    }
+
     func testEmptyStaysEmpty() {
         XCTAssertEqual(TranscriptCleaner.clean("   \n "), "")
     }

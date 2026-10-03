@@ -111,6 +111,8 @@ public enum TranscriptCleaner {
 
     public static func clean(_ raw: String) -> String {
         var text = raw.replacingOccurrences(of: #"<\|[^|]*\|>"#, with: "", options: .regularExpression)
+        // 截断的多字节 token 会解码成替换字符 U+FFFD。
+        text = text.replacingOccurrences(of: "\u{FFFD}", with: "")
         text = text.applyingTransform(StringTransform("Hant-Hans"), reverse: false) ?? text
 
         var lines: [String] = []
