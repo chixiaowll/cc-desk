@@ -204,7 +204,7 @@ private struct TurnSummaryMenuItem: View {
 
 /// 菜单「Session → 启动时开启助手」。
 private struct AutoStartConversationMenuItem: View {
-    @AppStorage(ConversationMode.autoStartDefaultsKey) private var on = true
+    @AppStorage(ConversationMode.autoStartDefaultsKey) private var on = false
 
     var body: some View {
         Toggle(L("menu.autoStartConversation"), isOn: $on)

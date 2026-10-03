@@ -97,9 +97,9 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     static let persistentDefaultsKey = "conversationPersistent"
     static let autoStartDefaultsKey = "conversationAutoStart"
 
-    /// 「启动时开启助手」：App 启动后自动进入对话模式待命（默认开；需已有麦克风权限和语音模型）。
+    /// 「启动时开启助手」：App 启动后自动进入对话模式待命（默认关；需已有麦克风权限和语音模型）。
     static var autoStartEnabled: Bool {
-        UserDefaults.standard.object(forKey: autoStartDefaultsKey) as? Bool ?? true
+        UserDefaults.standard.object(forKey: autoStartDefaultsKey) as? Bool ?? false
     }
 
     /// 启动时自动开启：不触发模型下载；麦克风未授权过时会弹系统授权框，被拒绝过就保持关闭。
