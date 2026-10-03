@@ -146,3 +146,55 @@ final class TranscriptIndexTests: ZhHansTestCase {
         XCTAssertEqual(items.map(\.sessionID), ["s4", "s3"])
     }
 }
+
+/// 找不到的会话文件：短时间内不再扫描整棵目录树（轮询每秒都会问）。
+final class TranscriptNegativeCacheTests: XCTestCase {
+    private var root: URL!
+
+    override func setUpWithError() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("ccd-neg-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    private final class Clock {
+        var now = Date(timeIntervalSince1970: 1_000_000)
+    }
+
+    func testClaudeMissIsCachedUntilTTL() throws {
+        let clock = Clock()
+        let index = TranscriptIndex(root: root, now: { clock.now })
+        XCTAssertNil(index.path(forSession: "late"))
+        let dir = root.appendingPathComponent("proj")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try #"{"cwd":"/w","sessionId":"late"}"#.write(to: dir.appendingPathComponent("late.jsonl"), atomically: true, encoding: .utf8)
+        clock.now += 5
+        XCTAssertNil(index.path(forSession: "late"), "within the TTL the miss is served from the cache")
+        XCTAssertNil(index.meta(forSession: "late"))
+        clock.now += TranscriptIndex.missTTL
+        XCTAssertNotNil(index.path(forSession: "late"), "after the TTL the tree is scanned again")
+        XCTAssertNotNil(index.meta(forSession: "late"))
+    }
+
+    func testAgentMissIsCachedPerKindUntilTTL() throws {
+        let clock = Clock()
+        let codexRoot = root.appendingPathComponent("codex"), piRoot = root.appendingPathComponent("pi")
+        let index = AgentSessionIndex(codexRoot: codexRoot, piRoot: piRoot, now: { clock.now })
+        XCTAssertNil(index.locate(kind: .codex, sessionID: "abc-123"))
+        let day = codexRoot.appendingPathComponent("2026/10/03")
+        try FileManager.default.createDirectory(at: day, withIntermediateDirectories: true)
+        let file = day.appendingPathComponent("rollout-2026-10-03-abc-123.jsonl")
+        try "{}\n".write(to: file, atomically: true, encoding: .utf8)
+        clock.now += 3
+        XCTAssertNil(index.locate(kind: .codex, sessionID: "abc-123"))
+        clock.now += AgentSessionIndex.missTTL
+        XCTAssertEqual(index.locate(kind: .codex, sessionID: "abc-123").map(ProjectResolver.canonical),
+                       ProjectResolver.canonical(file.path))
+        // 找到后走正向缓存，不受时钟影响。
+        clock.now += 1
+        XCTAssertNotNil(index.locate(kind: .codex, sessionID: "abc-123"))
+    }
+}

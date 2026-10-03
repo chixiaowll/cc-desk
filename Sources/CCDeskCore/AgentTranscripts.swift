@@ -228,13 +228,18 @@ public final class AgentSessionIndex {
     private var cache: [String: CacheEntry] = [:]
     /// sessionId -> 文件路径。
     private var sessionPaths: [String: String] = [:]
+    /// 找不到的 "<kind>:<sessionId>" -> 上次扫描的时间：`missTTL` 内不再扫描整棵目录树。
+    private var misses: [String: Date] = [:]
+    public static let missTTL: TimeInterval = 12
+    private let now: () -> Date
 
     public init(codexRoot: URL = AgentSessionIndex.defaultCodexRoot, piRoot: URL = AgentSessionIndex.defaultPiRoot,
-                fileManager: FileManager = .default, calendar: Calendar = .current) {
+                fileManager: FileManager = .default, calendar: Calendar = .current, now: @escaping () -> Date = Date.init) {
         self.codexRoot = codexRoot
         self.piRoot = piRoot
         self.fileManager = fileManager
         self.calendar = calendar
+        self.now = now
     }
 
     /// pi 的会话目录名：`--<cwd 去掉开头的 / 后把 / \ : 换成 ->--`（见 pi 的 getDefaultSessionDir）。
@@ -280,13 +285,19 @@ public final class AgentSessionIndex {
         entry(path: path, kind: kind)?.meta
     }
 
-    /// 按 sessionId 定位会话文件；首次通过枚举定位后缓存。
+    /// 按 sessionId 定位会话文件；首次通过枚举定位后缓存。找不到时 `missTTL` 秒内直接返回 nil，不再扫描。
     public func locate(kind: AgentKind, sessionID: String) -> String? {
         if let p = sessionPaths[sessionID], fileManager.fileExists(atPath: p) { return p }
+        let key = "\(kind.rawValue):\(sessionID)"
+        let time = now()
+        if let missedAt = misses[key], time.timeIntervalSince(missedAt) < Self.missTTL { return nil }
         for url in allFiles(kind: kind) where url.lastPathComponent.contains(sessionID) {
             sessionPaths[sessionID] = url.path
+            misses[key] = nil
             return url.path
         }
+        misses = misses.filter { time.timeIntervalSince($0.value) < Self.missTTL }
+        misses[key] = time
         return nil
     }
 

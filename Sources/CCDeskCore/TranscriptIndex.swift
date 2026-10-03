@@ -39,10 +39,16 @@ public final class TranscriptIndex {
     private var cache: [String: CacheEntry] = [:]
     /// sessionId -> 文件路径；首次通过枚举定位后缓存，避免每次查询都扫描全目录。
     private var sessionPaths: [String: URL] = [:]
+    /// 找不到的 sessionId -> 上次扫描的时间：`missTTL` 内不再扫描（轮询每秒都会问，刚开始的会话还没写文件）。
+    private var misses: [String: Date] = [:]
+    public static let missTTL: TimeInterval = 12
+    private let now: () -> Date
 
-    public init(root: URL = TranscriptIndex.defaultRoot, fileManager: FileManager = .default) {
+    public init(root: URL = TranscriptIndex.defaultRoot, fileManager: FileManager = .default,
+                now: @escaping () -> Date = Date.init) {
         self.root = root
         self.fileManager = fileManager
+        self.now = now
     }
 
     /// 返回某个 sessionId 对应 transcript 的标题字段；找不到文件时返回 nil。
@@ -78,10 +84,18 @@ public final class TranscriptIndex {
 
     private func locate(sessionID: String) -> URL? {
         if let cached = sessionPaths[sessionID] { return cached }
+        let time = now()
+        if let missedAt = misses[sessionID], time.timeIntervalSince(missedAt) < Self.missTTL { return nil }
         for url in allTranscriptFiles() {
             sessionPaths[url.deletingPathExtension().lastPathComponent] = url
         }
-        return sessionPaths[sessionID]
+        if let found = sessionPaths[sessionID] {
+            misses[sessionID] = nil
+            return found
+        }
+        misses = misses.filter { time.timeIntervalSince($0.value) < Self.missTTL }
+        misses[sessionID] = time
+        return nil
     }
 
     private func allTranscriptFiles() -> [URL] {
