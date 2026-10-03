@@ -135,6 +135,41 @@ public enum AssistantTools {
             description: "Close a session inside CC Desk. Asks the user to confirm.",
             parameters: [.init("session", .string, sessionRef, required: true)]),
         AssistantToolSpec(
+            name: "consult",
+            description: "Ask a stronger model (the senior assistant) a question that needs real reasoning or reading " +
+                "code: why something fails, how code works, design choices, reviewing a diff. Runs in the background, " +
+                "read-only (it can read files and run read-only git, never change anything) and returns at once with a " +
+                "job id; the answer arrives later as a [CONSULT_RESULT] message. Max 2 at a time, up to 5 minutes each.",
+            parameters: [.init("question", .string, "The full question, self-contained (the advisor sees nothing else).",
+                               required: true),
+                         .init("level", .string, "Model. Default sonnet. Use opus ONLY when the user explicitly asks " +
+                               "for Opus (\"用 Opus\", \"最强的模型\").", options: ["sonnet", "opus"]),
+                         .init("project", .string, "Project name or path to look at; omit for the selected session's project."),
+                         .init("profile", .string, "Optional read-only specialist from list_agents (e.g. reviewer).")]),
+        AssistantToolSpec(
+            name: "delegate",
+            description: "Hand a task that changes code or runs commands to a new visible agent session in a project " +
+                "(it appears in the sidebar and the task is sent as its first message). CC Desk tells you later when it " +
+                "needs approval or finishes. Use a profile from list_agents for specialist work (reviewer, tester).",
+            parameters: [.init("project", .string, "Project name or path (see list_projects).", required: true),
+                         .init("task", .string, "The task, in the user's words.", required: true),
+                         .init("agent", .string, "Agent, default claude.", options: ["claude", "codex", "pi"]),
+                         .init("profile", .string, "Optional specialist profile name from list_agents (claude only).")]),
+        AssistantToolSpec(
+            name: "list_agents",
+            description: "List the specialist agent profiles (name, title, description, model, readOnly). readOnly " +
+                "profiles can be used with consult; any profile can be used with delegate.",
+            readOnly: true),
+        AssistantToolSpec(
+            name: "list_consults",
+            description: "List recent consult jobs with their state (running / done / failed / cancelled / timedOut) " +
+                "and, when done, the short conclusion.",
+            readOnly: true),
+        AssistantToolSpec(
+            name: "cancel_consult",
+            description: "Cancel a running consult job.",
+            parameters: [.init("job", .string, "Job id from consult / list_consults (e.g. c2); omit for the latest running.")]),
+        AssistantToolSpec(
             name: "take_over",
             description: "Move an external terminal session into CC Desk (it is restarted with resume). Asks the user to confirm.",
             parameters: [.init("session", .string, sessionRef, required: true)]),

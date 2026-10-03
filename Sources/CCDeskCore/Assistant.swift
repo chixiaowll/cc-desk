@@ -14,9 +14,11 @@ public struct AssistantSessionInfo: Equatable, Sendable {
     public let isSelected: Bool
     /// 在 CC Desk 内嵌终端里（false = 外部终端，只能读状态 / 接管）。
     public let isEmbedded: Bool
+    /// 助手派出的任务（设计 §14 delegate）；nil = 不是派出的。
+    public let delegatedTask: String?
 
     public init(rowID: String, shortID: String = "", title: String, dir: String, agent: AgentKind, status: AgentStatus,
-                isSelected: Bool, isEmbedded: Bool = true) {
+                isSelected: Bool, isEmbedded: Bool = true, delegatedTask: String? = nil) {
         self.rowID = rowID
         self.shortID = shortID
         self.title = title
@@ -25,11 +27,12 @@ public struct AssistantSessionInfo: Equatable, Sendable {
         self.status = status
         self.isSelected = isSelected
         self.isEmbedded = isEmbedded
+        self.delegatedTask = delegatedTask
     }
 
     func with(shortID: String) -> AssistantSessionInfo {
         AssistantSessionInfo(rowID: rowID, shortID: shortID, title: title, dir: dir, agent: agent, status: status,
-                             isSelected: isSelected, isEmbedded: isEmbedded)
+                             isSelected: isSelected, isEmbedded: isEmbedded, delegatedTask: delegatedTask)
     }
 
     /// 给模型看的一项（list_sessions / 上下文共用）。
@@ -40,6 +43,7 @@ public struct AssistantSessionInfo: Equatable, Sendable {
         ]
         if isSelected { item["selected"] = true }
         if !isEmbedded { item["embedded"] = false }
+        if let delegatedTask { item["delegatedTask"] = .string(AssistantContext.clip(delegatedTask, AssistantContext.titleLimit)) }
         if case .waiting(let reason?) = status { item["waitingFor"] = .string(AssistantContext.clip(reason, AssistantContext.titleLimit)) }
         return .object(item)
     }
@@ -149,7 +153,7 @@ public struct AssistantContext: Equatable, Sendable {
 
 public enum AssistantPrompt {
     /// 系统提示词的版本：变了就换新的常驻会话（旧会话按旧提示词说话）。
-    public static let residentVersion = 2
+    public static let residentVersion = 3
 
     /// 常驻助手会话的系统提示词（设计 §13）：用 CC Desk 的工具做事，最后的文字回复会被朗读。
     public static let residentSystem = """
@@ -162,6 +166,13 @@ public enum AssistantPrompt {
     then reply.
     - [SUMMARIZE]: summarize the given transcript tail of a session's last turn in 1–2 short spoken sentences (what it \
     did, how it turned out, whether the user needs to act). Do not call tools.
+    - [EVENT]: something happened in a session the user is not looking at (it needs approval, or a task you \
+    delegated finished a turn). Do not call tools. Reply with ONE short spoken sentence naming the project — for an \
+    approval say what it wants and ask whether to approve (e.g. "poems 想执行 rm -rf build，要批准吗？"); for a \
+    finished task say what it did — or reply exactly SILENT when it is not worth interrupting the user (trivial or \
+    repeated). If the user then says 批准 / 拒绝, use respond_approval on THAT session, not the selected one.
+    - [CONSULT_RESULT]: the senior assistant answered a consult job. Do not call tools. Reply with its conclusion in \
+    1–2 short spoken sentences. Remember the full answer: the user may ask follow-up questions about it.
     Messages may include "Events" (what happened in CC Desk since your last reply, e.g. the user typed into a session) \
     and "Context" (the sidebar sessions with ids, project names, pendingText = typed but not sent yet). \
     "Context: unchanged" means the last Context still holds. Session ids stay valid until a session closes.
@@ -182,6 +193,17 @@ public enum AssistantPrompt {
     - "发了吧" / "提交" / "send it" → press_key enter in the session you last typed into (else the selected one). \
     "刚才那句不要了" / "清掉" → clear_input there.
     - Approve / deny a permission prompt → respond_approval, only for a session whose status is waiting_for_approval.
+    - You are the fast front desk; never write code or answer hard technical questions yourself. Two helpers:
+      * consult: questions that need real reasoning or reading code (why does X fail, how does Y work, is this \
+    approach right, review the diff). It runs in the background, read-only. Default level sonnet; level opus only \
+    when the user explicitly asks for Opus. After calling it say briefly "我让高级助手看一下" (or similar); the answer \
+    comes later as [CONSULT_RESULT]. For "审查一下 / review" without changing code, consult with profile reviewer.
+      * delegate: work that changes code, runs tests or runs commands, when the user wants it done in a NEW session \
+    or by a specialist ("让测试员跑一下测试" → delegate profile tester; "派个 codex 去改…" → agent codex). It \
+    starts a visible session in the sidebar and sends the task; say briefly that it has started. CC Desk reports \
+    back via [EVENT] when it needs approval or finishes.
+      * Work for the session the user is already talking to still goes into it with type_text, as above. \
+    list_agents shows the specialists; list_consults / cancel_consult manage running consults.
     - Questions to you about a session ("它在干嘛", "改了哪些文件", "测试过了吗") → read_transcript (what it did) \
     or read_screen (what it shows now), then answer from what you read. Answering never changes anything: no \
     switch_to, type_text or press_key while answering. Never guess.
@@ -200,6 +222,29 @@ public enum AssistantPrompt {
         lines.append("Utterance: \(AssistantContext.clip(utterance, 500))")
         lines.append("Context: " + (contextJSON ?? "unchanged"))
         return lines.joined(separator: "\n")
+    }
+
+    /// 主动提醒（设计 §14）：后台会话的状态变化，由助手决定播报什么（或 SILENT）。
+    public static func residentEvent(_ description: String, language: String, contextJSON: String?) -> String {
+        var lines = ["[EVENT] uiLanguage=\(language)", description]
+        lines.append("Context: " + (contextJSON ?? "unchanged"))
+        return lines.joined(separator: "\n")
+    }
+
+    /// 顾问的回答（完整回答截断到 `answerLimit` 字符）。
+    public static let answerLimit = 4000
+
+    public static func residentConsultResult(job: String, question: String, model: String, answer: String,
+                                             language: String) -> String {
+        let clipped = answer.count > answerLimit ? String(answer.prefix(answerLimit)) + "\n…(truncated)" : answer
+        return "[CONSULT_RESULT] uiLanguage=\(language) job=\(job) model=\(model)\n" +
+            "Question: \(AssistantContext.clip(question, 300))\nAnswer:\n\(clipped)"
+    }
+
+    /// 助手对 [EVENT] 的回复里表示「不必打扰」的标记。
+    public static func isSilent(_ reply: String) -> Bool {
+        let t = reply.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: ".。*`"))
+        return t.isEmpty || t.uppercased() == "SILENT"
     }
 
     public static func residentSummary(title: String, digest: String, language: String) -> String {
