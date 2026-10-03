@@ -21,13 +21,18 @@ public struct TerminalRestoreItem: Equatable, Sendable {
 }
 
 public struct TerminalRestorePlan: Equatable, Sendable {
+    /// workspace 里的项，后面接着被收养的会话（决定都是 `.attach`）。
     public let items: [TerminalRestoreItem]
-    /// CC Desk 服务器里没有 workspace 记录的 `ccdesk-*` 会话名：启动时结束掉。
-    public let orphanSessions: [String]
+    /// CC Desk 服务器里存活、但 workspace 没有记录的会话（如 workspace 文件缺失 / 损坏、或另一个实例写掉了记录）：
+    /// 那里面多半是用户还在跑的 agent，作为内嵌终端收养（附着），从不结束。
+    public let adopted: [UUID]
+    /// `ccdesk-` 前缀但不是合法终端 id 的会话名：不认识，原样不动。
+    public let unknownSessions: [String]
 
-    public init(items: [TerminalRestoreItem], orphanSessions: [String]) {
+    public init(items: [TerminalRestoreItem], adopted: [UUID] = [], unknownSessions: [String] = []) {
         self.items = items
-        self.orphanSessions = orphanSessions
+        self.adopted = adopted
+        self.unknownSessions = unknownSessions
     }
 }
 
@@ -47,22 +52,35 @@ public enum TerminalRestorePlanner {
 
     /// `liveSessions`：CC Desk tmux 服务器里现有的会话名（没有 tmux / 服务器未运行时为空）。
     /// 会话存活时即使目录已被删除也附着（进程还在跑）；否则按目录是否存在决定新建或标记缺失。
+    /// 没有记录的存活会话被收养：`cwdOf` 给出窗格当前目录（取不到时用 `fallbackCwd`），名字取目录名，
+    /// 不记 agent 种类与 sessionId（由之后的轮询从进程表认出来）。
     public static func plan(entries: [WorkspaceEntry], liveSessions: [String],
-                            directoryExists: (String) -> Bool) -> TerminalRestorePlan {
+                            directoryExists: (String) -> Bool,
+                            cwdOf: (String) -> String? = { _ in nil },
+                            fallbackCwd: String = NSHomeDirectory()) -> TerminalRestorePlan {
         let live = Set(liveSessions.compactMap(TmuxNaming.terminalID(fromSessionName:)))
-        let items = entries.map { entry -> TerminalRestoreItem in
+        var items = entries.map { entry -> TerminalRestoreItem in
             if live.contains(entry.terminalID) { return TerminalRestoreItem(entry: entry, decision: .attach) }
             guard directoryExists(entry.cwd) else { return TerminalRestoreItem(entry: entry, decision: .missing) }
             return TerminalRestoreItem(entry: entry, decision: .create(command: command(for: entry)))
         }
-        let known = Set(entries.map(\.terminalID))
+        var known = Set(entries.map(\.terminalID))
+        var adopted: [UUID] = []
+        var unknown: [String] = []
         var seen: Set<String> = []
-        let orphans = liveSessions.filter { name in
-            guard name.hasPrefix(TmuxNaming.sessionPrefix), seen.insert(name).inserted else { return false }
-            // `ccdesk-` 前缀但不是合法 UUID 的也是 CC Desk 服务器里的残留，一并清理。
-            guard let id = TmuxNaming.terminalID(fromSessionName: name) else { return true }
-            return !known.contains(id)
+        for name in liveSessions where name.hasPrefix(TmuxNaming.sessionPrefix) && seen.insert(name).inserted {
+            guard let id = TmuxNaming.terminalID(fromSessionName: name) else {
+                unknown.append(name)
+                continue
+            }
+            guard known.insert(id).inserted else { continue }
+            var cwd = cwdOf(name).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackCwd
+            if !directoryExists(cwd) { cwd = fallbackCwd }
+            let title = URL(fileURLWithPath: cwd).lastPathComponent
+            let entry = WorkspaceEntry(terminalID: id, cwd: cwd, sessionID: nil, name: title.isEmpty ? cwd : title)
+            items.append(TerminalRestoreItem(entry: entry, decision: .attach))
+            adopted.append(id)
         }
-        return TerminalRestorePlan(items: items, orphanSessions: orphans)
+        return TerminalRestorePlan(items: items, adopted: adopted, unknownSessions: unknown)
     }
 }

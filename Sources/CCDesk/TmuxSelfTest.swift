@@ -210,7 +210,7 @@ enum TmuxSelfTest {
             }
         }
 
-        // 10. 启动恢复：有记录的会话附着、没有记录的残留会话被结束。
+        // 10. 启动恢复：有记录的会话附着、没有记录的存活会话被收养（不结束）。
         let workspace = dir.appendingPathComponent("workspace.json")
         try? WorkspaceStore.save(WorkspaceFile(entries: [
             WorkspaceEntry(terminalID: a, cwd: dir.path, sessionID: "sid-a", name: "a", kind: .claude),
@@ -218,11 +218,18 @@ enum TmuxSelfTest {
         ]), to: workspace)
         t0 = Date()
         let restore = TerminalRestore.prepare(tmux: host, workspaceURL: workspace)
-        print("restore planning (list + reload + orphan kill) \(ms(t0))")
-        check(restore.plan.items.map(\.decision) == [.attach, .create(command: "codex resume 'sid-dead'")],
-              "restore: attach live, resume dead (\(restore.plan.items.map(\.decision)))")
-        check(restore.plan.orphanSessions == [TmuxNaming.sessionName(for: b)], "restore: session b is an orphan")
-        check(!host.hasSession(terminalID: b), "orphan session killed")
+        print("restore planning (list + reload) \(ms(t0))")
+        check(restore.plan.items.map(\.decision) == [.attach, .create(command: "codex resume 'sid-dead'"), .attach],
+              "restore: attach live, resume dead, adopt unrecorded (\(restore.plan.items.map(\.decision)))")
+        check(restore.plan.adopted == [b], "restore: unrecorded session b is adopted")
+        check(restore.plan.items.last?.entry.cwd == ProjectResolver.canonical(dir.path),
+              "adopted session uses the pane's current directory (\(restore.plan.items.last?.entry.cwd ?? "nil"))")
+        check(host.hasSession(terminalID: b), "unrecorded session is not killed")
+        // workspace 文件缺失：什么都不结束，全部收养。
+        let missingRestore = TerminalRestore.prepare(tmux: host, workspaceURL: dir.appendingPathComponent("absent.json"))
+        check(Set(missingRestore.plan.adopted) == [a, b] && host.hasSession(terminalID: a) && host.hasSession(terminalID: b),
+              "missing workspace adopts every live session and kills none")
+        host.killSession(terminalID: b)
 
         // 11. 关闭会话：结束 tmux 会话及其中的进程。
         t0 = Date()

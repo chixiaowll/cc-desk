@@ -79,6 +79,13 @@ final class TmuxHostingTests: XCTestCase {
         XCTAssertEqual(TmuxListing.panesByTerminal(panes), [id: panes[0]])
     }
 
+    func testParsePanesWithCurrentPath() {
+        let panes = TmuxListing.parsePanes("ccdesk-\(id.uuidString)\t4242\t/dev/ttys012\t/Users/u/my\tdir\nw\t7\t/dev/ttys3\t\n")
+        XCTAssertEqual(panes.map(\.currentPath), ["/Users/u/my\tdir", nil])
+        XCTAssertEqual(panes.first?.paneTTY, "ttys012")
+        XCTAssertTrue(TmuxListing.paneFormat.hasSuffix("\t#{pane_current_path}"))
+    }
+
     func testNoServerErrorsAreRecognized() {
         XCTAssertTrue(TmuxListing.isNoServer("no server running on /private/tmp/tmux-501/ccdesk\n"))
         XCTAssertTrue(TmuxListing.isNoServer("error connecting to /private/tmp/tmux-501/ccdesk (No such file or directory)"))
@@ -91,7 +98,7 @@ final class TmuxHostingTests: XCTestCase {
         let cmd = TmuxCommand(socket: "ccdesk", configPath: "/h/.cc-desk/tmux.conf")
         XCTAssertEqual(cmd.base, ["-L", "ccdesk", "-f", "/h/.cc-desk/tmux.conf", "-u"])
         XCTAssertEqual(cmd.attach(terminalID: id), cmd.base + ["attach-session", "-t", "=ccdesk-\(id.uuidString)"])
-        XCTAssertEqual(cmd.listPanes(), cmd.base + ["list-panes", "-a", "-F", "#{session_name}\t#{pane_pid}\t#{pane_tty}"])
+        XCTAssertEqual(cmd.listPanes(), cmd.base + ["list-panes", "-a", "-F", "#{session_name}\t#{pane_pid}\t#{pane_tty}\t#{pane_current_path}"])
         XCTAssertEqual(cmd.killSession(terminalID: id), cmd.base + ["kill-session", "-t", "=ccdesk-\(id.uuidString)"])
         XCTAssertEqual(cmd.capture(terminalID: id, lines: 200).suffix(2), ["-S", "-200"])
         let cancel = cmd.cancelCopyMode(terminalID: id)
@@ -158,15 +165,36 @@ final class TmuxHostingTests: XCTestCase {
         let sessions = [TmuxNaming.sessionName(for: live), TmuxNaming.sessionName(for: liveGone),
                         TmuxNaming.sessionName(for: orphan), "ccdesk-garbage", "user-made"]
         let plan = TerminalRestorePlanner.plan(entries: entries, liveSessions: sessions,
-                                               directoryExists: { $0 == "/p" })
+                                               directoryExists: { $0 == "/p" || $0 == "/work/api" },
+                                               cwdOf: { $0 == TmuxNaming.sessionName(for: orphan) ? "/work/api" : nil },
+                                               fallbackCwd: "/home")
         XCTAssertEqual(plan.items.map(\.decision), [
             .attach,
             .create(command: "codex resume 's2'"),
             .create(command: nil),
             .missing,
             .attach,
+            .attach,
         ])
-        XCTAssertEqual(plan.orphanSessions, [TmuxNaming.sessionName(for: orphan), "ccdesk-garbage"])
+        // 没有记录的存活会话被收养（附着在它的当前目录），不再结束；不认识的名字原样不动。
+        XCTAssertEqual(plan.adopted, [orphan])
+        XCTAssertEqual(plan.items.last?.entry, WorkspaceEntry(terminalID: orphan, cwd: "/work/api", sessionID: nil, name: "api"))
+        XCTAssertEqual(plan.unknownSessions, ["ccdesk-garbage"])
+    }
+
+    func testRestorePlanAdoptsEverythingWhenWorkspaceIsMissing() {
+        // workspace.json 缺失 / 无法读取（entries 为空）：所有存活会话都被收养，一个都不结束。
+        let a = UUID(), b = UUID()
+        let sessions = [TmuxNaming.sessionName(for: a), TmuxNaming.sessionName(for: b), TmuxNaming.sessionName(for: a)]
+        let plan = TerminalRestorePlanner.plan(entries: [], liveSessions: sessions, directoryExists: { $0 == "/home" },
+                                               cwdOf: { $0 == TmuxNaming.sessionName(for: a) ? "/deleted/dir" : nil },
+                                               fallbackCwd: "/home")
+        XCTAssertEqual(plan.adopted, [a, b])
+        XCTAssertEqual(plan.items.map(\.decision), [.attach, .attach])
+        XCTAssertEqual(plan.items.map(\.entry.cwd), ["/home", "/home"], "unknown or deleted cwd falls back")
+        XCTAssertEqual(plan.items.map(\.entry.kind), [nil, nil])
+        XCTAssertEqual(plan.items.map(\.entry.sessionID), [nil, nil])
+        XCTAssertEqual(plan.unknownSessions, [])
     }
 
     func testRestorePlanWithoutTmuxIsTodaysBehavior() {
@@ -178,7 +206,7 @@ final class TmuxHostingTests: XCTestCase {
         ]
         let plan = TerminalRestorePlanner.plan(entries: entries, liveSessions: [], directoryExists: { _ in true })
         XCTAssertEqual(plan.items.map(\.decision), [.create(command: "claude --resume 'abc'"), .create(command: "pi")])
-        XCTAssertEqual(plan.orphanSessions, [])
+        XCTAssertEqual(plan.adopted, [])
         XCTAssertEqual(TerminalRestorePlanner.kind(for: entries[0]), .claude)
         XCTAssertEqual(TerminalRestorePlanner.kind(for: entries[1]), .pi)
     }

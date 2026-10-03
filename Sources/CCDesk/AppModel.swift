@@ -85,6 +85,8 @@ final class AppModel: ObservableObject {
     /// 历史列表排除这些，并据此在主线程上再过滤一次（后台结果可能已过时）。
     private var liveSessionIDs: Set<String> = []
     private var timer: Timer?
+    /// 正在为重启交接（不再写 workspace、不再启动控制接口）。
+    private var relaunchSuspended = false
     private var polling = false
     private var sessions: [AgentSession] = []
     private var lastStatuses: [String: AgentStatus]?
@@ -842,6 +844,7 @@ final class AppModel: ObservableObject {
     }
 
     func saveWorkspace() {
+        guard !relaunchSuspended else { return }
         let embedded = pool.terminals.map { terminal -> WorkspaceEntry in
             let cwd = ProjectResolver.canonical(terminal.cwd)
             let sessionID = knownSessionIDs[terminal.id]
@@ -874,6 +877,8 @@ final class AppModel: ObservableObject {
                 missing.append(entry)
             }
         }
+        // 收养了没有记录的会话：立即写进 workspace。
+        if !restore.plan.adopted.isEmpty { saveWorkspace() }
         // 选回上次选中的终端；它没能恢复时选第一个。
         let last = UserDefaults.standard.string(forKey: Self.lastSelectedTerminalKey).flatMap(UUID.init(uuidString:))
         if let terminal = pool.terminals.first(where: { $0.id == last }) ?? pool.terminals.first {
@@ -917,19 +922,41 @@ final class AppModel: ObservableObject {
         poll()
     }
 
-    /// 启动控制接口；已有另一个 CC Desk 占用时不启动（助手工具会连到那个实例）。
-    private func startControlServer() {
+    /// 启动控制接口。socket 仍被别的进程占着（多半是切换语言重启时还没退出的旧实例）时，每 0.5 秒重试，最多 10 秒。
+    private func startControlServer(attempt: Int = 0) {
+        guard controlServer == nil, !relaunchSuspended else { return }
         let toolbox = self.toolbox
         let server = ControlServer(path: ControlProtocol.socketPath(), token: ControlAuth.token,
                                    log: { AssistantDiag.log($0) }) { request, reply in
             DispatchQueue.main.async { toolbox.handle(request, reply: reply) }
         }
-        if server.start() { controlServer = server }
+        if server.start() {
+            controlServer = server
+        } else if attempt < 20 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.startControlServer(attempt: attempt + 1) }
+        }
     }
 
     func stopControlServer() {
         controlServer?.stop()
         controlServer = nil
+    }
+
+    /// 切换语言重启前：存好 workspace，停掉轮询（之后不再写 workspace）与控制接口，让新实例接手。
+    func suspendForRelaunch() {
+        saveWorkspace()
+        relaunchSuspended = true
+        timer?.invalidate()
+        timer = nil
+        stopControlServer()
+    }
+
+    /// 新实例没能启动：恢复轮询与控制接口。
+    func resumeAfterFailedRelaunch() {
+        relaunchSuspended = false
+        startControlServer()
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.poll() }
     }
 
     private func rememberRecent(_ rawCwd: String) {

@@ -244,6 +244,8 @@ protocol TerminalInputSink {
 - 启动时读取该文件，按顺序为每项新建终端并执行恢复命令；没有 sessionID 的项（如 `other`）只在原目录打开 shell。
 - **cwd 必须与原 session 一致**：Claude 按目录保存会话（`~/.claude/projects/<编码路径>/`），恢复命令一律在原 cwd 下执行。若原目录已不存在，不启动该项，而在左边栏显示为「目录缺失」占位行，右键可选「在其他目录打开」或「移除」。
 - 有 tmux 时，上面的「新建并恢复」只用于 tmux 会话已不存在的项；会话还在的项直接附着，见 §4.9。
+- **单实例**：界面实例启动时 `flock(LOCK_EX|LOCK_NB)` 锁住 `~/.cc-desk/instance.lock`（fd 带 `O_CLOEXEC`，内嵌终端 / tmux 服务器不会继承），运行期间一直持有，进程退出 / 崩溃时由内核释放。拿不到锁说明已有实例：激活它然后退出——否则两个实例会各自用自己的终端池覆盖 workspace.json、争抢控制接口与 tmux 会话。`--mcp`、`--tts-test`、`--tmux-selftest`（以及本地化探针）不拿锁。`CCDESK_INSTANCE_LOCK` 可换路径（隔离运行用）。
+- **切换语言重启**：确认退出后先存 workspace、停掉轮询（之后不再写 workspace）与控制接口、交出锁，再以 `--relaunched` 启动新实例；新实例最多等 15 秒拿锁，控制接口绑定失败（socket 仍被正在退出的旧实例占着）时每 0.5 秒重试、最多 10 秒。新实例启动失败时旧实例拿回锁并恢复轮询与控制接口。
 
 ### 4.9 会话保持（tmux 托管）
 
@@ -270,7 +272,7 @@ protocol TerminalInputSink {
 **生命周期**
 
 - 启动：一次 `list-panes -a`。workspace 里每项：会话还在 → 附着，不发恢复命令，并预先记为「观测到 agent」，这样 App 关闭期间已退出的 agent 首轮就显示「已结束」可原地恢复；会话不在 → 照旧新建并执行恢复命令；目录缺失且会话不在 → 「目录缺失」行（会话还在则不管目录照样附着）。纯逻辑在 `TerminalRestorePlanner`。
-- 残留清理：服务器里 `ccdesk-*` 会话没有 workspace 记录的，启动时 `kill-session` 并记日志。workspace 文件损坏（被挪到一边）时不清理。
+- 没有记录的会话：服务器里 `ccdesk-<uuid>` 会话没有 workspace 记录的（workspace 文件缺失 / 损坏、或单实例之前另一个实例写掉了记录），**收养**为内嵌终端：附着它，目录取窗格当前目录（`#{pane_current_path}`，取不到或已删除时用主目录），不记 agent 种类与 sessionId，由之后的轮询从进程表认出，并立即写回 workspace。启动时从不结束任何会话——里面多半是用户还在跑的 agent；不想要的由用户自己关闭。`ccdesk-` 前缀但不是合法 UUID 的会话不认识，原样不动。
 - 退出 / 崩溃：只是客户端断开，会话继续运行；⌘Q 只在有**直连 PTY** 的活跃 session 时确认。
 - 关闭 session（⌘W / 右键关闭 / 助手 `close_session`）：`kill-session`（tmux 向窗格进程组发 SIGHUP 并关闭 pty），2 秒后窗格 shell 仍在则 SIGKILL。
 - 客户端意外退出而会话仍在（如被外部 `detach`）：自动重新附着（最多 3 次）。会话已不在（用户 `exit` 了 shell）：照旧移除终端。
@@ -287,7 +289,7 @@ protocol TerminalInputSink {
 - 不用 3.7：3.7 系列在 macOS 上需要 jemalloc 才能避开进入复制模式时的断言崩溃（tmux issue 5385），而滚轮翻看历史正靠复制模式。
 - `scripts/dmg.sh` 总是内置（`Contents/Helpers/tmux`，先签 helper 再签 App）。`scripts/bundle.sh` 只在 `CCDESK_BUNDLE_TMUX=1` 时内置，本地开发默认用 Homebrew 的 tmux。许可证文本放在 `Contents/Resources/ThirdPartyNotices/tmux.txt`，`NOTICE` 中列出。
 
-**验证**：`CCDesk --tmux-selftest` 不启动界面，在隔离的 `ccdesk-selftest-<pid>` 服务器和临时目录里，用无界面 SwiftTerm `Terminal` 经 pty 运行真正的 `tmux attach`，检查：tty 映射、窗格环境、标题、中文双宽、真彩色、断开后会话存活、重新附着、历史、滚轮进入 / 退出复制模式、Shift+Enter / Shift+Tab、恢复计划与残留清理、关闭会话、8 个终端时轮询不起 tmux。
+**验证**：`CCDesk --tmux-selftest` 不启动界面，在隔离的 `ccdesk-selftest-<pid>` 服务器和临时目录里，用无界面 SwiftTerm `Terminal` 经 pty 运行真正的 `tmux attach`，检查：tty 映射、窗格环境、标题、中文双宽、真彩色、断开后会话存活、重新附着、历史、滚轮进入 / 退出复制模式、Shift+Enter / Shift+Tab、恢复计划与收养没有记录的会话（workspace 缺失时全部收养、一个不杀）、关闭会话、8 个终端时轮询不起 tmux。
 
 **限制**
 

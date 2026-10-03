@@ -56,13 +56,20 @@ extension AppDelegate {
     }
 
     /// 在 applicationShouldTerminate 确认可以退出后调用：启动新实例，完成后再真正退出。
+    /// 启动前先存好 workspace、停掉轮询与控制接口并交出单实例锁，新实例（带 `--relaunched`，会等锁）才能接手；
+    /// 启动失败时全部恢复。
     func launchNewInstanceThenTerminate() {
+        model.suspendForRelaunch()
+        SingleInstance.release()
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
+        configuration.arguments = [SingleInstance.relaunchArgument]
         NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
             DispatchQueue.main.async {
                 if let error {
                     self.relaunching = false
+                    SingleInstance.reacquire()
+                    self.model.resumeAfterFailedRelaunch()
                     NSApp.reply(toApplicationShouldTerminate: false)
                     let alert = NSAlert()
                     alert.messageText = L("alert.restartFailed.title")

@@ -125,32 +125,41 @@ public enum TmuxConfig {
     }
 }
 
-/// `list-panes` 的一行：会话名、窗格 shell pid 与窗格 tty。
+/// `list-panes` 的一行：会话名、窗格 shell pid、窗格 tty 与窗格当前目录。
 public struct TmuxPane: Equatable, Sendable {
     public let sessionName: String
     public let panePID: Int32
     public let paneTTY: String
+    /// 窗格前台进程的当前目录（收养没有记录的会话时用）；随时会变，不参与相等比较。
+    public let currentPath: String?
 
-    public init(sessionName: String, panePID: Int32, paneTTY: String) {
+    public init(sessionName: String, panePID: Int32, paneTTY: String, currentPath: String? = nil) {
         self.sessionName = sessionName
         self.panePID = panePID
         self.paneTTY = paneTTY
+        self.currentPath = currentPath
     }
 
     public var terminalID: UUID? { TmuxNaming.terminalID(fromSessionName: sessionName) }
+
+    public static func == (a: TmuxPane, b: TmuxPane) -> Bool {
+        a.sessionName == b.sessionName && a.panePID == b.panePID && a.paneTTY == b.paneTTY
+    }
 }
 
 public enum TmuxListing {
-    public static let paneFormat = "#{session_name}\t#{pane_pid}\t#{pane_tty}"
+    /// 目录放在最后：路径里即使有制表符也只影响这一列。
+    public static let paneFormat = "#{session_name}\t#{pane_pid}\t#{pane_tty}\t#{pane_current_path}"
 
-    /// 解析 `paneFormat` 输出；格式不对的行跳过。tty 与 ps 的写法一致（去掉 "/dev/"）。
+    /// 解析 `paneFormat` 输出（也接受没有目录列的旧格式）；格式不对的行跳过。tty 与 ps 的写法一致（去掉 "/dev/"）。
     public static func parsePanes(_ output: String) -> [TmuxPane] {
         output.split(whereSeparator: \.isNewline).compactMap { line in
-            let fields = line.split(separator: "\t", omittingEmptySubsequences: false)
-            guard fields.count == 3, !fields[0].isEmpty, let pid = Int32(fields[1]), pid > 0 else { return nil }
+            let fields = line.split(separator: "\t", maxSplits: 3, omittingEmptySubsequences: false)
+            guard fields.count >= 3, !fields[0].isEmpty, let pid = Int32(fields[1]), pid > 0 else { return nil }
             var tty = String(fields[2])
             if tty.hasPrefix("/dev/") { tty.removeFirst("/dev/".count) }
-            return TmuxPane(sessionName: String(fields[0]), panePID: pid, paneTTY: tty)
+            let path = fields.count > 3 && !fields[3].isEmpty ? String(fields[3]) : nil
+            return TmuxPane(sessionName: String(fields[0]), panePID: pid, paneTTY: tty, currentPath: path)
         }
     }
 
