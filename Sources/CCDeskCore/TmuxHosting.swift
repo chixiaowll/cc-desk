@@ -26,6 +26,11 @@ public enum TmuxNaming {
         "=" + sessionName(for: terminalID)
     }
 
+    /// 窗格类命令（capture-pane、send-keys、display-message）的精确目标：`=` 会话名后须带 `:`，否则 tmux 找不到窗格。
+    public static func paneTarget(for terminalID: UUID) -> String {
+        target(for: terminalID) + ":"
+    }
+
     /// `ccdesk-<UUID>` -> UUID；不是 CC Desk 的会话名时为 nil。
     public static func terminalID(fromSessionName name: String) -> UUID? {
         guard name.hasPrefix(sessionPrefix) else { return nil }
@@ -99,17 +104,17 @@ public enum TmuxConfig {
         set -wg aggressive-resize on
         set -wg window-size latest
 
-        # 没有前缀键，也不拦截任何键盘按键。
+        # 没有前缀键，也不拦截任何键盘按键（-q：重复加载时 prefix 表已不存在，不报错）。
         set -g prefix None
         set -g prefix2 None
-        unbind -a -T prefix
+        unbind -q -a -T prefix
 
-        # 鼠标：滚轮进入 tmux 的复制模式翻看历史（滚回底部自动退出）；程序自己要鼠标时原样转发。
+        # 鼠标：滚轮进入 tmux 的复制模式翻看历史（每格一行，滚回底部自动退出）；程序自己要鼠标时原样转发。
         # 拖选在复制模式里选择，松开即复制到系统剪贴板；按住 Shift 拖选则是 SwiftTerm 自己的选择。
         set -g mouse on
         unbind -n MouseDown3Pane
         unbind -n M-MouseDown3Pane
-        bind -n WheelUpPane if -F '#{||:#{pane_in_mode},#{mouse_any_flag}}' { send -M } { copy-mode -e }
+        bind -n WheelUpPane if -F '#{||:#{pane_in_mode},#{mouse_any_flag}}' { send -M } { copy-mode -e; send -X scroll-up }
         bind -T copy-mode WheelUpPane send -N 1 -X scroll-up
         bind -T copy-mode WheelDownPane send -N 1 -X scroll-down
         bind -T copy-mode MouseDragEnd1Pane send -X copy-pipe-and-cancel
@@ -204,6 +209,11 @@ public struct TmuxCommand: Equatable, Sendable {
         base + ["has-session", "-t", TmuxNaming.target(for: terminalID)]
     }
 
+    /// 窗格是否在复制模式（输出 "1" / "0"）。
+    public func paneInMode(terminalID: UUID) -> [String] {
+        base + ["display-message", "-p", "-t", TmuxNaming.paneTarget(for: terminalID), "#{pane_in_mode}"]
+    }
+
     public func killSession(name: String) -> [String] {
         base + ["kill-session", "-t", "=" + name]
     }
@@ -219,12 +229,12 @@ public struct TmuxCommand: Equatable, Sendable {
 
     /// 窗格底部 `lines` 行纯文本（含历史），软换行拼回一行。
     public func capture(terminalID: UUID, lines: Int) -> [String] {
-        base + ["capture-pane", "-p", "-J", "-t", TmuxNaming.target(for: terminalID), "-S", "-\(max(lines, 1))"]
+        base + ["capture-pane", "-p", "-J", "-t", TmuxNaming.paneTarget(for: terminalID), "-S", "-\(max(lines, 1))"]
     }
 
     /// 窗格在复制模式（滚轮翻看历史）时退出复制模式，否则什么都不做（不在状态行报错）。
     public func cancelCopyMode(terminalID: UUID) -> [String] {
-        let target = TmuxNaming.target(for: terminalID)
+        let target = TmuxNaming.paneTarget(for: terminalID)
         return base + ["if-shell", "-F", "-t", target, "#{pane_in_mode}", "send-keys -X -t '\(target)' cancel"]
     }
 

@@ -44,7 +44,7 @@ final class TmuxHostingTests: XCTestCase {
     func testConfigMakesTmuxInvisible() {
         let conf = TmuxConfig.text()
         for line in [
-            "set -g status off", "set -g prefix None", "set -g prefix2 None", "unbind -a -T prefix",
+            "set -g status off", "set -g prefix None", "set -g prefix2 None", "unbind -q -a -T prefix",
             "set -s escape-time 0", "set -g history-limit 20000", "set -g mouse on",
             "set -g set-titles on", "set -g set-titles-string '#{pane_title}'",
             "set -s extended-keys on", "set -s extended-keys-format csi-u",
@@ -95,8 +95,10 @@ final class TmuxHostingTests: XCTestCase {
         XCTAssertEqual(cmd.killSession(terminalID: id), cmd.base + ["kill-session", "-t", "=ccdesk-\(id.uuidString)"])
         XCTAssertEqual(cmd.capture(terminalID: id, lines: 200).suffix(2), ["-S", "-200"])
         let cancel = cmd.cancelCopyMode(terminalID: id)
-        XCTAssertEqual(Array(cancel.suffix(5)), ["-F", "-t", "=ccdesk-\(id.uuidString)", "#{pane_in_mode}",
-                                                 "send-keys -X -t '=ccdesk-\(id.uuidString)' cancel"])
+        XCTAssertEqual(Array(cancel.suffix(5)), ["-F", "-t", "=ccdesk-\(id.uuidString):", "#{pane_in_mode}",
+                                                 "send-keys -X -t '=ccdesk-\(id.uuidString):' cancel"])
+        XCTAssertEqual(cmd.capture(terminalID: id, lines: 5)[cmd.base.count + 4], "=ccdesk-\(id.uuidString):")
+        XCTAssertEqual(cmd.paneInMode(terminalID: id), cmd.base + ["display-message", "-p", "-t", "=ccdesk-\(id.uuidString):", "#{pane_in_mode}"])
     }
 
     func testNewSessionPassesEnvironmentPerSessionAndCommandVerbatim() {
