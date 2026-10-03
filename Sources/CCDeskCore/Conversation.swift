@@ -323,6 +323,8 @@ public enum ConversationAction: Equatable, Sendable {
     case wake
     /// 追加到输入框（不发送）。
     case insert(String)
+    /// 本地规则没命中：交给语音助手（意图模型）判断。
+    case assist(String)
     case send
     case cancel
     /// 关闭对话模式。
@@ -357,6 +359,8 @@ public struct ConversationSession: Equatable {
     public let approvalWindow: TimeInterval
     public let wakeSegmentMax: TimeInterval
     public let wakePrefix: TimeInterval
+    /// 对话中没命中本地指令的话交给语音助手（`.assist`），否则直接插入（`.insert`）。
+    public var routesToAssistant = false
     private var lastActivity: TimeInterval = 0
     private var waitingAnnouncedAt: TimeInterval?
 
@@ -374,6 +378,11 @@ public struct ConversationSession: Equatable {
     public mutating func reset() {
         state = .standby
         waitingAnnouncedAt = nil
+    }
+
+    /// 回到待命（如助手执行了发送 / 取消）。
+    public mutating func standby() {
+        state = .standby
     }
 
     /// 检测到有人在说话（对话中时推迟超时）。
@@ -434,7 +443,7 @@ public struct ConversationSession: Equatable {
         case .deny?:
             return [.deny]
         case nil:
-            return [.insert(text)]
+            return [routesToAssistant ? .assist(text) : .insert(text)]
         }
     }
 }

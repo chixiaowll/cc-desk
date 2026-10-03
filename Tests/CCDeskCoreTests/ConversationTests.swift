@@ -315,6 +315,25 @@ final class ConversationSessionTests: XCTestCase {
         XCTAssertEqual(session.transcriptionPolicy(duration: 12), .full)
     }
 
+    func testUnmatchedSpeechGoesToAssistantWhenEnabled() {
+        session.routesToAssistant = true
+        XCTAssertEqual(session.handle(transcript: "嬴政同学，帮我切到 poems 那个", waiting: false, now: 0),
+                       [.wake, .assist("帮我切到 poems 那个")])
+        // 本地规则仍然优先，零延迟。
+        XCTAssertEqual(session.handle(transcript: "同意", waiting: true, now: 1), [.approve])
+        XCTAssertEqual(session.handle(transcript: "嗯", waiting: false, now: 2), [])
+        XCTAssertEqual(session.handle(transcript: "发送", waiting: false, now: 3), [.send, .standby])
+        // 待命时不会把普通的话交给助手。
+        XCTAssertEqual(session.handle(transcript: "帮我切到 poems", waiting: false, now: 4), [])
+    }
+
+    func testExplicitStandby() {
+        _ = session.handle(transcript: "嬴政同学", waiting: false, now: 0)
+        session.standby()
+        XCTAssertEqual(session.state, .standby)
+        XCTAssertEqual(session.tick(now: 100), [])
+    }
+
     func testStopLeavesActive() {
         _ = session.handle(transcript: "嬴政同学", waiting: false, now: 0)
         XCTAssertEqual(session.handle(transcript: "stop listening", waiting: false, now: 1), [.stop])

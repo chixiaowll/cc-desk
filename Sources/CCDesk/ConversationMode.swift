@@ -255,7 +255,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             speak(L("conversation.wake.reply"))
         case .standby:
             NSSound(named: "Pop")?.play()
-        case .insert(let text):
+        case .insert(let text), .assist(let text):
             guard let terminal else { return voice.showHint(L("voice.hint.targetClosed")) }
             let payload = ConversationText.insertion(text, after: inserted)
             terminal.send(text: payload, submit: false)
