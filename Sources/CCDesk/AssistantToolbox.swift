@@ -44,7 +44,7 @@ final class AssistantToolbox {
     }
 
     private func dispatch(_ method: String, _ args: ToolArgs, _ done: @escaping Completion) {
-        guard model != nil else { return done(.failure(ControlError(.unavailable, "CC Desk is shutting down"))) }
+        guard model != nil else { return done(Self.shuttingDown) }
         switch method {
         case "list_sessions": listSessions(done)
         case "read_screen": readScreen(args, done)
@@ -130,6 +130,9 @@ final class AssistantToolbox {
     static func text(_ s: String) -> Result<JSONValue, ControlError> {
         .success(["text": .string(s)])
     }
+
+    /// AppModel 已释放（App 正在退出）：工具也要回复，不能让调用方一直等到超时。
+    static let shuttingDown: Result<JSONValue, ControlError> = .failure(ControlError(.unavailable, "CC Desk is shutting down"))
 
     static func failure(_ message: String) -> Result<JSONValue, ControlError> {
         .failure(ControlError(.failed, message))

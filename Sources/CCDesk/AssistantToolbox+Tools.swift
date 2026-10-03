@@ -6,7 +6,7 @@ extension AssistantToolbox {
     // MARK: 只读
 
     func listSessions(_ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         show(L("assistant.activity.list"))
         let sessions = model.assistantSessions()
         done(.success(["sessions": .array(sessions.map(\.json))]))
@@ -25,7 +25,7 @@ extension AssistantToolbox {
     }
 
     func readTranscript(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         switch resolve(args.string("session")) {
         case .failure(let error): done(.failure(error))
         case .success(let target):
@@ -51,7 +51,7 @@ extension AssistantToolbox {
     }
 
     func listProjects(_ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         show(L("assistant.activity.list"))
         let home = NSHomeDirectory()
         done(.success(["projects": .array(model.assistantProjects().map { p in
@@ -61,7 +61,7 @@ extension AssistantToolbox {
     }
 
     func gitStatus(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         let path: String
         if let ref = args.string("project") {
             switch project(ref) {
@@ -101,7 +101,7 @@ extension AssistantToolbox {
     // MARK: 操作
 
     func switchTo(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         switch resolve(args.string("session")) {
         case .failure(let error): done(.failure(error))
         case .success(let target) where target.row.session.host.isEmbedded:
@@ -124,7 +124,7 @@ extension AssistantToolbox {
     }
 
     func typeText(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         guard let text = args.text("text"), ConversationText.isMeaningful(text) else {
             return done(.failure(ControlError(.invalidParams, "text is empty")))
         }
@@ -142,7 +142,7 @@ extension AssistantToolbox {
     }
 
     func clearInput(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         switch resolveEmbedded(args.string("session")) {
         case .failure(let error): done(.failure(error))
         case .success(let (target, terminal)):
@@ -154,7 +154,7 @@ extension AssistantToolbox {
     }
 
     func pressKey(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         guard let key = args.string("key").flatMap(AssistantKey.init(spoken:)) else {
             return done(.failure(ControlError(.invalidParams, "key must be one of " +
                                               AssistantKey.allCases.map(\.rawValue).joined(separator: ", "))))
@@ -195,7 +195,7 @@ extension AssistantToolbox {
     }
 
     func newSession(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         let agentName = (args.string("agent") ?? "claude").lowercased()
         guard let agent = AgentKind(rawValue: agentName), agent.isAgent, AgentAdapters.adapter(for: agent) != nil else {
             return done(.failure(ControlError(.invalidParams, "agent must be claude, codex or pi")))
@@ -228,7 +228,7 @@ extension AssistantToolbox {
     }
 
     func resumeSession(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         let items = historyItems()
         switch AssistantReferences.history(args.string("history_id"), in: items) {
         case .notFound:
@@ -250,7 +250,7 @@ extension AssistantToolbox {
     }
 
     func closeSession(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         switch resolve(args.string("session")) {
         case .failure(let error): done(.failure(error))
         case .success(let target):
@@ -268,7 +268,7 @@ extension AssistantToolbox {
     }
 
     func takeOver(_ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         switch resolve(args.string("session")) {
         case .failure(let error): done(.failure(error))
         case .success(let target):
@@ -283,7 +283,7 @@ extension AssistantToolbox {
     }
 
     private func confirmTakeOver(_ target: Target, _ done: @escaping Completion) {
-        guard let model else { return }
+        guard let model else { return done(Self.shuttingDown) }
         show(L("assistant.activity.takeOver", target.name))
         confirm(question: L("assistant.confirm.takeOver", target.name), toast: L("assistant.toast.confirmTakeOver", target.name)) { ok in
             guard ok else { return done(Self.text("cancelled by the user")) }
