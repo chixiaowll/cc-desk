@@ -4,12 +4,13 @@ import CCDeskCore
 /// tmux 托管的内嵌终端（设计 §4.9）：附着 / 重新附着、关闭会话、复制模式与修饰键的处理。
 extension EmbeddedTerminal {
     private static let returnKeyCodes: Set<UInt16> = [36, 76]
-    /// 客户端意外退出后最多自动重新附着几次（防止反复失败时死循环）。
-    private static let maxReattach = 3
+    /// 查询会话状态 / 抓取历史等可能等上几秒的 tmux 命令放在这里，不占主线程。
+    static let tmuxQueue = DispatchQueue(label: "cc-desk.tmux", qos: .userInitiated)
 
     /// 在 SwiftTerm 里启动 `tmux attach` 客户端。
     func attachTmuxClient() {
         guard case .tmux(let host, _) = backend else { return }
+        reattachPolicy.noteAttached(at: Date())
         var isDir: ObjCBool = false
         let dir = FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir) && isDir.boolValue ? cwd : NSHomeDirectory()
         view.startProcess(executable: host.executable, args: host.command.attach(terminalID: id),
@@ -47,13 +48,18 @@ extension EmbeddedTerminal {
         host.cancelCopyMode(terminalID: id)
     }
 
-    /// 关闭会话：结束 tmux 会话（tmux 向窗格进程组发 SIGHUP 并关闭 pty）；2 秒后窗格 shell 仍在则 SIGKILL。
+    /// 关闭会话：先向窗格 tty 上的所有进程组（含前台作业，如 claude）发 SIGHUP，再结束 tmux 会话
+    /// （tmux 关闭 pty，内核向前台进程组发 SIGHUP）；2 秒后仍存活的进程组与窗格 shell 一律 SIGKILL。
+    /// 与直连 PTY 的关闭方式一致：只杀窗格 shell 的进程组时，独立进程组的前台作业会成为孤儿继续运行。
     func terminateTmuxSession(host: TmuxHost, panePID: Int32) {
         let id = self.id
-        DispatchQueue.global(qos: .userInitiated).async {
+        Self.tmuxQueue.async {
+            let groups = panePID > 0 ? Self.processGroups(onTTYOf: panePID) : []
+            for group in groups { kill(-group, SIGHUP) }
             host.killSession(terminalID: id)
             guard panePID > 0 else { return }
             DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+                for group in groups where kill(-group, 0) == 0 { kill(-group, SIGKILL) }
                 if kill(panePID, 0) == 0 {
                     kill(-panePID, SIGKILL)
                     kill(panePID, SIGKILL)
@@ -63,9 +69,26 @@ extension EmbeddedTerminal {
         view.terminate()
     }
 
+    /// 窗格 shell 所在 tty 上的所有进程组（不含 CC Desk 自己的进程组）。
+    private static func processGroups(onTTYOf pid: Int32) -> [Int32] {
+        guard let tty = SystemProbe.run("/bin/ps", ["-o", "tty=", "-p", String(pid)])?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !tty.isEmpty, tty != "??",
+              let output = SystemProbe.run("/bin/ps", ["-o", "pgid=", "-t", tty]) else { return [] }
+        let own = getpgrp()
+        let groups = Set(output.split(whereSeparator: \.isWhitespace).compactMap { Int32($0) })
+        return groups.filter { $0 > 1 && $0 != own }.sorted()
+    }
+
     /// 助手 read_screen 要的行数超过一屏时，从 tmux 历史里取（去掉行尾空白与末尾空行，与 bottomText 一致）。
+    /// 会起 tmux 子进程，不要在主线程调用。
     func tmuxScreenText(lines: Int) -> String? {
-        guard case .tmux(let host, _) = backend, let raw = host.capture(terminalID: id, lines: lines) else { return nil }
+        guard case .tmux(let host, _) = backend else { return nil }
+        return Self.tmuxScreenText(host: host, terminalID: id, lines: lines)
+    }
+
+    static func tmuxScreenText(host: TmuxHost, terminalID: UUID, lines: Int) -> String? {
+        guard let raw = host.capture(terminalID: terminalID, lines: lines) else { return nil }
         var rows = raw.components(separatedBy: "\n").map { line -> String in
             var line = line
             while let c = line.last, c == " " || c == "\t" || c == "\u{00A0}" { line.removeLast() }
@@ -75,13 +98,30 @@ extension EmbeddedTerminal {
         return rows.suffix(lines).joined(separator: "\n")
     }
 
-    /// 客户端退出时：若不是 App 主动关闭、且会话仍在（被外部 detach 等），重新附着并返回 true。
-    func reattachIfSessionAlive() -> Bool {
-        guard case .tmux(let host, _) = backend, !closing, reattachCount < Self.maxReattach,
-              host.hasSession(terminalID: id) else { return false }
-        reattachCount += 1
-        TmuxHost.log("tmux: client for \(id.uuidString) exited while the session is alive; reattaching")
-        attachTmuxClient()
-        return true
+    /// tmux 客户端退出（主线程）：在后台查会话状态，再按 TmuxReattachPolicy 重新附着 / 保留 / 移除 / 转为已结束。
+    /// rawStatus：SwiftTerm 给的 waitpid 状态，0 = 客户端正常退出（`[exited]` / `[detached]`）。
+    func tmuxClientExited(host: TmuxHost, rawStatus: Int32?) {
+        let id = self.id
+        let clean = (rawStatus ?? 0) == 0
+        Self.tmuxQueue.async {
+            let state = host.sessionState(terminalID: id)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.closing else { return }
+                let action = self.reattachPolicy.onClientExit(state: state, clientExitedCleanly: clean, now: Date())
+                TmuxHost.log("tmux: client for \(id.uuidString) exited (status \(rawStatus.map(String.init) ?? "-"), " +
+                             "session \(state)) -> \(action)")
+                switch action {
+                case .reattach:
+                    self.attachTmuxClient()
+                case .keepDetached:
+                    // 会话可能还在：不移除（workspace 记录保留，下次启动时附着），只在终端里说明。
+                    self.view.feed(text: "\r\n" + L("terminal.tmuxDetached") + "\r\n")
+                case .remove:
+                    self.onTerminated?(id)
+                case .serverLost:
+                    if let lost = self.onServerLost { lost(id) } else { self.onTerminated?(id) }
+                }
+            }
+        }
     }
 }

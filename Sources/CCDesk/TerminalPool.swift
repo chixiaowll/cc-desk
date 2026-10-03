@@ -38,8 +38,10 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     private(set) var backend: TerminalBackend = .direct
     /// 正在由 App 关闭（不再自动重新附着）。
     var closing = false
-    /// tmux 客户端意外退出、会话仍在时重新附着的次数。
-    var reattachCount = 0
+    /// tmux 客户端退出后是否 / 何时重新附着（反复失败时停下，稳定附着一段时间后清零）。
+    var reattachPolicy = TmuxReattachPolicy()
+    /// tmux 服务器崩溃 / 被结束，会话里的进程都没了（终端保留会话信息，由 AppModel 转为「已结束」）。
+    var onServerLost: ((UUID) -> Void)?
     /// 可能处于 tmux 复制模式（用户向上滚过）：输入前先退出复制模式，屏幕检测先确认。
     var mayBeInCopyMode = false
 
@@ -219,11 +221,16 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         Self.bottomText(of: view.getTerminal())
     }
 
-    /// 助手的 read_screen：底部 `lines` 行纯文本（可超过一屏，含回滚区）。必须在主线程调用。
-    func screenText(lines: Int) -> String {
-        // tmux 托管时 SwiftTerm 里只有一屏（tmux 客户端用备用屏幕），更多行从 tmux 的历史里取。
-        if lines > view.getTerminal().rows, let text = tmuxScreenText(lines: lines) { return text }
-        return Self.bottomText(of: view.getTerminal(), lines: lines)
+    /// 助手的 read_screen：底部 `lines` 行纯文本（可超过一屏，含回滚区）。在主线程调用，completion 也在主线程。
+    func screenText(lines: Int, completion: @escaping (String) -> Void) {
+        let local = Self.bottomText(of: view.getTerminal(), lines: lines)
+        // tmux 托管时 SwiftTerm 里只有一屏（tmux 客户端用备用屏幕），更多行在后台从 tmux 的历史里取。
+        guard lines > view.getTerminal().rows, case .tmux(let host, _) = backend else { return completion(local) }
+        let id = self.id
+        Self.tmuxQueue.async {
+            let text = Self.tmuxScreenText(host: host, terminalID: id, lines: lines)
+            DispatchQueue.main.async { completion(text ?? local) }
+        }
     }
 
     /// 应用光标模式（方向键发 ESC O A 而不是 ESC [ A）。
@@ -263,8 +270,10 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            // tmux 客户端被意外断开（会话还在）：重新附着，而不是当作终端已关闭。
-            if self.reattachIfSessionAlive() { return }
+            // tmux 客户端退出：先在后台确认会话 / 服务器的状态，不当场把终端当作已关闭。
+            if case .tmux(let host, _) = self.backend, !self.closing {
+                return self.tmuxClientExited(host: host, rawStatus: exitCode)
+            }
             self.onTerminated?(self.id)
         }
     }

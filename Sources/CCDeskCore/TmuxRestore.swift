@@ -84,3 +84,69 @@ public enum TerminalRestorePlanner {
         return TerminalRestorePlan(items: items, adopted: adopted, unknownSessions: unknown)
     }
 }
+
+/// `has-session` 的结果：区分「会话不在」与「服务器不在」「查询超时」，后两种不能当作会话已结束。
+public enum TmuxSessionState: Equatable, Sendable {
+    case alive
+    /// 服务器在，会话不在（窗格 shell 已退出 / 会话被结束）。
+    case missing
+    /// 服务器没在运行（socket 不存在 / 连不上）。
+    case noServer
+    /// 超时或其他错误：不知道。
+    case unknown
+
+    /// exitStatus 为 nil 表示命令没跑完（超时 / 起不来）。
+    public static func classify(exitStatus: Int32?, stderr: String) -> TmuxSessionState {
+        guard let exitStatus else { return .unknown }
+        if exitStatus == 0 { return .alive }
+        if TmuxListing.isNoServer(stderr) { return .noServer }
+        let text = stderr.lowercased()
+        if text.contains("can't find session") || text.contains("session not found") { return .missing }
+        return .unknown
+    }
+}
+
+/// 内嵌终端里的 `tmux attach` 客户端退出后怎么办（设计 §4.9）。
+public struct TmuxReattachPolicy: Equatable, Sendable {
+    public enum Action: Equatable, Sendable {
+        /// 会话还在（被外部 detach、客户端被杀）：重新附着。
+        case reattach
+        /// 会话可能还在，但短时间内反复断开：不再自动附着，保留终端（workspace 记录不丢）。
+        case keepDetached
+        /// 会话正常结束（用户 exit 了 shell / 会话被结束）：移除终端。
+        case remove
+        /// tmux 服务器崩溃 / 被结束：会话连同里面的进程都没了。保留终端的会话信息，显示为可恢复的「已结束」。
+        case serverLost
+    }
+
+    public static let maxAttempts = 3
+    /// 附着后稳定这么久，之前的失败次数清零。
+    public static let stableAfter: TimeInterval = 30
+
+    public private(set) var attempts = 0
+    public private(set) var lastAttachAt: Date?
+
+    public init() {}
+
+    /// 记下一次（重新）附着。
+    public mutating func noteAttached(at now: Date) {
+        lastAttachAt = now
+    }
+
+    /// clientExitedCleanly：客户端退出码为 0（`[exited]` / `[detached]`）；服务器关闭 / 丢失时 tmux 客户端以 1 退出。
+    /// 用它区分「最后一个会话正常结束、服务器随之退出（exit-empty）」与「服务器被结束 / 崩溃」。
+    public mutating func onClientExit(state: TmuxSessionState, clientExitedCleanly: Bool, now: Date) -> Action {
+        switch state {
+        case .missing:
+            return .remove
+        case .noServer:
+            return clientExitedCleanly ? .remove : .serverLost
+        case .alive, .unknown:
+            if let last = lastAttachAt, now.timeIntervalSince(last) >= Self.stableAfter { attempts = 0 }
+            guard attempts < Self.maxAttempts else { return .keepDetached }
+            attempts += 1
+            lastAttachAt = now
+            return .reattach
+        }
+    }
+}

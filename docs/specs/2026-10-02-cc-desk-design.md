@@ -274,9 +274,9 @@ protocol TerminalInputSink {
 - 启动：一次 `list-panes -a`。workspace 里每项：会话还在 → 附着，不发恢复命令，并预先记为「观测到 agent」，这样 App 关闭期间已退出的 agent 首轮就显示「已结束」可原地恢复；会话不在 → 照旧新建并执行恢复命令；目录缺失且会话不在 → 「目录缺失」行（会话还在则不管目录照样附着）。纯逻辑在 `TerminalRestorePlanner`。
 - 没有记录的会话：服务器里 `ccdesk-<uuid>` 会话没有 workspace 记录的（workspace 文件缺失 / 损坏、或单实例之前另一个实例写掉了记录），**收养**为内嵌终端：附着它，目录取窗格当前目录（`#{pane_current_path}`，取不到或已删除时用主目录），不记 agent 种类与 sessionId，由之后的轮询从进程表认出，并立即写回 workspace。启动时从不结束任何会话——里面多半是用户还在跑的 agent；不想要的由用户自己关闭。`ccdesk-` 前缀但不是合法 UUID 的会话不认识，原样不动。
 - 退出 / 崩溃：只是客户端断开，会话继续运行；⌘Q 只在有**直连 PTY** 的活跃 session 时确认。
-- 关闭 session（⌘W / 右键关闭 / 助手 `close_session`）：`kill-session`（tmux 向窗格进程组发 SIGHUP 并关闭 pty），2 秒后窗格 shell 仍在则 SIGKILL。
-- 客户端意外退出而会话仍在（如被外部 `detach`）：自动重新附着（最多 3 次）。会话已不在（用户 `exit` 了 shell）：照旧移除终端。
-- 助手 `read_screen` 要的行数超过一屏时，用 `capture-pane -p -J -S -<n>` 从 tmux 历史取。
+- 关闭 session（⌘W / 右键关闭 / 助手 `close_session`）：先用 `ps -t <窗格 tty>` 找出窗格 tty 上的所有进程组（含独立进程组的前台作业，如 claude）发 SIGHUP，再 `kill-session`（tmux 关闭 pty）；2 秒后仍存活的进程组与窗格 shell 一律 SIGKILL。与直连 PTY 的关闭方式一致。
+- 客户端退出后在后台 `has-session`，区分「会话在」「会话不在（服务器在）」「服务器不在」「超时」（`TmuxSessionState`），再按 `TmuxReattachPolicy`：会话在或超时（不知道）→ 重新附着，短时间内最多 3 次，稳定附着 30 秒后清零；超过次数则保留终端（workspace 记录不丢，下次启动附着）并在终端里说明。会话不在 → 照旧移除终端（用户 `exit` 了 shell）。服务器不在时看客户端退出码：0（`[exited]`，最后一个会话正常结束后服务器因 `exit-empty` 随之退出）→ 移除；非 0（`[server exited]` / `[lost server]`，服务器被结束或崩溃）→ 有可恢复的会话时在同一位置换上新 shell，显示为「已结束」可原地恢复，而不是丢掉。
+- 主线程不等 tmux：查会话状态、助手 `read_screen` 要的行数超过一屏时的 `capture-pane -p -J -S -<n>` 都在后台队列；新建会话仍在主线程同步执行（平时几毫秒），超时 1.5 秒后回退直连。
 
 **tmux 的来源与回退**
 
@@ -296,7 +296,7 @@ protocol TerminalInputSink {
 - 升级前（直连 PTY）的 session 没有 tmux 会话：更新后第一次启动照旧用 `--resume` 恢复（正在进行的一轮会中断，这是最后一次），之后都由 tmux 保持。
 - SwiftTerm 自己没有回滚区，历史只在 tmux 复制模式里看；复制模式里的拖选会回到底部；不按 Shift 时选不到 SwiftTerm 原生的多屏选择。
 - 内置的 3.6a 与 Homebrew 的版本可能不同。tmux 协议版本多年未变，但若两者不兼容，`list-panes` 会报错，此时新会话回退为直连。
-- tmux 服务器自身崩溃或被 `kill-server` 时，所有会话一起结束；终端随之移除，需从历史恢复。
+- tmux 服务器自身崩溃或被 `kill-server` 时，所有会话一起结束；有 agent 会话的终端显示为「已结束」可原地恢复（重启 App 后不再保留这条信息，需从历史恢复），其余终端移除。
 - socket 位于 `/private/tmp/tmux-<uid>/ccdesk`；若被系统清理，可向服务器发 `SIGUSR1` 重建（tmux 的标准做法）。
 - 窗格里看不到 `TMUX` 变量（`TERM_PROGRAM` 仍是 `tmux`）；只认 `TMUX` 的程序不会以为自己在 tmux 里。
 - 在普通 shell 提示符下按 Shift+Enter 会收到 `ESC[13;2u`（直连时是回车），zsh 可能显示一段乱码。

@@ -906,7 +906,25 @@ final class AppModel: ObservableObject {
         let title = URL(fileURLWithPath: cwd).lastPathComponent
         let terminal = pool.create(id: id, cwd: cwd, title: title, launch: launch)
         terminal.onTerminated = { [weak self] tid in self?.removeTerminal(tid) }
+        terminal.onServerLost = { [weak self] tid in self?.tmuxServerLost(tid) }
         return terminal
+    }
+
+    /// tmux 服务器崩溃 / 被结束：会话里的 agent 已经没了。有可恢复的会话时，同一位置换上一个新 shell 并显示为
+    /// 「已结束」（可原地恢复）；否则照旧移除终端。
+    private func tmuxServerLost(_ tid: UUID) {
+        guard let old = pool.terminal(tid) else { return }
+        guard let sid = knownSessionIDs[tid] else { return removeTerminal(tid) }
+        let kind = knownKinds[tid] ?? .claude
+        pool.remove(tid)
+        knownSessionIDs[tid] = nil
+        knownKinds[tid] = nil
+        observedAgent.remove(tid)
+        makeTerminal(id: tid, cwd: old.cwd, command: nil)
+        endedSessionIDs[tid] = EndedSession(id: sid, kind: kind, at: Date())
+        TmuxHost.log("tmux: server lost; \(tid.uuidString) kept as ended session \(sid)")
+        saveWorkspace()
+        poll()
     }
 
     private func removeTerminal(_ tid: UUID) {

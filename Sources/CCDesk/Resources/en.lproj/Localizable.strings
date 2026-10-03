@@ -87,6 +87,7 @@
 "alert.cannotJump.title" = "Can’t Jump to Session";
 "alert.tmuxUnavailable.title" = "Sessions Won’t Survive Restarts";
 "alert.tmuxUnavailable.message" = "tmux was not found, so embedded sessions run directly in CC Desk and stop when it quits. Install tmux (for example “brew install tmux”) and restart CC Desk to keep sessions running across restarts. Release builds include their own tmux.";
+"terminal.tmuxDetached" = "[CC Desk] Lost the connection to this tmux session several times in a row; not reattaching automatically. The session keeps running and is reattached on the next launch.";
 "alert.cannotJump.message" = "This session is running in a terminal that can’t be targeted. Right-click it and choose “Take Over Here”.";
 "alert.cannotCreate.title" = "Can’t Create Session";
 "alert.cannotCreate.message" = "A plain terminal has no agent to launch.";

@@ -211,3 +211,45 @@ final class TmuxHostingTests: XCTestCase {
         XCTAssertEqual(TerminalRestorePlanner.kind(for: entries[1]), .pi)
     }
 }
+
+final class TmuxReattachPolicyTests: XCTestCase {
+    func testSessionStateClassification() {
+        XCTAssertEqual(TmuxSessionState.classify(exitStatus: 0, stderr: ""), .alive)
+        XCTAssertEqual(TmuxSessionState.classify(exitStatus: 1, stderr: "can't find session: =ccdesk-x\n"), .missing)
+        XCTAssertEqual(TmuxSessionState.classify(exitStatus: 1, stderr: "no server running on /private/tmp/tmux-501/ccdesk\n"), .noServer)
+        XCTAssertEqual(TmuxSessionState.classify(exitStatus: 1, stderr: "error connecting to /tmp/x (No such file or directory)"), .noServer)
+        XCTAssertEqual(TmuxSessionState.classify(exitStatus: nil, stderr: ""), .unknown, "a timeout is not a missing session")
+        XCTAssertEqual(TmuxSessionState.classify(exitStatus: 1, stderr: "protocol version mismatch"), .unknown)
+    }
+
+    func testReattachCountResetsAfterStableAttach() {
+        var policy = TmuxReattachPolicy()
+        let t0 = Date(timeIntervalSince1970: 1000)
+        policy.noteAttached(at: t0)
+        for i in 0..<3 {
+            XCTAssertEqual(policy.onClientExit(state: .alive, clientExitedCleanly: true, now: t0 + Double(i)), .reattach)
+        }
+        XCTAssertEqual(policy.onClientExit(state: .alive, clientExitedCleanly: true, now: t0 + 3), .keepDetached,
+                       "rapid repeated detaches stop auto-reattaching")
+        // 稳定附着 30 秒后清零：一生中第 4 次断开不再是最后一次。
+        var stable = TmuxReattachPolicy()
+        stable.noteAttached(at: t0)
+        for i in 0..<6 {
+            XCTAssertEqual(stable.onClientExit(state: .alive, clientExitedCleanly: true, now: t0 + Double(i + 1) * 60), .reattach)
+        }
+    }
+
+    func testUnknownStateIsTreatedAsAlive() {
+        var policy = TmuxReattachPolicy()
+        XCTAssertEqual(policy.onClientExit(state: .unknown, clientExitedCleanly: false, now: Date()), .reattach)
+    }
+
+    func testEndedSessionsAndServerLoss() {
+        var policy = TmuxReattachPolicy()
+        XCTAssertEqual(policy.onClientExit(state: .missing, clientExitedCleanly: true, now: Date()), .remove)
+        // 最后一个会话正常结束后服务器随之退出（exit-empty）：客户端退出码 0，照旧移除。
+        XCTAssertEqual(policy.onClientExit(state: .noServer, clientExitedCleanly: true, now: Date()), .remove)
+        // 服务器被结束 / 崩溃：客户端以 1 退出，保留会话信息。
+        XCTAssertEqual(policy.onClientExit(state: .noServer, clientExitedCleanly: false, now: Date()), .serverLost)
+    }
+}

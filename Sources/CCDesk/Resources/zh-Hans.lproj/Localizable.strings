@@ -87,6 +87,7 @@
 "alert.cannotJump.title" = "无法跳转";
 "alert.tmuxUnavailable.title" = "会话无法在重启后保持";
 "alert.tmuxUnavailable.message" = "没有找到 tmux，内嵌会话直接运行在 CC Desk 里，退出 App 时会结束。安装 tmux（如 “brew install tmux”）后重启 CC Desk，会话即可在 App 重启后继续运行。正式发布的安装包已内置 tmux。";
+"terminal.tmuxDetached" = "[CC Desk] 与这个 tmux 会话的连接连续断开多次，不再自动重新附着。会话仍在运行，下次启动 CC Desk 时会重新附着。";
 "alert.cannotJump.message" = "这个 session 运行在不支持定位的终端中。可以右键「在这里接管」。";
 "alert.cannotCreate.title" = "无法新建";
 "alert.cannotCreate.message" = "普通终端没有可启动的 agent。";

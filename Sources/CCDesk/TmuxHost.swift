@@ -122,26 +122,33 @@ final class TmuxHost: @unchecked Sendable {
     }
 
     /// 在后台新建会话并返回窗格；会话已存在（同一终端 id）时返回已有窗格。失败返回 nil（调用方回退直连 PTY）。
+    /// 在主线程同步调用（新建终端时），平时几毫秒；超时设得短，tmux 卡住时尽快回退直连，不让界面冻住太久。
     func createSession(terminalID: UUID, cwd: String, cols: Int, rows: Int, shell: String, command shellCommand: String?) -> TmuxPane? {
         let args = command.newSession(
             terminalID: terminalID, cwd: cwd, cols: cols, rows: rows,
             environment: ["CC_DESK": "1", "CC_DESK_TERMINAL_ID": terminalID.uuidString],
             command: TmuxCommand.paneCommand(shell: shell, command: shellCommand))
-        if let output = run(args), output.ok, let pane = TmuxListing.parsePanes(output.stdout).first {
+        if let output = run(args, timeout: 1.5), output.ok, let pane = TmuxListing.parsePanes(output.stdout).first {
             return pane
         }
-        if let existing = pane(terminalID: terminalID) { return existing }
+        if let existing = pane(terminalID: terminalID, timeout: 1) { return existing }
         TmuxHost.log("tmux: cannot create session for \(terminalID.uuidString)")
         return nil
     }
 
-    func pane(terminalID: UUID) -> TmuxPane? {
-        guard let output = run(command.pane(terminalID: terminalID)), output.ok else { return nil }
+    func pane(terminalID: UUID, timeout: TimeInterval = 3) -> TmuxPane? {
+        guard let output = run(command.pane(terminalID: terminalID), timeout: timeout), output.ok else { return nil }
         return TmuxListing.parsePanes(output.stdout).first
     }
 
     func hasSession(terminalID: UUID) -> Bool {
-        run(command.hasSession(terminalID: terminalID))?.ok ?? false
+        sessionState(terminalID: terminalID) == .alive
+    }
+
+    /// 会话在 / 不在 / 服务器不在 / 不知道（超时）。不要在主线程调用。
+    func sessionState(terminalID: UUID) -> TmuxSessionState {
+        let output = run(command.hasSession(terminalID: terminalID))
+        return TmuxSessionState.classify(exitStatus: output?.status, stderr: output?.stderr ?? "")
     }
 
     func killSession(name: String) {

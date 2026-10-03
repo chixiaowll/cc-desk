@@ -18,8 +18,9 @@ extension AssistantToolbox {
         case .success(let (target, terminal)):
             show(L("assistant.activity.read", target.name))
             let lines = min(max(args.int("lines") ?? 40, 1), 200)
-            let screen = terminal.screenText(lines: lines)
-            done(Self.text("Screen of \(target.info.shortID) (\(target.info.dir)), bottom \(lines) lines:\n" + screen))
+            terminal.screenText(lines: lines) { screen in
+                done(Self.text("Screen of \(target.info.shortID) (\(target.info.dir)), bottom \(lines) lines:\n" + screen))
+            }
         }
     }
 
