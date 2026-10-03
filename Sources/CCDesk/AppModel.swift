@@ -67,6 +67,7 @@ final class AppModel: ObservableObject {
     /// 只在 `queue` 上使用；文件 mtime 未变时不重新解析。
     private let usageSource = ClaudeUsageSource()
     private var refreshingUsage = false
+    private let usageRefresher = UsageRefresher()
     @Published var showIntegrations = false {
         didSet { if showIntegrations && !oldValue { refreshIntegrations() } }
     }
@@ -237,6 +238,11 @@ final class AppModel: ObservableObject {
     }
 
     /// 在后台读取 ~/.claude.json 的用量缓存（最多每 30 秒一次，mtime 未变时不解析）；跨过 90% 时每个重置周期提醒一次。
+    /// 打开用量详情时：缓存超过 20 秒就让 Claude Code 立即重新拉取。
+    func refreshUsageNow() {
+        usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, manual: true) { [weak self] in self?.refreshUsage() }
+    }
+
     func refreshUsage() {
         guard !refreshingUsage else { return }
         refreshingUsage = true
@@ -320,6 +326,7 @@ final class AppModel: ObservableObject {
             saveWorkspace()
             refreshHistory()
             refreshUsage()
+            usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, manual: false) { [weak self] in self?.refreshUsage() }
         } else if !previousLive.subtracting(liveSessionIDs).isEmpty {
             // 有会话从侧栏消失（如关闭了已结束的终端）：立即刷新，让它回到历史列表。
             refreshHistory()

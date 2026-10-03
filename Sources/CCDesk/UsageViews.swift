@@ -41,10 +41,14 @@ struct UsageFooterLine: View {
     let usage: ClaudeUsage
     let now: Date
     let theme: Theme
+    var onOpen: () -> Void = {}
     @State private var showDetail = false
 
     var body: some View {
-        Button { showDetail.toggle() } label: {
+        Button {
+            showDetail.toggle()
+            if showDetail { onOpen() }
+        } label: {
             ViewThatFits(in: .horizontal) {
                 line(showName: true)
                 line(showName: false)

@@ -32,7 +32,8 @@ struct SidebarView: View {
                         .foregroundStyle(theme.fg3)
                 }
             }
-            SidebarFooter(rows: groups.flatMap(\.rows), usage: model.claudeUsage, now: model.now, theme: theme)
+            SidebarFooter(rows: groups.flatMap(\.rows), usage: model.claudeUsage, now: model.now, theme: theme,
+                          onOpenUsage: { model.refreshUsageNow() })
         }
         .background(theme.side.ignoresSafeArea())
         .toolbar {
@@ -288,11 +289,12 @@ struct SidebarFooter: View {
     let usage: ClaudeUsage?
     let now: Date
     let theme: Theme
+    var onOpenUsage: () -> Void = {}
 
     var body: some View {
         VStack(spacing: 0) {
             if let usage, !usage.footerLimits.isEmpty {
-                UsageFooterLine(usage: usage, now: now, theme: theme)
+                UsageFooterLine(usage: usage, now: now, theme: theme, onOpen: onOpenUsage)
                     .padding(.horizontal, 18)
                     .padding(.top, 9)
                     .frame(height: 26)

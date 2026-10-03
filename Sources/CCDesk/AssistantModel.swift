@@ -51,6 +51,11 @@ final class AssistantClient: @unchecked Sendable {
         return self.resolveQueue.sync { self.resolve() }.map { ($0.path, $0.searchPath) }
     }
 
+    /// 解析到的 claude 路径（后台线程调用；首次会走登录 shell 解析）。
+    func resolvedClaude() -> (path: String, searchPath: String?)? {
+        resolveQueue.sync { resolve() }.map { ($0.path, $0.searchPath) }
+    }
+
     /// 写 `mcp.json`（`ccdesk` 服务器 = 本程序 `--mcp`）并返回工具相关参数。
     /// 实测（claude 2.1.280）：`--tools ""` 关闭全部内置工具；`--allowedTools "mcp__ccdesk__*"` 让 -p 模式下的
     /// MCP 工具调用不需要权限（不加时调用被拒绝，permission_denials 里能看到）。
