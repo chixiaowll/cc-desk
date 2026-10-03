@@ -39,8 +39,8 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 | Agent | 启动 | 恢复 | 状态来源 |
 |---|---|---|---|
 | Claude Code | `claude` | `claude --resume <id>` | `~/.claude/sessions` 登记文件（Claude 自己写入 busy / idle / waiting + waitingFor） |
-| Codex（v1.1） | `codex` | `codex resume <id>` | hook（`~/.codex/hooks.json`）+ 屏幕规则 |
-| pi（v1.1） | `pi` | v1.1 实现前验证 | 扩展（`~/.pi/agent/extensions/`）+ 屏幕规则 |
+| Codex（v1.1） | `codex` | `codex resume <id>` | hook（`~/.codex/hooks.json` + `config.toml` 的 `[features] hooks = true`）+ 屏幕规则 |
+| pi（v1.1） | `pi` | `pi --session <id>`（已验证，pi 0.73.1；需在原 cwd 下执行） | 扩展（`~/.pi/agent/extensions/`）+ 屏幕规则 |
 | 其他命令 | 任意 shell 命令 | 不支持 | 仅「运行中 / 已退出」 |
 
 新增 agent 只需新增一个适配器（§4.3），不改其他模块。
@@ -194,8 +194,16 @@ v1 实现 `ClaudeAdapter`、`GenericAdapter`；v1.1 增加 `CodexAdapter`、`PiA
 | Agent | 安装位置 | 事件 → 状态 |
 |---|---|---|
 | Claude Code | `~/.claude/settings.json` 的 `hooks`（追加，不改动已有的 rtk hook） | `UserPromptSubmit` → working；`Notification` → waiting（带 message）；`Stop` → idle |
-| Codex（v1.1） | `~/.codex/hooks.json` | `UserPromptSubmit` → working；`Stop` / `Interrupt` → idle；等批准靠屏幕规则 |
-| pi（v1.1） | `~/.pi/agent/extensions/cc-desk-state.ts` | 扩展内监听 agent 开始 / 结束 / 需要确认事件 |
+| Codex（v1.1） | `~/.codex/hooks.json`（脚本 `~/.cc-desk/hooks/codex-state.sh`）+ `config.toml` 的 `[features] hooks = true` | `SessionStart` → idle；`UserPromptSubmit` / `PostToolUse` → working；`PermissionRequest` → waiting（message 为工具名）；`Stop` / `Interrupt` → idle |
+| pi（v1.1） | `~/.pi/agent/extensions/cc-desk-state.ts` | `session_start` → idle（带 session id）；`agent_start` → working；`agent_end` → idle（pi 0.73.1 没有需要确认的事件） |
+
+v1.1 实测补充（codex-cli 0.160.0 / pi 0.73.1，详见 `docs/notes/2026-10-03-codex-pi-smoke.md`）：
+
+- Codex 在共享的 app-server 守护进程（无 tty）里执行 hook，父进程链上找不到终端。此时状态文件改名为 `codex-<session_id>.json`、`tty` 为空，App 先把进程与会话文件配对（cwd + 启动时间，或命令行 `codex resume <id>`），再按会话 id 取 hook 状态。
+- Codex 第一次加载新的 hook 会提示「Hooks need review」，用户选择 Trust 后才运行（信任记录由 Codex 写入 `config.toml` 的 `[hooks.state]`）。
+- `PermissionRequest` hook 只上报、不输出决定，Codex 照常显示批准对话框。
+- Codex 的 `SessionStart` hook 在交互式 TUI 里直到第一轮才触发；在此之前外部 Codex 会话没有 hook 状态，显示为「未知」（内嵌的由屏幕规则补上）。
+- 状态文件超过 7 天未更新的由 App 清理。
 
 **安装流程**：首次启动时在设置页列出可安装的 hook，用户逐个点「安装」。安装前备份原配置文件（`*.cc-desk.bak`），修改用结构化 JSON 合并而非字符串拼接；提供「卸载」按钮，只移除 CC Desk 自己添加的条目。hook 脚本放在 `~/.cc-desk/hooks/`，配置中通过绝对路径引用。
 
@@ -203,6 +211,8 @@ v1 实现 `ClaudeAdapter`、`GenericAdapter`；v1.1 增加 `CodexAdapter`、`PiA
 
 - 复用 herdr（Apache-2.0）的 `src/detect/manifests/claude.toml`（v1.1 加 codex、pi），随 App 打包，在 `NOTICE` 中注明来源与许可。
 - v1 用 Swift 实现规则引擎的子集：区域 `bottom_non_empty_lines(N)`、`whole_recent`、`after_last_prompt_marker`、`osc_title`；匹配 `contains`、`regex`、`line_regex`、`any`、`all`；按 `priority` 取最高命中规则。不支持的区域或字段：跳过该规则并记录日志，不报错。
+  - v1.1 实现（`Sources/CCDeskCore/ScreenRules.swift` + 最小 TOML 解析 `MiniTOML.swift`）另支持区域 `bottom_lines(N)`、`top_non_empty_lines(N)`、`before_current_prompt_marker`、`whole_recent_without_current_prompt_marker`，匹配 `not`、`skip_state_update`；没有规则命中时视为空闲（与 herdr 一致）。打包的 codex.toml / pi.toml 全部规则均可解析。
+  - 输入为内嵌终端活动缓冲区底部一屏（每行去掉行尾空白）与 OSC 标题；有输出时同一终端最多每 0.5 秒检测一次，截取在主线程、匹配在后台队列。
 - 引擎有单元测试，用合成的最小规则和字符串测试解析、区域、AND/OR、优先级；不针对具体 agent 的真实屏幕写断言（agent 界面会变，交给 §8 的实测）。
 
 ### 4.6 内嵌终端（TerminalPool）
@@ -304,5 +314,5 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - **图标块含义不变**：仍表示「在哪里运行」（内嵌暖灰终端块 / 外部宿主 App 图标 + ↗）。
 - **详情标题栏**：`<标题> · Codex · ~/路径`（现已按 kind 显示 Claude）。
 - **新建会话**：⌘N 面板和目录行的 `+` 增加 agent 选择（Claude / Codex / pi，只列出本机已安装的），默认上次使用的；目录行 `+` 悬停可选，直接点击用默认。
-- **历史会话**：弹出层与全局搜索面板混排各 agent 的历史，每条右侧标 agent 名；搜索面板可按 agent 过滤。恢复时按各自命令：`claude --resume <id>` / `codex resume <id>` / pi 的恢复方式（实现前验证）。
+- **历史会话**：弹出层与全局搜索面板混排各 agent 的历史，每条右侧标 agent 名；搜索面板可按 agent 过滤。恢复时按各自命令：`claude --resume <id>` / `codex resume <id>` / `pi --session <id>`。
 - **悬停提示**：加一行「Agent：Codex」。
