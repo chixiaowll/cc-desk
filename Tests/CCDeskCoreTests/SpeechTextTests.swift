@@ -45,6 +45,11 @@ final class SpeechTextTests: XCTestCase {
         XCTAssertEqual(n("OK"), "OK")
     }
 
+    func testLanguageFollowsText() {
+        XCTAssertEqual(SpeechText.language(of: "rm -rf 需要批准"), "zh-Hans")
+        XCTAssertEqual(SpeechText.language(of: "Claude Code is ready."), "en")
+    }
+
     func testSentencesSplitOnTerminators() {
         XCTAssertEqual(SpeechText.sentences("poems 完成了。要我帮你看看吗？好"),
                        ["poems 完成了。", "要我帮你看看吗？好"])

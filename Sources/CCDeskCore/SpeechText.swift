@@ -30,6 +30,12 @@ public enum SpeechText {
         return text.trimmingCharacters(in: .whitespaces)
     }
 
+    /// 朗读语言：含汉字按中文读（「杠」「点」、lang_code chinese），否则按英文；与界面语言无关。
+    public static func language(of text: String) -> String {
+        text.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) || (0x3400...0x4DBF).contains($0.value) }
+            ? "zh-Hans" : "en"
+    }
+
     /// 切成适合逐句合成的片段：按句末标点 / 换行切，太短的并入下一句，太长的再按逗号切。
     public static func sentences(_ text: String, maxLength: Int = 80) -> [String] {
         var pieces: [String] = []

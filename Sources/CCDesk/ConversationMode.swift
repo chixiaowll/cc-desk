@@ -8,6 +8,7 @@ import CCDeskCore
 /// - 对话中：每句话追加到选中内嵌终端的输入框（不发送），「发送」回车、「取消」删掉本轮插入的文字、
 ///   「退出对话模式」关闭；发送 / 取消 / 30 秒没说话后回到待命。
 /// - 选中 session 转为等批准 / 一轮完成时简短播报；播报期间暂停采集，避免识别到自己的声音。
+///   播报用 SpeechOutput：选了自然语音（本机 Qwen3-TTS）时用它，未就绪 / 失败时退回系统声音。
 /// - 语音助手（设计 §12/§13）：对话中没命中本地指令的话交给常驻助手会话，它用 CC Desk 的工具做事（打字、切换、
 ///   新建、读屏…），最后的文字回复被朗读；等待期间提示音 +「听到：… · 思考中…」，执行工具时显示「→ …」。
 ///   需确认的工具在这里语音确认（15 秒内说「确认」）。「撤销」撤回上一个可撤销动作。
@@ -40,7 +41,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private let selectedTerminalID: () -> UUID?
     private let statusOf: (UUID) -> AgentStatus?
     private let recorder = ContinuousRecorder()
-    private let synthesizer = AVSpeechSynthesizer()
+    private let output = SpeechOutput()
     private let assistant: VoiceAssistant
     /// 未发送的输入与撤销记录（与助手工具共用）。
     private let inputs: AssistantInputs
@@ -82,7 +83,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         self.selectedTerminalID = selectedTerminalID
         self.statusOf = statusOf
         super.init()
-        synthesizer.delegate = self
+        output.onFinish = { [weak self] in self?.speechEnded() }
     }
 
     var wakeWord: String { session.wakeWord }
@@ -161,7 +162,10 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             self.session.routesToAssistant = ok
             AssistantDiag.log("assistant prepare ok=\(ok)")
         }
-        if SpeechVoices.takeQualityHint() { voice.showHint(L("voice.hint.betterVoice")) }
+        if !NaturalVoice.isSelected, SpeechVoices.takeQualityHint() { voice.showHint(L("voice.hint.betterVoice")) }
+        // 自然语音在对话模式期间常驻；现在就开始加载（约 2 秒），加载完之前的播报用系统声音。
+        NaturalSpeechEngine.shared.keepWarm = true
+        if NaturalVoice.isSelected { NaturalSpeechEngine.shared.start() }
         isOn = true
         preparing = true
         observed = nil
@@ -192,7 +196,9 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         timer?.invalidate()
         timer = nil
         resumeWork?.cancel()
-        synthesizer.stopSpeaking(at: .immediate)
+        output.stop()
+        // 关闭后空闲 10 分钟卸载自然语音模型。
+        NaturalSpeechEngine.shared.keepWarm = false
         recorder.stop()
         audioQueue.async { [self] in
             vad = VoiceActivityDetector()
@@ -559,17 +565,15 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         setPaused(true)
         speaking = true
         capturing = false
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = SpeechVoices.current()
-        synthesizer.speak(utterance)
+        output.speak(text)
     }
 
     /// 播报结束后稍等再恢复采集（扬声器余音）。
     private func speechEnded() {
-        guard !synthesizer.isSpeaking else { return }
+        guard !output.isSpeaking else { return }
         resumeWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, !self.synthesizer.isSpeaking else { return }
+            guard let self, !self.output.isSpeaking else { return }
             self.speaking = false
             if self.isOn { self.setPaused(false) }
         }
@@ -582,16 +586,6 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             paused = value
             vad.reset()
         }
-    }
-}
-
-extension ConversationMode: AVSpeechSynthesizerDelegate {
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { [weak self] in self?.speechEnded() }
-    }
-
-    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { [weak self] in self?.speechEnded() }
     }
 }
 

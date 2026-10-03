@@ -36,7 +36,10 @@ TEMPERATURE = float(os.environ.get("CCDESK_TTS_TEMPERATURE", "0.7"))
 STREAMING_INTERVAL = float(os.environ.get("CCDESK_TTS_INTERVAL", "0.5"))
 MAX_TEXT = 600
 
-_out = sys.stdout.buffer
+# 帧只写到原来的 stdout（另存一个 fd）；fd 1 改指向 stderr，库里零散的 print 不会弄乱帧流。
+_out = os.fdopen(os.dup(1), "wb")
+os.dup2(2, 1)
+sys.stdout = sys.stderr
 _out_lock = threading.Lock()
 
 
