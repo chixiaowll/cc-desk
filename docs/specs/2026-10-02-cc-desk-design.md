@@ -339,7 +339,12 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - 读选中会话的会话记录尾部（Claude / Codex / pi 各自的 jsonl，只读尾部），抽取最后一轮的助手文字、工具调用（改动的文件、执行的命令、测试结果），交给同一模型生成 1–2 句口语摘要 / 回答；代码块与长路径不读出。
 - 摘要只在对话模式开启、且该会话为当前选中时播报；其他会话完成时只发系统通知。
 
-**声音**：自动选择系统中音质最好的中文声音（Premium > Enhanced > 默认），设置里可换；缺少高质量声音时提示到「系统设置 → 辅助功能 → 朗读内容」下载。
+**声音**：默认用本机**自然语音**——千问 Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit（mlx-audio 0.5.7，说话人 serena，temperature 0.7、按文本固定随机种子），系统声音（AVSpeechSynthesizer，自动选音质最好的中文声音 Premium > Enhanced > 默认）作为自动后备。
+- 安装在 `~/Library/Application Support/CC Desk/tts/`（`venv/` 约 370 MB + 模型 `hf/` 约 1.9 GB，`installed.json` 为完成标记）。菜单「朗读声音 → 自然语音（千问 serena）」没装时询问后安装：登录 shell 里找 `uv` → `uv venv -p 3.12` + `uv pip install mlx-audio==0.5.7 mlx==0.32.3` → 打包的 `tts_server.py --download` 拉模型，提示条显示进度；失败保持系统声音并提示原因。装好且没选过声音时默认选它（偏好 `voiceSpeechVoice = natural:qwen3-serena`）。
+- `tts_server.py`（App 资源）是常驻 stdio 进程：加载并预热后发 ready 帧；stdin 一行一个 JSON（`{"id","text","voice","lang"}` / `{"cancel": id|"*"}`），stdout 回长度前缀二进制帧（audio：float32 24 kHz 单声道 PCM / end / error），坏输入不退出，日志写 `tts/server.log`。对话模式打开或第一次朗读时懒启动；对话模式期间常驻，崩溃 1 秒后重启（一分钟最多 3 次）；关闭后空闲 10 分钟卸载。
+- 朗读前整理文字（CCDeskCore `SpeechText`）：去 markdown / 代码块，网址留域名、路径留文件名，`cc-desk` → 「C C desk」、`rm -rf` → 「R M 杠 R F」，数字不拆；按句切分后一次全部发给服务端排队合成，音频按到达顺序进 AVAudioPlayerNode 流式播放。新的一句打断旧的（服务端取消 + 清空播放队列）；播报期间照旧暂停采集。
+- 后备：没装、模型还在加载（启动后约 2 秒内）、服务出错 / 被杀、或 2.5 秒内没有音频 → 改用系统声音，不会沉默。
+- 实测（M3 / 24 GB，热盘）：服务启动到 ready 约 2.0 秒（加载 1.4 秒 + 预热 0.6 秒；复制模型后的第一次冷盘约 16 秒）；首个音频约 0.25 秒（服务端）/ 0.28–0.31 秒（App 内到出声，短句与长句相同）；RTF 约 0.5（合成比播放快一倍，句间无停顿）；打断后服务端约 0.12 秒停下；服务被杀后约 1.5 秒自动恢复；服务进程常驻内存约 2.0 GB（RSS）。
 
 **额度**：意图解析 / 问答 / 摘要都通过本机 `claude` 调用，占用 Claude 订阅额度（5 小时 / 7 天窗口），不额外计费；每次约 3.4k 输入 token（摘要 / 问答约 5.5k）、几十个输出 token。可在菜单关闭「回复摘要」减少占用。
 
