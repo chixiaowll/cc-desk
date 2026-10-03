@@ -117,3 +117,18 @@
 "statusItem.waiting" = "%d waiting";
 "statusItem.unread" = "%d done, unread";
 "statusItem.nothing" = "Nothing needs attention";
+
+/* Settings: wake word validation */
+"wakeWord.error.empty" = "The wake word can't be empty";
+"wakeWord.error.tooShort" = "Use at least %d characters";
+"wakeWord.error.tooLong" = "Use at most %d characters";
+
+/* Phone push */
+"push.body" = "%1$@: %2$@";
+"push.test.title" = "CC Desk test push";
+"push.test.body" = "When a session needs approval, you'll get a push like this.";
+"push.error.notConfigured" = "No push service selected";
+"push.error.missingDeviceKey" = "Enter your Bark device key";
+"push.error.missingTopic" = "Enter an ntfy topic";
+"push.error.missingWebhookURL" = "Enter a webhook URL";
+"push.error.invalidURL" = "Invalid URL (must start with http:// or https://)";
