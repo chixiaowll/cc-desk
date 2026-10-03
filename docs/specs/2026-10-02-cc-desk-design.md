@@ -472,13 +472,38 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 内嵌会话托管在 tmux 里（§4.9），App 退出后仍在运行，但没人看着就会错过等批准。这一节让 CC Desk 一直在场又不打扰。
 
 - **菜单栏状态项**（`StatusBarController`，NSStatusItem）：单色模板图标 `apple.terminal`（`>_`，与 App 图标一致；有等批准时换成实心）+ 计数。计数与 Dock 角标一致（等批准 + 已完成·未读），等批准数粗体突出，未读数常规字重跟在后面（「2 · 1」；只有未读时就是「1」），为 0 时只显示图标；悬停提示写明各是多少。按钮只在计数变化时更新（`groups` 去重 + 250ms 去抖），菜单内容在每次打开时（`menuNeedsUpdate`）才生成，平时没有额外开销。
-- **菜单内容**：按项目分组（组标题 + worktree 分支）的会话，每行状态点（Theme 状态色：等批准陶土橙、处理中雾蓝、已完成·未读鼠尾草绿、空闲灰、已结束 / 终端空心灰）+ 标题 + 「状态 · agent」。**只有菜单按紧急程度排序**（组按组内最紧急的一行、组内按行的紧急程度，同级保持侧栏相对顺序；`StatusMenu.sections`），侧栏仍是固定顺序。选中内嵌 / 目录缺失的会话：显示主窗口、展开所在组并选中它；外部会话与点侧栏一样直接跳到所在 App。之后是：显示 CC Desk 主窗口、新建会话…、对话模式（勾选态）、登录时启动、启用全局快捷键（被占用的组合列在下面）、在菜单栏显示图标（点击即隐藏，可在应用菜单里重新打开）、退出 CC Desk。
-- **登录时启动**（`LoginItemController`）：`SMAppService.mainApp` register / unregister，默认关，不主动询问；应用菜单与菜单栏菜单里都有开关，勾选状态始终读系统实际状态（回到 App / 打开菜单时刷新）。`.requiresApproval` 显示为「登录时启动（待在系统设置中允许）」并提示打开「系统设置 › 通用 › 登录项」；注册失败（如不在「应用程序」里运行）弹窗说明。
+- **菜单内容**：按项目分组（组标题 + worktree 分支）的会话，每行状态点（Theme 状态色：等批准陶土橙、处理中雾蓝、已完成·未读鼠尾草绿、空闲灰、已结束 / 终端空心灰）+ 标题 + 「状态 · agent」。**只有菜单按紧急程度排序**（组按组内最紧急的一行、组内按行的紧急程度，同级保持侧栏相对顺序；`StatusMenu.sections`），侧栏仍是固定顺序。选中内嵌 / 目录缺失的会话：显示主窗口、展开所在组并选中它；外部会话与点侧栏一样直接跳到所在 App。之后是：显示 CC Desk 主窗口、新建会话…、对话模式（勾选态）、登录时启动、启用全局快捷键（被占用的组合列在下面）、在菜单栏显示图标（点击即隐藏，可在「设置 › 通用」里重新打开）、设置…、退出 CC Desk。
+- **登录时启动**（`LoginItemController`）：`SMAppService.mainApp` register / unregister，默认关，不主动询问；「设置 › 通用」与菜单栏菜单里都有开关，勾选状态始终读系统实际状态（回到 App / 打开菜单时刷新）。`.requiresApproval` 显示为「登录时启动（待在系统设置中允许）」并提示打开「系统设置 › 通用 › 登录项」；注册失败（如不在「应用程序」里运行）弹窗说明。
 - **登录启动不抢焦点**：`LoginLaunch.isLoginLaunch`（Core）综合三个信号：启动参数 `--launched-at-login`；启动 Apple 事件带 `keyAELaunchedAsLogInItem`；兜底——登录项已启用且本用户会话（loginwindow 进程启动时间，sysctl）开始后 120 秒内启动（SMAppService 启动的 App 不一定带 Apple 事件标记）。判定为登录启动时不调用 `NSApp.activate`，`Window` scene 创建的主窗口一变为可见就 `orderOut`（不销毁，openMainWindow 仍可用），持续 5 秒或直到用户主动打开；点 Dock 图标、菜单栏「显示主窗口」或全局快捷键时正常显示。
 - **全局快捷键**（`GlobalHotkeyCenter`，Carbon `RegisterEventHotKey`，不需要辅助功能权限，无新依赖）：组合集中定义在 Core 的 `GlobalHotkey.defaults`，以后做成可配置只改这一处。
   - **⌃⌥C**：显示 CC Desk 主窗口；已在最前且主窗口可见时隐藏 App。
   - **⌃⌥V**：开关对话模式（对应 App 内的 ⌥⌘V），任何 App 在前台都可用。
   - 不用 Space 组合：⌃Space / ⌃⌥Space 是系统切换输入源，⌘Space 是 Spotlight，⌃⌘Space 是表情与符号，⌥Space 是 Claude 桌面版等常见 App 的快捷输入。
-  - 菜单栏菜单里对应项显示快捷键；应用菜单「启用全局快捷键（⌃⌥C 主窗口 · ⌃⌥V 对话模式）」可整体关闭。注册失败（被系统或其他 App 占用）时记录并在菜单里列出「⌃⌥C 已被其他 App 占用」；用户主动开启时失败会弹窗说明。
+  - 菜单栏菜单里对应项显示快捷键；「设置 › 通用 › 全局快捷键」可整体关闭（同时列出 ⌃⌥C / ⌃⌥V）。注册失败（被系统或其他 App 占用）时记录并在菜单里列出「⌃⌥C 已被其他 App 占用」；用户主动开启时失败会弹窗说明。
   - 「按住右 ⌥ 说话」在 App 外需要 CGEventTap（辅助功能 / 输入监控权限），不做；App 外用 ⌃⌥V 开关对话模式。
 - **设置**（UserDefaults `dev.local.ccdesk`，键在 `DesktopSettings`）：`menuBarIconShown`（默认 true）、`globalHotkeysEnabled`（默认 true）。登录时启动不存设置，以 SMAppService 为准。
+
+## 16. 设置窗口与推送到手机（v1.6）
+
+之前的偏好分散在应用菜单、显示菜单和 Session 菜单里，唤醒词还没有界面。这一节把它们收进一个系统风格的设置窗口，并新增「推送到手机」。
+
+### 16.1 设置窗口
+
+- SwiftUI `Settings` scene：应用菜单「设置…」（⌘,，系统自带项）与菜单栏菜单「设置…」打开（`SettingsOpener`，`showSettingsWindow:`）。工具栏样式标签页，600 × 560，表单为系统分组样式、纸色背景（`Theme.main`）、陶土色强调；当前标签存 `settingsTab`。
+- **每个控件都绑定原有的 UserDefaults 键 / 偏好对象**，不另存一份：外观 `appearance`（`AppearancePreference.apply`）、语言（`AppDelegate.selectLanguage`，沿用「保存 → 询问立即重启」流程）、`LoginItemController`、`DesktopPreferences`、`ConversationMode` 的静态键、`voiceWakeWord`、`voiceSpeechVoice`、`NaturalVoiceInstaller`。
+- **通用**：外观（跟随系统 / 浅色 / 深色）、语言（跟随系统 / 简体中文 / English，重启生效）、登录时启动、在菜单栏显示图标、启用全局快捷键（列出 ⌃⌥C 主窗口、⌃⌥V 对话模式；被占用的组合用陶土色提示）。
+- **语音**：按住右 ⌥ 说话说明；Whisper 模型状态（已下载 / 下载中 x% / 加载中 / 未下载 + 下载按钮，`VoiceInput.predownload`）；对话模式默认值（启动时开启助手、常驻对话）；唤醒词（`WakeWordRule`：去掉首尾空白后 2–8 个字，不合格时陶土色提示且不保存；回车 / 「保存」/ 离开页面时保存，等于默认值时删除自定义；**下次开启对话模式时生效**——`ConversationMode.turnOn` 才读取，运行中的会话不热切换，避免改动对话状态机）；回复摘要；朗读声音（自然语音 / 系统自动 / 已安装的系统声音，选未安装的自然语音时先询问安装；自然语音安装状态与「安装…」按钮；试听（对话模式开启时禁用）、下载更多系统声音）；重置助手对话。
+- **通知**：系统通知权限状态（已允许 / 已关闭 / 尚未询问，回到 App 时刷新）+「打开系统设置」；按事件开关（`notifyOnWaiting` / `notifyOnFinished`，默认都开，只影响系统通知，角标与未读照常）；测试通知与角标；推送到手机（16.2）。
+- **集成**：直接复用 `IntegrationsList`（原「集成…」表单的内容，Claude 内置 / Codex hook / pi 扩展的状态与安装、卸载）；原表单与 `showIntegrations` 删除。
+- **用量**：复用侧栏的用量详情（套餐、各项额度、额外用量、数据时间）、立即刷新（`refreshUsageNow`）、说明 90% 提醒阈值（`UsageAlerts.threshold`，不可配置）。
+- **从菜单移出的纯偏好**：显示菜单的「外观」「语言」；应用菜单的「集成…」「登录时启动」「在菜单栏显示图标」「启用全局快捷键」；Session 菜单的「安装 Codex / pi 状态集成…」「测试通知与角标」「预先下载语音模型」「回复摘要」「常驻对话」「启动时开启助手」「朗读声音」。保留的常用动作：新建 Session（⌘N）、关闭（⌘W）、历史会话（⇧⌘H）、显示主窗口（⌘0）、对话模式（⌥⌘V）、重置助手对话、切换到第 n 个（⌘1–9）。菜单栏状态项的快捷开关保持不变。
+
+### 16.2 推送到手机
+
+- **服务**（`pushProvider`）：不推送（默认）/ Bark（iOS，服务器默认 `https://api.day.app` + 设备 Key）/ ntfy（服务器默认 `https://ntfy.sh` + 主题，可选访问令牌）/ 自定义 Webhook（地址）。服务器地址存 UserDefaults（`pushBarkServer` / `pushNtfyServer`）；**设备 Key、ntfy 主题与令牌、Webhook 地址存登录钥匙串**（generic password，service `dev.local.ccdesk.push`，account `bark.deviceKey` / `ntfy.topic` / `ntfy.token` / `webhook.url`；`SecretStore` 协议，App 用 `KeychainSecretStore`，测试用 `InMemorySecretStore`）。ntfy.sh 上知道主题名就能订阅，所以主题也当密钥存。
+- **请求格式**（`PushRequestBuilder`，Core）：全部 POST JSON，`Content-Type: application/json`。Bark：`<server>/push`，`{device_key, title, body, group: "CC Desk", level: "timeSensitive"（仅等批准）, url?}`。ntfy：JSON 发布到服务根地址，`{topic, title, message, priority: 4/3, tags, click?}`，有令牌时 `Authorization: Bearer`（标题放 JSON 里，避免 HTTP 头不能放中文）。Webhook：`{title, body, session, project, status, url?}`，status 为 `waiting` / `finished` / `test`。地址只接受 http(s)。
+- **内容**（`PushMessage.make`）：标题「<项目> · <会话标题>」（相同或项目为空时只写会话标题，各最多 60 字）；正文「等批准：<原因>」（原因压成一行、最多 100 字）或「已完成」。不发送对话内容；设置页写明会把项目名、会话标题、状态与简短原因发给所选第三方服务。
+- **哪些事件**：等批准（`pushOnWaiting`，默认开）、完成一轮（`pushOnFinished`，默认关）。**时机**（`pushCondition`）：离开时（默认，`PushPolicy.isAway`：`CGEventSource.secondsSinceLastEventType` 空闲 ≥ 180 秒或 `CGSessionCopyCurrentDictionary` 的 `CGSSessionScreenIsLocked`）/ 总是。与系统通知一样不为「App 在前台且正看着」的会话推送。
+- **限流去重**（`PushRateLimiter`）：同一会话的同一种状态 2 分钟内最多一条；全局每小时最多 20 条；被拒的不占名额。
+- **接入点**：`AppModel` 处理 `TransitionDetector` 事件处（与 `Notifier.post` 同一处）调用 `PhonePushCenter.handle(events, rows:)`；判断与限流在主线程（纯内存），读钥匙串与 `URLSession`（ephemeral，请求超时 10 秒、总超时 20 秒）在后台队列，不阻塞轮询。结果记到 `~/.cc-desk/assistant-diag.txt`（只记服务、状态、HTTP 码或错误域 / 错误码，不记密钥、地址与内容）。
+- **测试推送**：设置页「发送测试推送」不看时机与限流，显示「已发送（HTTP 200）」或失败原因（缺少配置 / 地址无效 / 网络错误 / HTTP 码）。
