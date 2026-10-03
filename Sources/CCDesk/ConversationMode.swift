@@ -347,12 +347,11 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         case .undo:
             undo()
         case .approve:
-            // Claude Code / Codex 的权限对话框默认高亮第一项「Yes」，回车即批准。
-            terminal?.sendKeys("\r")
+            terminal?.respondToPermission(approve: true)
             showToast(L("conversation.toast.approved"))
             assistant.note("approved the permission prompt in \(targetTitle)")
         case .deny:
-            terminal?.sendKeys("\u{1b}")
+            terminal?.respondToPermission(approve: false)
             showToast(L("conversation.toast.denied"))
             assistant.note("denied the permission prompt in \(targetTitle)")
         case .stop:

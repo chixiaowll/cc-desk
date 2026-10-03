@@ -81,6 +81,11 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         view.send(txt: keys)
     }
 
+    /// 应答 Claude Code / Codex 的权限对话框（对话模式、助手工具、通知按钮共用）；调用方负责先确认正在等批准。
+    func respondToPermission(approve: Bool) {
+        sendKeys(PermissionPrompt.keys(approve: approve))
+    }
+
     /// 挂断整个终端：交互式 shell 会忽略 SIGTERM，且前台作业（如 claude，独立进程组）不会收到
     /// SwiftTerm `view.terminate()` 发出的信号，导致 pty 主端关闭后子进程仍孤儿存活。
     /// 改为先向前台进程组、shell 自身进程组发送 SIGHUP，2 秒后若 shell 仍存活再升级为 SIGKILL。

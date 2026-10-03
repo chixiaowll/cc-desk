@@ -245,3 +245,12 @@
 "sidebar.move.up" = "Move Up";
 "sidebar.move.down" = "Move Down";
 "sidebar.move.bottom" = "Move to Bottom";
+
+/* 等批准通知上的按钮 */
+"notify.action.approve" = "Approve";
+"notify.action.deny" = "Deny";
+"notify.approval.notSent.title" = "%@: nothing was sent";
+"notify.approval.changed" = "The approval request has changed. Open CC Desk to review it.";
+"notify.approval.notWaiting" = "It is no longer waiting for approval.";
+"notify.approval.gone" = "The session is no longer running in CC Desk.";
+"notify.approval.unknownSession" = "Session";

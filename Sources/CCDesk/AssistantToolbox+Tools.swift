@@ -188,8 +188,7 @@ extension AssistantToolbox {
                                          "(status \(AssistantContext.statusCode(target.row.session.status)))"))
             }
             show(approve ? L("assistant.activity.approve", target.name) : L("assistant.activity.deny", target.name))
-            // Claude Code / Codex 的权限对话框默认高亮第一项「Yes」，回车即批准；Esc 拒绝。
-            terminal.sendKeys(approve ? "\r" : "\u{1b}")
+            terminal.respondToPermission(approve: approve)
             done(Self.text(approve ? "approved in \(target.info.shortID)" : "denied in \(target.info.shortID)"))
         }
     }

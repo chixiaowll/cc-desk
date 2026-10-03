@@ -98,6 +98,7 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 - 不通知的情况：App 在前台且该 session 正在右侧显示；App 刚启动的首次状态加载。
 - 点击通知：激活 App 并选中该 session（外部 session 则跳转）。
 - Dock 角标：等批准的 session 数（0 时不显示）。
+- 通知上的「批准 / 拒绝」（内嵌 session 的等批准通知）：通知类别带两个按钮，「拒绝」为破坏性样式；正文为等待原因压成一行、超过 160 字截断。按钮不激活 App、不切换选中行，只对通知所属 session 的终端发键（回车批准 / Esc 拒绝，与对话模式、`respond_approval` 共用 `EmbeddedTerminal.respondToPermission`）。点击时按 `ApprovalNotification.decide` 复核：session 仍在、是内嵌终端、仍在等批准、且等待原因与发通知时一致才发键；否则不发键，改发一条「<名称>：未执行」提示（请求已变化 / 已不在等批准 / 会话已不在）。执行后清除该 session 的未读与已送达的等批准通知并立即刷新角标。动作记入 `~/.cc-desk/assistant-diag.txt`。外部终端的等批准通知不带按钮（无法输入）。
 
 ## 4. 架构
 

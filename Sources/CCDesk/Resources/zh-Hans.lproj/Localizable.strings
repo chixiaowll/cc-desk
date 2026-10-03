@@ -245,3 +245,12 @@
 "sidebar.move.up" = "上移";
 "sidebar.move.down" = "下移";
 "sidebar.move.bottom" = "移到最下";
+
+/* 等批准通知上的按钮 */
+"notify.action.approve" = "批准";
+"notify.action.deny" = "拒绝";
+"notify.approval.notSent.title" = "%@：未执行";
+"notify.approval.changed" = "批准请求已变化，请打开 CC Desk 查看。";
+"notify.approval.notWaiting" = "它已不在等待批准。";
+"notify.approval.gone" = "该会话已不在 CC Desk 中运行。";
+"notify.approval.unknownSession" = "会话";
