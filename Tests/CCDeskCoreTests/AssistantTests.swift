@@ -32,17 +32,30 @@ final class AssistantTests: ZhHansTestCase {
         XCTAssertEqual(sessions[0]["agent"] as? String, "claude")
         XCTAssertEqual(sessions[0]["status"] as? String, "waiting_for_approval")
         XCTAssertEqual(sessions[0]["waitingFor"] as? String, "Bash: rm -rf build")
-        XCTAssertEqual(sessions[0]["isSelected"] as? Bool, true)
+        XCTAssertEqual(sessions[0]["selected"] as? Bool, true)
+        XCTAssertNil(sessions[0]["embedded"])
         XCTAssertEqual(sessions[1]["id"] as? String, "s2")
         XCTAssertEqual(sessions[1]["status"] as? String, "working")
+        XCTAssertNil(sessions[1]["selected"])
         XCTAssertNil(sessions[1]["waitingFor"])
-        XCTAssertEqual((obj["history"] as? [[String: Any]])?.first?["id"] as? String, "h1")
-        XCTAssertEqual((obj["projects"] as? [[String: Any]])?.last?["path"] as? String, "/Users/u/herdr")
+        XCTAssertEqual(obj["projects"] as? [String], ["poems", "herdr"])
+        XCTAssertNil(obj["history"])
         XCTAssertEqual(obj["pendingText"] as? String, "帮我改一下")
         XCTAssertEqual(obj["uiLanguage"] as? String, "zh-Hans")
         XCTAssertNil(obj["lastTurnSummary"])
+        XCTAssertNil(try object(context().json())["pendingText"])
         // 真实行 id 不暴露给模型。
         XCTAssertFalse(context().json().contains("term:A"))
+    }
+
+    func testContextKeepsAssignedShortIDsAndMarksExternal() throws {
+        let ctx = AssistantContext(sessions: [
+            AssistantSessionInfo(rowID: "pid:9", shortID: "s7", title: "外部", dir: "d", agent: .codex, status: .idle,
+                                 isSelected: false, isEmbedded: false),
+        ], language: "en")
+        let first = try XCTUnwrap((try object(ctx.json())["sessions"] as? [[String: Any]])?.first)
+        XCTAssertEqual(first["id"] as? String, "s7")
+        XCTAssertEqual(first["embedded"] as? Bool, false)
     }
 
     func testContextTruncatesLongFieldsAndLists() throws {
@@ -57,6 +70,7 @@ final class AssistantTests: ZhHansTestCase {
                                    language: "en")
         XCTAssertEqual(ctx.sessions.count, AssistantContext.maxSessions)
         XCTAssertEqual(ctx.history.count, AssistantContext.maxHistory)
+        XCTAssertEqual(ctx.history.last?.shortID, "h15")
         XCTAssertEqual(ctx.projects.count, 1)
         let obj = try object(ctx.json())
         let title = try XCTUnwrap((obj["sessions"] as? [[String: Any]])?.first?["title"] as? String)
@@ -67,118 +81,33 @@ final class AssistantTests: ZhHansTestCase {
         XCTAssertEqual((obj["lastTurnSummary"] as? String)?.count, AssistantContext.summaryLimit)
     }
 
-    func testIntentMessageContainsUtteranceAndContext() {
-        let message = AssistantPrompt.intentMessage(utterance: "切到 poems 那个", context: context())
-        XCTAssertTrue(message.hasPrefix("Utterance: 切到 poems 那个\nContext: {"))
-        XCTAssertTrue(message.contains("\"s2\""))
-        XCTAssertTrue(AssistantPrompt.intentSystem.contains("\"action\""))
+    func testResidentMessages() {
+        let message = AssistantPrompt.residentUtterance(utterance: "切到 poems 那个", events: ["typed \"x\" into poems"],
+                                                        contextJSON: nil)
+        XCTAssertEqual(message, "[UTTERANCE]\nEvents: typed \"x\" into poems\nUtterance: 切到 poems 那个\nContext: unchanged")
+        let withContext = AssistantPrompt.residentUtterance(utterance: "u", events: [], contextJSON: context().json())
+        XCTAssertTrue(withContext.contains("Context: {"))
+        XCTAssertFalse(withContext.contains("Events"))
+        let summary = AssistantPrompt.residentSummary(title: "t", digest: "RUN: swift test", language: "en")
+        XCTAssertTrue(summary.hasPrefix("[SUMMARIZE] uiLanguage=en\n"))
+        XCTAssertTrue(summary.hasSuffix("RUN: swift test"))
     }
 
-    func testSummaryAndQueryPromptsFollowLanguage() {
-        XCTAssertTrue(AssistantPrompt.summarySystem(language: "zh-Hans").contains("Simplified Chinese"))
-        XCTAssertTrue(AssistantPrompt.querySystem(language: "en").contains("English"))
-        let q = AssistantPrompt.queryMessage(question: "测试过了吗", title: "t", status: .working, digest: "RUN: swift test")
-        XCTAssertTrue(q.contains("status: working"))
-        XCTAssertTrue(q.hasSuffix("RUN: swift test"))
-    }
-
-    // MARK: 模型输出
-
-    func testParsesFencedJSON() {
-        let text = "```json\n{\"action\":\"switch\",\"args\":{\"session_id\":\"s2\"},\"speak\":\"好的，切过去了\"}\n```"
-        let d = AssistantResponse.decide(modelText: text, utterance: "切到 herdr", context: context())
-        XCTAssertEqual(d, AssistantDecision(command: .switchTo(rowID: "term:B"), speak: "好的，切过去了"))
-    }
-
-    func testToleratesProseAroundJSON() {
-        let text = "Here you go: {\"action\":\"send\",\"args\":{},\"speak\":\"发送了\"} done"
-        XCTAssertEqual(AssistantResponse.decide(modelText: text, utterance: "发了吧", context: context()).command, .send)
-    }
-
-    func testBadJSONFallsBackToInsertOfUtterance() {
-        for text in ["", "not json", "{\"action\":", "{\"action\":\"explode\",\"args\":{}}", "[1,2]"] {
-            let d = AssistantResponse.decide(modelText: text, utterance: "帮我把这个函数改成异步的", context: context())
-            XCTAssertEqual(d.command, .insert("帮我把这个函数改成异步的"), text)
-            XCTAssertEqual(d.speak, "没听懂，已填入")
-            XCTAssertTrue(d.isFallback)
+    func testResidentSystemPromptMentionsToolsNotJSONActions() {
+        let prompt = AssistantPrompt.residentSystem
+        for tool in ["type_text", "press_key", "respond_approval", "read_transcript", "read_screen", "clear_input"] {
+            XCTAssertTrue(prompt.contains(tool), tool)
+            XCTAssertNotNil(AssistantTools.spec(named: tool), tool)
         }
+        XCTAssertTrue(prompt.contains("[SUMMARIZE]"))
+        XCTAssertFalse(prompt.contains("\"action\""))
     }
 
-    func testUnknownSessionIDFallsBack() {
-        let text = #"{"action":"switch","args":{"session_id":"s9"},"speak":"好"}"#
-        let d = AssistantResponse.decide(modelText: text, utterance: "切到那个", context: context())
-        XCTAssertTrue(d.isFallback)
-        XCTAssertEqual(d.command, .insert("切到那个"))
-        let close = #"{"action":"close","args":{"session_id":"term:Z"},"speak":"好"}"#
-        XCTAssertTrue(AssistantResponse.decide(modelText: close, utterance: "关掉", context: context()).isFallback)
-        let query = #"{"action":"query","args":{"question":"q","session_id":"x"},"speak":""}"#
-        XCTAssertTrue(AssistantResponse.decide(modelText: query, utterance: "q", context: context()).isFallback)
-    }
-
-    func testInsertUsesCleanedTextOrUtterance() {
-        let a = #"{"action":"insert","args":{"text":"把这个函数改成异步的"},"speak":""}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: a, utterance: "嗯把这个函数改成异步的", context: context()).command,
-                       .insert("把这个函数改成异步的"))
-        let b = #"{"action":"insert","args":{},"speak":""}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: b, utterance: "原话", context: context()).command, .insert("原话"))
-    }
-
-    func testApproveOnlyWhenSelectedIsWaiting() {
-        let text = #"{"action":"approve","args":{},"speak":"已同意"}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: text, utterance: "让它继续", context: context(selectedWaiting: true)).command,
-                       .approve)
-        let d = AssistantResponse.decide(modelText: text, utterance: "让它继续", context: context())
-        XCTAssertTrue(d.isFallback)
-        XCTAssertEqual(d.command, .insert("让它继续"))
-    }
-
-    func testCloseDefaultsToSelected() {
-        let text = #"{"action":"close","args":{},"speak":"确认关闭吗？"}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: text, utterance: "关掉这个", context: context()).command,
-                       .close(rowID: "term:A"))
-    }
-
-    func testNewValidatesProjectAndAgent() {
-        let ok = #"{"action":"new","args":{"dir":"/Users/u/herdr","agent":"codex"},"speak":"好的"}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: ok, utterance: "u", context: context()).command,
-                       .new(dir: "/Users/u/herdr", agent: .codex))
-        let byName = #"{"action":"new","args":{"dir":"HERDR","agent":"gpt"},"speak":""}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: byName, utterance: "u", context: context()).command,
-                       .new(dir: "/Users/u/herdr", agent: .claude))
-        let missingDir = #"{"action":"new","args":{"agent":"pi"},"speak":""}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: missingDir, utterance: "u", context: context()).command,
-                       .new(dir: "/Users/u/poems", agent: .pi))
-        let unknown = #"{"action":"new","args":{"dir":"/etc","agent":"claude"},"speak":""}"#
-        XCTAssertTrue(AssistantResponse.decide(modelText: unknown, utterance: "u", context: context()).isFallback)
-    }
-
-    func testResumeByIDOrQuery() {
-        let byID = #"{"action":"resume","args":{"history_session_id":"h1"},"speak":"好"}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: byID, utterance: "u", context: context()).command,
-                       .resume(sessionID: "hist-1"))
-        let byQuery = #"{"action":"resume","args":{"query":"旅行攻略"},"speak":"好"}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: byQuery, utterance: "u", context: context()).command,
-                       .resume(sessionID: "hist-1"))
-        let none = #"{"action":"resume","args":{"query":"不存在"},"speak":"好"}"#
-        let d = AssistantResponse.decide(modelText: none, utterance: "u", context: context())
-        XCTAssertEqual(d.command, .none)
-        XCTAssertEqual(d.speak, "没找到匹配的历史会话")
-    }
-
-    func testQueryDefaultsToSelectedSession() {
-        let text = #"{"action":"query","args":{"question":"刚才改了哪些文件"},"speak":""}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: text, utterance: "u", context: context()).command,
-                       .query(question: "刚才改了哪些文件", rowID: "term:A"))
-        let named = #"{"action":"query","args":{"question":"它在干嘛","session_id":"s2"},"speak":""}"#
-        XCTAssertEqual(AssistantResponse.decide(modelText: named, utterance: "u", context: context()).command,
-                       .query(question: "它在干嘛", rowID: "term:B"))
-    }
-
-    func testSpeakIsCleanedAndCapped() {
-        XCTAssertEqual(AssistantResponse.cleanSpeak("**好的**\n切过去了"), "好的 切过去了")
-        XCTAssertEqual(AssistantResponse.cleanSpeak(String(repeating: "啊", count: 100)).count, AssistantResponse.speakLimit)
-        XCTAssertEqual(AssistantResponse.cleanSpokenAnswer("```swift\nx\n```\n它改了 `a.swift`。"), "它改了 a.swift。")
-        XCTAssertNil(AssistantResponse.cleanSpokenAnswer("  \n "))
+    func testSpokenTextIsCleaned() {
+        XCTAssertEqual(AssistantSpeech.clean("**好的**\n切过去了"), "好的 切过去了")
+        XCTAssertEqual(AssistantSpeech.clean("```swift\nx\n```\n它改了 `a.swift`。"), "它改了 a.swift。")
+        XCTAssertEqual(AssistantSpeech.clean(String(repeating: "啊", count: 300))?.count, 160)
+        XCTAssertNil(AssistantSpeech.clean("  \n "))
     }
 
     // MARK: 输出信封
@@ -188,7 +117,30 @@ final class AssistantTests: ZhHansTestCase {
         let env = AssistantEnvelope.parse("warning: something\n" + out)
         XCTAssertEqual(env, AssistantEnvelope(result: "```json\n{}\n```", inputTokens: 2500, outputTokens: 265))
         XCTAssertNil(AssistantEnvelope.parse(#"{"type":"result","is_error":true,"result":"boom"}"#))
+        XCTAssertEqual(env?.contextTokens, 2500)
         XCTAssertNil(AssistantEnvelope.parse("garbage"))
+    }
+
+    func testEnvelopeContextTokensComeFromLastIteration() {
+        let out = #"{"result":"好","type":"result","usage":{"input_tokens":10,"cache_read_input_tokens":30000,"output_tokens":40,"iterations":[{"input_tokens":4,"cache_read_input_tokens":14000},{"input_tokens":6,"cache_read_input_tokens":15990,"cache_creation_input_tokens":10}]}}"#
+        let env = AssistantEnvelope.parse(out)
+        XCTAssertEqual(env?.inputTokens, 30010)
+        XCTAssertEqual(env?.contextTokens, 16006)
+    }
+
+    func testTurnTextKeepsOnlyWordsAfterLastToolCall() throws {
+        var turn = AssistantTurnText()
+        let lines = [
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"我来看看。"},{"type":"tool_use","name":"mcp__ccdesk__read_transcript","input":{}}]}}"#,
+            #"{"type":"user","message":{"content":[{"type":"tool_result","content":"{\"type\":\"assistant\"}"}]}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"text","text":"它在修两个排序测试。"}]}}"#,
+        ]
+        for line in lines { turn.consume(try XCTUnwrap(JSONValue.parse(line))) }
+        XCTAssertEqual(turn.spoken(result: "我来看看。\n\n它在修两个排序测试。"), "它在修两个排序测试。")
+        // 没有工具调用之后的文字时退回 result。
+        var silent = AssistantTurnText()
+        silent.consume(try XCTUnwrap(JSONValue.parse(lines[0])))
+        XCTAssertEqual(silent.spoken(result: "好了"), "好了")
     }
 
     // MARK: 本地回答
@@ -219,14 +171,6 @@ final class AssistantTests: ZhHansTestCase {
         XCTAssertFalse(AssistantLocal.isListQuestion("它刚才改了哪些文件"))
         XCTAssertEqual(AssistantLocal.listAnswer(sessions: context().sessions), "共 2 个会话：poems空闲、herdr在处理")
         XCTAssertEqual(AssistantLocal.listAnswer(sessions: []), "现在没有会话")
-    }
-
-    func testAnswerActionSpeaksText() {
-        let text = #"{"action":"answer","args":{"text":"poems 空闲，herdr 在处理"},"speak":""}"#
-        let d = AssistantResponse.decide(modelText: text, utterance: "几个在跑", context: context())
-        XCTAssertEqual(d.command, .none)
-        XCTAssertEqual(d.speak, "poems 空闲，herdr 在处理")
-        XCTAssertFalse(d.isFallback)
     }
 
     func testRelayContent() {

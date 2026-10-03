@@ -51,6 +51,17 @@ public enum TurnDigest {
         render(entries(kind: kind, tail: tail), maxChars: maxChars)
     }
 
+    /// 只取最近 `turns` 轮（从倒数第 `turns` 条用户消息开始）；记录里没有用户消息时取全部。
+    public static func digest(kind: AgentKind, tail: Data, turns: Int, maxChars: Int = defaultMaxChars) -> String {
+        render(lastTurns(entries(kind: kind, tail: tail), turns: turns), maxChars: maxChars)
+    }
+
+    public static func lastTurns(_ entries: [DigestEntry], turns: Int) -> [DigestEntry] {
+        let users = entries.indices.filter { if case .user = entries[$0] { return true } else { return false } }
+        guard turns > 0, users.count >= turns else { return entries }
+        return Array(entries[users[users.count - turns]...])
+    }
+
     public static func render(_ entries: [DigestEntry], maxChars: Int = defaultMaxChars) -> String {
         var lines: [String] = []
         var total = 0

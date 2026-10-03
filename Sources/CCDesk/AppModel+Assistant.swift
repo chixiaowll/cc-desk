@@ -1,63 +1,50 @@
 import Foundation
 import CCDeskCore
 
-/// 语音助手对 App 的操作：复用侧栏的现有动作（选中 / 新建 / 恢复 / 关闭）。
+/// 语音助手对 App 的操作：复用侧栏的现有动作（选中 / 关闭 / 读记录）。会话的短 id 由工具执行器统一分配。
 extension AppModel: AssistantHost {
-    private func row(_ rowID: String) -> SidebarRow? {
+    func sidebarRow(_ rowID: String) -> SidebarRow? {
         groups.lazy.flatMap(\.rows).first { $0.id == rowID }
     }
 
-    func assistantContext(pendingText: String, lastSummary: String?) -> AssistantContext {
-        var sessions: [AssistantSessionInfo] = []
-        for group in groups {
-            for row in group.rows {
-                sessions.append(AssistantSessionInfo(rowID: row.id, title: row.displayName, dir: group.title,
-                                                     agent: row.session.kind, status: row.session.status,
-                                                     isSelected: row.id == selectedID))
+    /// 侧栏会话（带稳定短 id），按侧栏顺序。
+    func assistantSessions() -> [AssistantSessionInfo] {
+        groups.flatMap { group in
+            group.rows.map { row in
+                AssistantSessionInfo(rowID: row.id, shortID: toolbox.shortID(forRow: row.id), title: row.displayName,
+                                     dir: group.title, agent: row.session.kind, status: row.session.status,
+                                     isSelected: row.id == selectedID, isEmbedded: row.session.host.isEmbedded)
             }
         }
-        let projects = groups.map { AssistantProject(name: $0.title, path: $0.id) }
-            + recentDirs.map { AssistantProject(name: HistoryEntry.projectTitle(root: $0), path: $0) }
-        let past = history.prefix(AssistantContext.maxHistory).map {
-            AssistantHistoryInfo(sessionID: $0.item.sessionID, title: $0.item.title, dir: $0.projectTitle, agent: $0.item.kind)
-        }
-        return AssistantContext(sessions: sessions, projects: projects, history: Array(past), pendingText: pendingText,
-                                lastTurnSummary: lastSummary, language: Localization.currentLanguage)
+    }
+
+    /// 可新建会话的项目：侧栏分组根目录 + 最近目录。
+    func assistantProjects() -> [AssistantProject] {
+        var seen = Set<String>()
+        return (groups.map { AssistantProject(name: $0.title, path: $0.id) }
+            + recentDirs.map { AssistantProject(name: HistoryEntry.projectTitle(root: $0), path: $0) })
+            .filter { seen.insert($0.path).inserted }
+    }
+
+    func assistantContext(pendingText: String, lastSummary: String?) -> AssistantContext {
+        AssistantContext(sessions: assistantSessions(), projects: assistantProjects(), pendingText: pendingText,
+                         lastTurnSummary: lastSummary, language: Localization.currentLanguage)
     }
 
     func assistantRow(_ rowID: String) -> (title: String, status: AgentStatus, isEmbedded: Bool)? {
-        row(rowID).map { ($0.displayName, $0.session.status, $0.session.host.isEmbedded) }
+        sidebarRow(rowID).map { ($0.displayName, $0.session.status, $0.session.host.isEmbedded) }
     }
 
     func assistantSwitch(to rowID: String) {
-        if let row = row(rowID) { activate(row) }
-    }
-
-    func assistantNew(dir: String, agent: AgentKind) {
-        newSession(cwd: dir, kind: agent)
-    }
-
-    func assistantResume(sessionID: String) -> String? {
-        guard let entry = history.first(where: { $0.item.sessionID == sessionID }) else { return nil }
-        resumeHistory(entry.item)
-        return entry.item.title
+        if let row = sidebarRow(rowID) { activate(row) }
     }
 
     func assistantClose(_ rowID: String) {
-        if let row = row(rowID) { closeWithoutConfirmation(row) }
+        if let row = sidebarRow(rowID) { closeWithoutConfirmation(row) }
     }
 
-    func assistantCanTakeOver(_ rowID: String) -> Bool {
-        guard let row = row(rowID) else { return false }
-        return canTakeOver(row)
-    }
-
-    func assistantTakeOver(_ rowID: String) {
-        if let row = row(rowID) { takeOver(row, confirmed: true) }
-    }
-
-    func assistantDigest(rowID: String?, completion: @escaping (AssistantDigest?) -> Void) {
-        guard let row = rowID.flatMap(row) ?? selectedRow else { return completion(nil) }
-        transcriptDigest(for: row, completion: completion)
+    func assistantDigest(rowID: String?, turns: Int, completion: @escaping (AssistantDigest?) -> Void) {
+        guard let row = rowID.flatMap(sidebarRow) ?? selectedRow else { return completion(nil) }
+        transcriptDigest(for: row, turns: turns, completion: completion)
     }
 }

@@ -187,17 +187,26 @@ struct ConversationStatus: View {
                 .opacity(active || conversation.capturing ? 1 : 0.55)
             LevelMeter(level: conversation.level, color: color, idle: theme.line)
             Text(text)
-                .font(.system(size: 11.5, weight: conversation.toast == nil ? .regular : .semibold))
-                .foregroundStyle(conversation.toast == nil ? (active ? theme.fg2 : theme.fg3) : theme.fg1)
+                .font(.system(size: 11.5, weight: emphasized ? .semibold : .regular))
+                .foregroundStyle(emphasized ? theme.fg1 : (active ? theme.fg2 : theme.fg3))
                 .lineLimit(1)
         }
         .animation(.easeOut(duration: 0.15), value: conversation.toast)
+        .animation(.easeOut(duration: 0.15), value: conversation.activity)
     }
+
+    /// 提示条与正在执行的工具加粗显示。
+    private var emphasized: Bool { conversation.toast != nil || conversation.activity != nil }
 
     private var text: String {
         if let toast = conversation.toast { return toast }
         if conversation.preparing { return L("conversation.status.preparing") }
-        if conversation.thinking { return L("conversation.status.thinking") }
+        if let activity = conversation.activity { return activity }
+        if conversation.thinking {
+            guard let heard = conversation.heard else { return L("conversation.status.thinking") }
+            let short = heard.count > 40 ? String(heard.prefix(39)) + "…" : heard
+            return L("conversation.status.heardThinking", short)
+        }
         if conversation.speaking { return L("conversation.status.speaking") }
         if conversation.transcribing { return L("conversation.status.transcribing") }
         switch conversation.state {

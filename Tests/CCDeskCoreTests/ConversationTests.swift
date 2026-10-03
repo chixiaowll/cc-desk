@@ -262,6 +262,19 @@ final class ConversationSessionTests: XCTestCase {
         XCTAssertEqual(session.handle(transcript: "帮我跑测试", waiting: false, now: 604), [])
     }
 
+    func testUndoIsALocalCommand() {
+        session.persistent = true
+        session.routesToAssistant = true
+        XCTAssertEqual(session.handle(transcript: "嬴政同学", waiting: false, now: 0), [.wake])
+        XCTAssertEqual(session.handle(transcript: "撤销", waiting: false, now: 1), [.undo])
+        XCTAssertEqual(session.handle(transcript: "嗯，撤回吧", waiting: false, now: 2), [.undo])
+        XCTAssertEqual(session.handle(transcript: "Undo that.", waiting: false, now: 3), [.undo])
+        XCTAssertEqual(session.state, .active)
+        // 句子里提到撤销不算指令，交给助手。
+        XCTAssertEqual(session.handle(transcript: "帮我实现撤销功能", waiting: false, now: 4), [.assist("帮我实现撤销功能")])
+        XCTAssertEqual(ConversationCommands.parse("撤销上一步", waiting: false), .undo)
+    }
+
     func testWakeWithRemainderInSameUtterance() {
         XCTAssertEqual(session.handle(transcript: "嬴政同学，帮我跑一下测试", waiting: false, now: 0),
                        [.wake, .insert("帮我跑一下测试")])

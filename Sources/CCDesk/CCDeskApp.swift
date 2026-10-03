@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         model.conversation.turnOff()
+        model.stopControlServer()
     }
 
     /// 关闭窗口不退出，内嵌 session 继续运行；点 Dock 图标重新打开窗口。
@@ -74,7 +75,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// 入口：`--mcp` 时作为助手的 stdio MCP 工具服务器运行（不启动界面，设计 §13），否则启动 App。
 @main
+enum CCDeskMain {
+    static func main() {
+        if CommandLine.arguments.dropFirst().contains("--mcp") { MCPMode.run() }
+        CCDeskApp.main()
+    }
+}
+
 struct CCDeskApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @AppStorage(AppearancePreference.defaultsKey) private var appearance: String = AppearancePreference.system.rawValue

@@ -46,9 +46,14 @@ final class AppModel: ObservableObject {
         canListen: { [weak self] in self?.canListenForVoice ?? false })
     /// 对话模式（免按键：唤醒词 + 持续监听，语音指令发送 / 清空 / 批准）。开启时忽略按住说话。
     private(set) lazy var conversation = ConversationMode(
-        pool: pool, voice: voice,
+        pool: pool, voice: voice, inputs: inputs,
         selectedTerminalID: { [weak self] in self?.selectedTerminalID },
         statusOf: { [weak self] tid in self?.status(ofTerminal: tid) })
+    /// 往内嵌终端输入的未发送文字与撤销记录（对话模式与助手工具共用）。
+    let inputs = AssistantInputs()
+    /// 助手工具的执行者（控制接口 `~/.cc-desk/control.sock` 的方法，设计 §13）。
+    private(set) lazy var toolbox = AssistantToolbox(model: self)
+    private var controlServer: ControlServer?
     private let resolver = ProjectResolver(git: SystemProbe.git)
     private let queue = DispatchQueue(label: "cc-desk.poll")
     /// 只在 `queue` 上使用（非线程安全）。
@@ -123,6 +128,7 @@ final class AppModel: ObservableObject {
 
     func start() {
         conversation.host = self
+        startControlServer()
         notifier.onOpen = { [weak self] key in self?.openFromNotification(key) }
         notifier.setup()
         restore()
@@ -489,8 +495,8 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// 用 `kind`（默认上次使用的 agent）在目录中新建内嵌会话。
-    func newSession(cwd rawCwd: String, kind: AgentKind? = nil) {
+    /// 用 `kind`（默认上次使用的 agent）在目录中新建内嵌会话；prompt 作为第一句话（助手工具用）。
+    func newSession(cwd rawCwd: String, kind: AgentKind? = nil, prompt: String? = nil) {
         let kind = kind ?? lastAgent
         guard let launcher = AgentAdapters.adapter(for: kind) else {
             alert(L("alert.cannotCreate.title"), L("alert.cannotCreate.message"))
@@ -510,7 +516,7 @@ final class AppModel: ObservableObject {
             lastAgent = kind
             UserDefaults.standard.set(kind.rawValue, forKey: "lastAgent")
         }
-        let terminal = makeTerminal(id: UUID(), cwd: cwd, command: launcher.launchCommand())
+        let terminal = makeTerminal(id: UUID(), cwd: cwd, command: launcher.launchCommand(prompt: prompt))
         knownKinds[terminal.id] = kind
         selectedID = "term:\(terminal.id.uuidString)"
         rememberRecent(cwd)
@@ -682,7 +688,8 @@ final class AppModel: ObservableObject {
     }
 
     /// 在后台读某个会话记录的尾部（≤256KB），抽取紧凑的上下文；completion 在主线程（找不到记录时为 nil）。
-    func transcriptDigest(for row: SidebarRow, completion: @escaping (AssistantDigest?) -> Void) {
+    /// turns > 0 时只取最近几轮。
+    func transcriptDigest(for row: SidebarRow, turns: Int = 0, completion: @escaping (AssistantDigest?) -> Void) {
         guard let sid = row.session.sessionID, row.session.kind.isAgent else { return completion(nil) }
         let kind = row.session.kind
         let title = row.displayName
@@ -693,7 +700,10 @@ final class AppModel: ObservableObject {
             let url: URL? = kind == .claude
                 ? transcripts.path(forSession: sid)
                 : agentIndex.locate(kind: kind, sessionID: sid).map { URL(fileURLWithPath: $0) }
-            let digest = url.map { TurnDigest.digest(kind: kind, tail: TranscriptReader.readTail($0, bytes: TurnDigest.tailBytes)) }
+            let digest = url.map { url -> String in
+                let tail = TranscriptReader.readTail(url, bytes: TurnDigest.tailBytes)
+                return turns > 0 ? TurnDigest.digest(kind: kind, tail: tail, turns: turns) : TurnDigest.digest(kind: kind, tail: tail)
+            }
             DispatchQueue.main.async {
                 completion(digest.map { AssistantDigest(title: title, status: status, digest: $0) })
             }
@@ -811,6 +821,7 @@ final class AppModel: ObservableObject {
     }
 
     private func removeTerminal(_ tid: UUID) {
+        inputs.closed(terminalID: tid)
         pool.remove(tid)
         knownSessionIDs[tid] = nil
         knownKinds[tid] = nil
@@ -820,6 +831,20 @@ final class AppModel: ObservableObject {
         if selectedTerminalID == tid { selectedID = nil }
         saveWorkspace()
         poll()
+    }
+
+    /// 启动控制接口；已有另一个 CC Desk 占用时不启动（助手工具会连到那个实例）。
+    private func startControlServer() {
+        let toolbox = self.toolbox
+        let server = ControlServer(path: ControlProtocol.socketPath(), log: { AssistantDiag.log($0) }) { request, reply in
+            DispatchQueue.main.async { toolbox.handle(request, reply: reply) }
+        }
+        if server.start() { controlServer = server }
+    }
+
+    func stopControlServer() {
+        controlServer?.stop()
+        controlServer = nil
     }
 
     private func rememberRecent(_ rawCwd: String) {

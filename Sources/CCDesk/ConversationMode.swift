@@ -8,8 +8,10 @@ import CCDeskCore
 /// - 对话中：每句话追加到选中内嵌终端的输入框（不发送），「发送」回车、「取消」删掉本轮插入的文字、
 ///   「退出对话模式」关闭；发送 / 取消 / 30 秒没说话后回到待命。
 /// - 选中 session 转为等批准 / 一轮完成时简短播报；播报期间暂停采集，避免识别到自己的声音。
-/// - 语音助手（设计 §12）：对话中没命中本地指令的话交给意图模型（切换 / 新建 / 恢复 / 关闭会话、问答…），
-///   等待期间提示音 +「思考中…」；选中会话一轮完成时播报一两句回复摘要（可在菜单关闭）。
+/// - 语音助手（设计 §12/§13）：对话中没命中本地指令的话交给常驻助手会话，它用 CC Desk 的工具做事（打字、切换、
+///   新建、读屏…），最后的文字回复被朗读；等待期间提示音 +「听到：… · 思考中…」，执行工具时显示「→ …」。
+///   需确认的工具在这里语音确认（15 秒内说「确认」）。「撤销」撤回上一个可撤销动作。
+///   选中会话一轮完成时播报一两句回复摘要（可在菜单关闭）。
 /// 状态机在 CCDeskCore 的 `ConversationSession`；这里负责麦克风、识别、终端按键、播报与界面状态。
 /// 只在主线程使用；音频回调切到 `audioQueue`，识别在 Transcriber actor 里串行进行。
 final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
@@ -22,8 +24,12 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     @Published private(set) var capturing = false
     @Published private(set) var transcribing = false
     @Published private(set) var speaking = false
-    /// 正在等语音助手（意图模型 / 问答）。
+    /// 正在等语音助手。
     @Published private(set) var thinking = false
+    /// 助手正在处理的那句话（「听到：…」）。
+    @Published private(set) var heard: String?
+    /// 助手正在执行的工具（「→ 往 poems 输入：…」）。
+    @Published private(set) var activity: String?
     @Published private(set) var level: Float = 0
     /// 指令执行后的简短提示（已发送 / 已清空…）。
     @Published private(set) var toast: String?
@@ -36,19 +42,18 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private let recorder = ContinuousRecorder()
     private let synthesizer = AVSpeechSynthesizer()
     private let assistant: VoiceAssistant
-    /// 语音助手执行切换 / 新建 / 关闭等操作的对象（AppModel）。
+    /// 未发送的输入与撤销记录（与助手工具共用）。
+    private let inputs: AssistantInputs
+    /// 提供侧栏上下文、切换 / 关闭会话、读记录的对象（AppModel）。
     weak var host: AssistantHost?
-    /// 选中会话最近一轮的回复摘要（作为意图解析的上下文）。
+    /// 选中会话最近一轮的回复摘要（作为助手的上下文）。
     private var lastSummaries: [UUID: String] = [:]
-    /// 等待语音确认的操作（关闭忙碌的会话 / 接管外部会话）与截止时间。
-    private enum PendingAction { case close, takeOver }
-    private var pendingClose: (action: PendingAction, rowID: String, deadline: TimeInterval)?
-    static let closeConfirmWindow: TimeInterval = 15
+    /// 等待语音确认的工具调用（关闭 / 接管 / 中断）：截止时间与回调。
+    private var pendingConfirmation: (deadline: TimeInterval, completion: (Bool) -> Void)?
+    /// 本轮助手调用过的工具是否都只是往输入框打字（是则不朗读回复，只显示提示条）；nil = 本轮没调用工具。
+    private var turnQuiet: Bool?
 
     private var session = ConversationSession()
-    /// 本轮（上次发送 / 清空以来）插入到 `insertedTarget` 的文字，「取消」时按字符数退格删除。
-    private var inserted = ""
-    private var insertedTarget: UUID?
     /// 等待识别的片段（与说话时选中的终端）。
     private var queue: [(samples: [Float], target: UUID?)] = []
     private var timer: Timer?
@@ -66,10 +71,11 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private let levelLock = NSLock()
     private var currentLevel: Float = 0
 
-    init(pool: TerminalPool, voice: VoiceInput, transcriber: Transcriber = WhisperTranscriber.shared,
+    init(pool: TerminalPool, voice: VoiceInput, inputs: AssistantInputs, transcriber: Transcriber = WhisperTranscriber.shared,
          assistant: VoiceAssistant = VoiceAssistant(),
          selectedTerminalID: @escaping () -> UUID?, statusOf: @escaping (UUID) -> AgentStatus?) {
         self.pool = pool
+        self.inputs = inputs
         self.assistant = assistant
         self.voice = voice
         self.transcriber = transcriber
@@ -148,7 +154,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         session.routesToAssistant = assistant.isAvailable != false
         state = session.state
         thinking = false
-        pendingClose = nil
+        heard = nil
+        activity = nil
         assistant.prepare { [weak self] ok in
             guard let self, self.isOn, self.generation == current else { return }
             self.session.routesToAssistant = ok
@@ -157,8 +164,6 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         if SpeechVoices.takeQualityHint() { voice.showHint(L("voice.hint.betterVoice")) }
         isOn = true
         preparing = true
-        inserted = ""
-        insertedTarget = nil
         observed = nil
         voice.ensureModel { [weak self] ready in
             guard let self, self.isOn, self.generation == current else { return }
@@ -176,11 +181,11 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         transcribing = false
         speaking = false
         thinking = false
-        pendingClose = nil
+        heard = nil
+        activity = nil
+        resolveConfirmation(false)
         level = 0
         queue = []
-        inserted = ""
-        insertedTarget = nil
         observed = nil
         session.reset()
         state = session.state
@@ -222,7 +227,12 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         levelLock.unlock()
         level = speaking ? 0 : value
         session.persistent = Self.persistentEnabled
-        for action in session.tick(now: ProcessInfo.processInfo.systemUptime) { perform(action, target: nil) }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let pending = pendingConfirmation, now > pending.deadline {
+            resolveConfirmation(false)
+            showToast(L("assistant.toast.cancelled"))
+        }
+        for action in session.tick(now: now) { perform(action, target: nil) }
         state = session.state
     }
 
@@ -261,8 +271,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func transcribeNext() {
-        // 等助手时先不处理后面的话，保证插入顺序。
-        guard !transcribing, !thinking, !queue.isEmpty else { return }
+        // 等助手时先不处理后面的话，保证插入顺序；助手在等语音确认时例外。
+        guard !transcribing, !thinking || pendingConfirmation != nil, !queue.isEmpty else { return }
         let (samples, target) = queue.removeFirst()
         let duration = Double(samples.count) / Double(MicrophoneTap.sampleRate)
         let policy = session.transcriptionPolicy(duration: duration)
@@ -292,7 +302,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     private func apply(_ text: String, target: UUID?) {
-        if session.state == .active, pendingClose != nil, resolvePendingClose(text) { return }
+        if pendingConfirmation != nil { return answerConfirmation(text) }
         let waiting = target.flatMap(statusOf)?.isWaiting ?? false
         session.persistent = Self.persistentEnabled
         let before = session.state
@@ -306,10 +316,6 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
 
     private func perform(_ action: ConversationAction, target: UUID?) {
         let terminal = target.flatMap(pool.terminal)
-        if let target, insertedTarget != target {
-            inserted = ""
-            insertedTarget = target
-        }
         switch action {
         case .wake:
             // 唤醒后用语音应答（「我在」），播报期间暂停采集，结束后自动恢复聆听。
@@ -320,34 +326,55 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             assist(text, target: target)
         case .insert(let text):
             guard let terminal else { return noTarget() }
-            let payload = ConversationText.insertion(text, after: inserted)
-            terminal.send(text: payload, submit: false)
-            inserted += payload
-            assistant.note("typed \"\(text)\" into \(targetTitle)")
+            inputs.type(text, into: terminal, title: targetTitle, submit: false)
+            assistant.note("typed \"\(text)\" into \(targetTitle) (not sent)")
         case .send:
             guard let terminal else { return noTarget() }
             terminal.sendKeys("\r")
-            inserted = ""
+            inputs.submitted(terminal.id)
             showToast(L("conversation.toast.sent"))
             assistant.note("pressed Enter (sent) in \(targetTitle)")
         case .cancel:
-            // Claude Code 的 Ctrl+U 只删到当前可视行的行首（长文本自动换行后删不干净），
-            // 按插入的字符数退格才能准确删掉本轮插入的内容（实测 Claude Code 中可靠）。
-            if !inserted.isEmpty { terminal?.sendKeys(String(repeating: "\u{7f}", count: inserted.count)) }
-            inserted = ""
+            if let terminal { inputs.clear(terminal) }
             showToast(L("conversation.toast.cleared"))
             assistant.note("cleared the pending text in \(targetTitle)")
+        case .undo:
+            undo()
         case .approve:
             // Claude Code / Codex 的权限对话框默认高亮第一项「Yes」，回车即批准。
             terminal?.sendKeys("\r")
             showToast(L("conversation.toast.approved"))
+            assistant.note("approved the permission prompt in \(targetTitle)")
         case .deny:
             terminal?.sendKeys("\u{1b}")
             showToast(L("conversation.toast.denied"))
+            assistant.note("denied the permission prompt in \(targetTitle)")
         case .stop:
             turnOff()
             showToast(L("conversation.toast.stopped"))
         }
+    }
+
+    /// 「撤销」：撤回上一个可撤销动作（新建 → 关闭；未发送的输入 → 删除；切换 → 切回）。
+    private func undo() {
+        guard let action = inputs.popUndo() else { return speak(L("assistant.undo.none")) }
+        let message: String
+        switch action {
+        case .created(let rowID, let title):
+            host?.assistantClose(rowID)
+            message = L("assistant.undo.created", title)
+        case .typed(let tid, let text, _):
+            guard let terminal = pool.terminal(tid), inputs.undoTyping(text, in: terminal) else { return undo() }
+            message = L("assistant.undo.typed")
+        case .switched(let rowID, let title):
+            guard host?.assistantRow(rowID) != nil else { return undo() }
+            host?.assistantSwitch(to: rowID)
+            message = L("assistant.undo.switched", title)
+        }
+        AssistantDiag.log("undo \(action)")
+        assistant.note("undid: \(action)")
+        showToast(message)
+        speak(message)
     }
 
     /// 选中会话的标题（给助手的事件记录用）。
@@ -367,20 +394,20 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         speak(L("assistant.noTarget"))
     }
 
-    private func showToast(_ text: String) {
+    private func showToast(_ text: String, duration: TimeInterval = 1.8) {
         toastWork?.cancel()
         toast = text
         let work = DispatchWorkItem { [weak self] in self?.toast = nil }
         toastWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
     }
 
     // MARK: 语音助手
 
-    /// 本地规则没命中的话：「哪些在等我」本地回答，其余交给意图模型（期间提示音 +「思考中…」）。
+    /// 本地规则没命中的话：「哪些在等我」「有哪些会话」本地回答，转述直接填入，其余交给常驻助手（期间提示音 +「思考中…」）。
     private func assist(_ text: String, target: UUID?) {
         guard let host else { return perform(.insert(text), target: target) }
-        let context = host.assistantContext(pendingText: insertedTarget == target ? inserted : "",
+        let context = host.assistantContext(pendingText: target.map(inputs.pending) ?? "",
                                             lastSummary: target.flatMap { lastSummaries[$0] })
         if AssistantLocal.isWaitingQuestion(text) {
             return speak(AssistantLocal.waitingAnswer(sessions: context.sessions))
@@ -399,138 +426,90 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             return speak(answer)
         }
         let current = generation
-        beginThinking()
-        assistant.decide(utterance: text, context: context) { [weak self] decision in
+        beginThinking(heard: text)
+        assistant.handle(utterance: text, context: context) { [weak self] result in
             guard let self, self.isOn, self.generation == current else { return }
+            let quiet = self.turnQuiet == true
             self.endThinking()
-            self.execute(decision, target: target)
+            switch result {
+            case .success(let reply):
+                // 只是往输入框打字（逐句口述）时不朗读，免得太吵；回复显示在提示条上。
+                if let spoken = AssistantSpeech.clean(reply.text) { quiet ? self.showToast(spoken) : self.speak(spoken) }
+            case .failure(.notInstalled):
+                self.perform(.insert(text), target: target)
+            case .failure:
+                self.speak(L("assistant.unavailable"))
+            }
             self.state = self.session.state
             self.transcribeNext()
         }
     }
 
-    private func beginThinking() {
+    private func beginThinking(heard text: String) {
         thinking = true
+        heard = text
+        activity = nil
+        turnQuiet = nil
         session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
         NSSound(named: "Tink")?.play()
     }
 
     private func endThinking() {
         thinking = false
+        heard = nil
+        activity = nil
+        turnQuiet = nil
         session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
     }
 
-    private func execute(_ decision: AssistantDecision, target: UUID?) {
-        let reply = decision.speak
-        func say() { if !reply.isEmpty { speak(reply) } }
-        switch decision.command {
-        case .insert(let text):
-            perform(.insert(text), target: target)
-            // 插入不播报（逐句口述时太吵）；模型没听懂时提示一下。
-            if decision.isFallback {
-                showToast(reply)
-                say()
-            }
-        case .send:
-            perform(.send, target: target)
-            if session.finishTurn() { perform(.standby, target: target) }
-        case .cancel:
-            perform(.cancel, target: target)
-            if session.finishTurn() { perform(.standby, target: target) }
-        case .approve:
-            perform(.approve, target: target)
-        case .deny:
-            perform(.deny, target: target)
-        case .stop:
-            perform(.stop, target: target)
-        case .switchTo(let rowID):
-            guard let host, let row = host.assistantRow(rowID) else {
-                AssistantDiag.log("switch: row \(rowID) not found")
-                return
-            }
-            guard row.isEmbedded else {
-                // 外部终端里的会话：语音没法输入进去，问一句是否接管到 CC Desk。
-                guard host.assistantCanTakeOver(rowID) else { return speak(L("assistant.switch.external")) }
-                pendingClose = (.takeOver, rowID, ProcessInfo.processInfo.systemUptime + Self.closeConfirmWindow)
-                showToast(L("assistant.toast.confirmTakeOver", row.title))
-                return speak(L("assistant.switch.offerTakeOver"))
-            }
-            host.assistantSwitch(to: rowID)
-            showToast(L("assistant.toast.switched", row.title))
-            say()
-        case .new(let dir, let agent):
-            host?.assistantNew(dir: dir, agent: agent)
-            showToast(L("assistant.toast.new", URL(fileURLWithPath: dir).lastPathComponent, agent.displayName))
-            say()
-        case .resume(let sessionID):
-            guard let title = host?.assistantResume(sessionID: sessionID) else {
-                return speak(L("assistant.resume.notFound"))
-            }
-            showToast(L("assistant.toast.resumed", title))
-            say()
-        case .close(let rowID):
-            guard let host, let row = host.assistantRow(rowID) else { return }
-            guard row.isEmbedded else { return speak(L("assistant.close.external")) }
-            if row.status.isActive {
-                // 正在处理 / 等批准的会话：要求 15 秒内说「确认」。
-                pendingClose = (.close, rowID, ProcessInfo.processInfo.systemUptime + Self.closeConfirmWindow)
-                showToast(L("assistant.toast.confirmClose", row.title))
-                speak(L("assistant.close.confirm"))
-            } else {
-                host.assistantClose(rowID)
-                showToast(L("assistant.toast.closed", row.title))
-                say()
-            }
-        case .query(let question, let rowID):
-            guard let host else { return }
-            if AssistantLocal.isWaitingQuestion(question) {
-                return speak(AssistantLocal.waitingAnswer(sessions: host.assistantContext(pendingText: "", lastSummary: nil).sessions))
-            }
-            let current = generation
-            beginThinking()
-            host.assistantDigest(rowID: rowID) { [weak self] digest in
-                guard let self, self.isOn, self.generation == current else { return }
-                self.assistant.answer(question: question, digest: digest, language: Localization.currentLanguage) { [weak self] text in
-                    guard let self, self.isOn, self.generation == current else { return }
-                    self.endThinking()
-                    self.speak(text)
-                    self.transcribeNext()
-                }
-            }
-        case .none:
-            say()
-        }
+    // MARK: 助手工具的反馈与确认（由 AssistantToolbox 调用）
+
+    /// 工具开始执行：VoiceBar 显示「→ …」。quiet：只是往输入框打字。
+    func toolStarted(_ text: String, quiet: Bool) {
+        session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
+        guard isOn else { return }
+        // 不在助手的一轮里（别的客户端调用控制接口）：只闪一下提示条。
+        guard thinking else { return showToast(text) }
+        activity = text
+        turnQuiet = (turnQuiet ?? true) && quiet
     }
 
-    /// 等待确认关闭时的下一句话：「确认」→ 关闭；其他话取消关闭（返回 false 时按普通的话继续处理）。
-    private func resolvePendingClose(_ text: String) -> Bool {
-        guard let pending = pendingClose else { return false }
-        pendingClose = nil
-        guard ProcessInfo.processInfo.systemUptime <= pending.deadline else { return false }
+    func toolFinished() {
+        session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 播报确认问题并显示提示条，等最多 `window` 秒的「确认」；其他话 / 超时 / 关闭对话模式都算取消。
+    func requestConfirmation(question: String, toast: String, window: TimeInterval, completion: @escaping (Bool) -> Void) {
+        resolveConfirmation(false)
+        pendingConfirmation = (ProcessInfo.processInfo.systemUptime + window, completion)
+        // 问题之前说的话不能当作回答。
+        queue = []
+        AssistantDiag.log("confirm? \"\(question)\"")
+        showToast(toast, duration: window)
+        speak(question)
+    }
+
+    private func resolveConfirmation(_ ok: Bool) {
+        guard let pending = pendingConfirmation else { return }
+        pendingConfirmation = nil
+        AssistantDiag.log("confirm -> \(ok)")
+        pending.completion(ok)
+    }
+
+    /// 等待确认时听到的话：「确认」类 → 执行；其他话 → 取消（这句话不再另作处理）。
+    private func answerConfirmation(_ text: String) {
         let spoken = session.matcher.match(text) ?? text
-        if ConversationCommands.parse(spoken, waiting: true) == .approve || Self.isConfirmation(spoken) {
-            let title = host?.assistantRow(pending.rowID)?.title ?? ""
-            switch pending.action {
-            case .close:
-                host?.assistantClose(pending.rowID)
-                showToast(L("assistant.toast.closed", title))
-            case .takeOver:
-                host?.assistantTakeOver(pending.rowID)
-                showToast(L("assistant.toast.takenOver", title))
-                speak(L("assistant.takeOver.done"))
-            }
-            return true
-        }
-        showToast(pending.action == .close ? L("assistant.toast.closeCancelled") : L("assistant.toast.cancelled"))
-        // 明确的「不要 / 取消」到此为止；其他话照常处理。
-        let command = ConversationCommands.parse(spoken, waiting: true)
-        return command == .deny || command == .cancel
+        guard ConversationText.isMeaningful(spoken) else { return }
+        let ok = ConversationCommands.parse(spoken, waiting: true) == .approve || Self.isConfirmation(spoken)
+        AssistantDiag.log("heard \"\(text)\" while confirming")
+        if !ok { showToast(L("assistant.toast.cancelled")) } else { toast = nil }
+        resolveConfirmation(ok)
     }
 
     static func isConfirmation(_ text: String) -> Bool {
         let n = ConversationCommands.normalize(text)
-        return ["确认关闭", "关闭", "关吧", "关掉", "关了吧", "确定", "确定关闭", "接管", "移过来", "要", "行", "对",
-                "closeit", "confirm", "takeover", "sure"].contains(n)
+        return ["确认关闭", "关闭", "关吧", "关掉", "关了吧", "确定", "确定关闭", "接管", "移过来", "要", "行", "对", "中断",
+                "确认中断", "确认接管", "closeit", "confirm", "takeover", "sure", "doit"].contains(n)
     }
 
     /// 选中会话一轮完成：读记录尾部生成摘要；仍选中且没开始新一轮时播报，失败时播报 `fallback`。
@@ -540,7 +519,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         // 稍等让 agent 把最后一条消息写进记录。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self, self.isOn, self.generation == current else { return }
-            host.assistantDigest(rowID: "term:\(terminalID.uuidString)") { [weak self] digest in
+            host.assistantDigest(rowID: "term:\(terminalID.uuidString)", turns: 0) { [weak self] digest in
                 guard let self, self.isOn, self.generation == current else { return }
                 self.assistant.summarize(digest: digest, language: Localization.currentLanguage) { [weak self] summary in
                     guard let self, self.isOn, self.generation == current,

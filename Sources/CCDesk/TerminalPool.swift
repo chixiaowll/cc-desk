@@ -142,9 +142,17 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         Self.bottomText(of: view.getTerminal())
     }
 
-    /// 当前活动缓冲区底部一屏（不受用户滚动位置影响），每行去掉行尾空白，去掉末尾空行。
-    static func bottomText(of terminal: Terminal) -> String {
-        let rows = terminal.rows
+    /// 助手的 read_screen：底部 `lines` 行纯文本（可超过一屏，含回滚区）。必须在主线程调用。
+    func screenText(lines: Int) -> String {
+        Self.bottomText(of: view.getTerminal(), lines: lines)
+    }
+
+    /// 应用光标模式（方向键发 ESC O A 而不是 ESC [ A）。
+    var applicationCursor: Bool { view.getTerminal().applicationCursor }
+
+    /// 当前活动缓冲区底部一屏（或 `lines` 行；不受用户滚动位置影响），每行去掉行尾空白，去掉末尾空行。
+    static func bottomText(of terminal: Terminal, lines count: Int? = nil) -> String {
+        let rows = count ?? terminal.rows
         let top = terminal.buffer.totalLinesTrimmed
         guard terminal.getScrollInvariantLine(row: top) != nil else { return "" }
         // 二分找到缓冲区最后一行（SwiftTerm 未公开行数）。

@@ -111,4 +111,13 @@ final class TurnDigestTests: XCTestCase {
         XCTAssertEqual(lines[0].count, "OUTPUT: ".count + 240)
         XCTAssertEqual(lines[1], "USER: a b")
     }
+
+    func testLastTurnsStartsAtNthLastUserMessage() {
+        let entries: [DigestEntry] = [.user("一"), .assistant("a"), .user("二"), .command("swift test"), .assistant("b"),
+                                      .user("三"), .edit("x.swift")]
+        XCTAssertEqual(TurnDigest.lastTurns(entries, turns: 1), [.user("三"), .edit("x.swift")])
+        XCTAssertEqual(TurnDigest.lastTurns(entries, turns: 2).first, .user("二"))
+        XCTAssertEqual(TurnDigest.lastTurns(entries, turns: 9), entries)
+        XCTAssertEqual(TurnDigest.lastTurns([.assistant("only")], turns: 1), [.assistant("only")])
+    }
 }

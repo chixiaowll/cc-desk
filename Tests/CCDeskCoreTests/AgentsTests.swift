@@ -173,4 +173,12 @@ final class AgentsTests: ZhHansTestCase {
         XCTAssertEqual(PiAdapter().launchCommand(), "pi")
         XCTAssertEqual(PiAdapter().resumeCommand(sessionID: "01a1-y"), "pi --session '01a1-y'")
     }
+
+    func testLaunchCommandWithFirstPrompt() {
+        XCTAssertEqual(ClaudeAdapter().launchCommand(prompt: nil), "claude")
+        XCTAssertEqual(ClaudeAdapter().launchCommand(prompt: "  "), "claude")
+        XCTAssertEqual(CodexAdapter().launchCommand(prompt: "看下 README"), "codex '看下 README'")
+        XCTAssertEqual(PiAdapter().launchCommand(prompt: "it's\nfine"), "pi 'it'\\''s fine'")
+        XCTAssertEqual(ClaudeAdapter().launchCommand(prompt: "-v please"), "claude ' -v please'")
+    }
 }

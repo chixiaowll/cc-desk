@@ -16,15 +16,16 @@ enum AssistantError: Error, Equatable {
     case failed(String)
 }
 
-/// 语音助手的模型客户端（设计 §12）：`claude -p --model haiku` 无会话记录、无工具、无 MCP，工作目录 `~/.cc-desk/assistant`。
+/// 语音助手的模型客户端（设计 §12/§13）：解析 `claude` 路径，持有常驻助手会话。
 ///
 /// - `claude` 的路径用登录交互 shell 解析一次并缓存（GUI App 的 PATH 不含用户目录），之后直接 exec，省掉每次约 1.5 秒的 shell 启动。
-/// - 去掉会话级 Claude Code 变量（同 LaunchSpec），避免它以为自己嵌套在另一个 Claude Code 里。
-/// - 关闭扩展思考（`MAX_THINKING_TOKENS=0`）以降低延迟。
-/// - 调用在后台队列进行，结果回到主线程；20 秒超时。
+/// - 常驻会话只能用 CC Desk 的 MCP 工具（`--mcp-config` 指向本程序的 `--mcp` 模式），内置工具全部关闭。
 final class AssistantClient: @unchecked Sendable {
     static let shared = AssistantClient()
+    /// 摘要等不调用工具的请求。
     static let timeout: TimeInterval = 20
+    /// 一句话的完整处理（可能多次调用工具、等待语音确认）。
+    static let turnTimeout: TimeInterval = 60
     static let model = "haiku"
 
     static var workingDirectory: URL {
@@ -37,17 +38,35 @@ final class AssistantClient: @unchecked Sendable {
         let searchPath: String?
     }
 
-    private let queue = DispatchQueue(label: "cc-desk.assistant", qos: .userInitiated, attributes: .concurrent)
     private let resolveQueue = DispatchQueue(label: "cc-desk.assistant.resolve")
     private let lock = NSLock()
     private var executable: Executable?
     private var resolveFailedAt: Date?
 
-    /// 常驻助手会话（意图 / 问答 / 摘要共用，有上下文）。
+    /// 常驻助手会话（工具调用 / 摘要共用，有上下文）。
     lazy var session = AssistantSession(directory: Self.workingDirectory, model: Self.model,
-                                        system: AssistantPrompt.residentSystem) { [weak self] in
+                                        system: AssistantPrompt.residentSystem, promptVersion: AssistantPrompt.residentVersion,
+                                        toolArguments: Self.toolArguments) { [weak self] in
         guard let self else { return nil }
         return self.resolveQueue.sync { self.resolve() }.map { ($0.path, $0.searchPath) }
+    }
+
+    /// 写 `mcp.json`（`ccdesk` 服务器 = 本程序 `--mcp`）并返回工具相关参数。
+    /// 实测（claude 2.1.280）：`--tools ""` 关闭全部内置工具；`--allowedTools "mcp__ccdesk__*"` 让 -p 模式下的
+    /// MCP 工具调用不需要权限（不加时调用被拒绝，permission_denials 里能看到）。
+    static func toolArguments() -> [String] {
+        let base = ["--strict-mcp-config", "--tools", ""]
+        guard let exe = Bundle.main.executableURL?.path else { return base }
+        let url = workingDirectory.appendingPathComponent("mcp.json")
+        let json = MCPServerCore.configJSON(executable: exe, socketPath: ControlProtocol.socketPath())
+        do {
+            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
+            try json.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            AssistantDiag.log("assistant mcp config write failed: \(error.localizedDescription)")
+            return base
+        }
+        return ["--mcp-config", url.path] + base + ["--allowedTools", "mcp__\(AssistantTools.mcpServerName)__*"]
     }
 
     /// 已解析到 claude（nil = 尚未解析）。
@@ -62,45 +81,6 @@ final class AssistantClient: @unchecked Sendable {
         resolveQueue.async { [self] in
             let ok = resolve() != nil
             if let completion { DispatchQueue.main.async { completion(ok) } }
-        }
-    }
-
-    /// 调用模型；completion 在主线程执行。
-    func complete(system: String, message: String, timeout: TimeInterval = AssistantClient.timeout,
-                  completion: @escaping (Result<AssistantReply, AssistantError>) -> Void) {
-        queue.async { [self] in
-            let result = run(system: system, message: message, timeout: timeout)
-            DispatchQueue.main.async { completion(result) }
-        }
-    }
-
-    /// 同步调用（只在后台线程使用；调试工具也用它）。
-    func run(system: String, message: String, timeout: TimeInterval = AssistantClient.timeout) -> Result<AssistantReply, AssistantError> {
-        let started = Date()
-        guard let exe = resolveQueue.sync(execute: { resolve() }) else { return .failure(.notInstalled) }
-        let dir = Self.workingDirectory
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
-        var env = LaunchSpec.sanitizedEnvironment(base: ProcessInfo.processInfo.environment)
-        if let path = exe.searchPath { env["PATH"] = path }
-        env["CC_DESK"] = "1"
-        // 关掉扩展思考：haiku 默认会先想几百上千个 token，延迟从 1–2 秒涨到 6–14 秒，而这里的任务很简单。
-        env["MAX_THINKING_TOKENS"] = "0"
-        let args = ["-p", "--model", Self.model, "--no-session-persistence", "--tools", "", "--strict-mcp-config",
-                    "--output-format", "json", "--system-prompt", system, message]
-        let remaining = max(1, timeout - Date().timeIntervalSince(started))
-        switch ProcessRunner.run(exe.path, args, environment: env, cwd: dir, timeout: remaining) {
-        case .timedOut:
-            return .failure(.timeout)
-        case .failed(let message):
-            return .failure(.failed(message))
-        case .finished(let stdout):
-            guard let envelope = AssistantEnvelope.parse(stdout) else {
-                return .failure(.failed(String(stdout.prefix(200))))
-            }
-            return .success(AssistantReply(text: envelope.result, inputTokens: envelope.inputTokens,
-                                           outputTokens: envelope.outputTokens,
-                                           latency: Date().timeIntervalSince(started)))
         }
     }
 

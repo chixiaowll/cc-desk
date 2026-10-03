@@ -13,6 +13,17 @@ public protocol AgentAdapter: Sendable {
     func resumeCommand(sessionID: String) -> String
 }
 
+extension AgentAdapter {
+    /// 带第一句话启动（claude / codex / pi 都接受位置参数作为交互会话的第一条消息）。
+    /// 去掉换行；以 `-` 开头时前面补空格，避免被当成选项。
+    public func launchCommand(prompt: String?) -> String {
+        let text = (prompt ?? "").components(separatedBy: .newlines).joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return launchCommand() }
+        return launchCommand() + " " + ShellQuote.quote(text.hasPrefix("-") ? " " + text : text)
+    }
+}
+
 public struct ClaudeAdapter: AgentAdapter {
     public init() {}
     public var kind: AgentKind { .claude }

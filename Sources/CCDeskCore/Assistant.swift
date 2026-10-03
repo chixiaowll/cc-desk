@@ -2,23 +2,46 @@ import Foundation
 
 // MARK: - 上下文
 
-/// 语音助手（设计 §12）看到的一个侧栏会话。`id` 是给模型用的短 id（s1、s2…），`rowID` 是真实的侧栏行 id。
+/// 语音助手（设计 §12/§13）看到的一个侧栏会话。`shortID` 是给模型用的稳定短 id（s1、s2…），`rowID` 是真实的侧栏行 id。
 public struct AssistantSessionInfo: Equatable, Sendable {
     public let rowID: String
+    public let shortID: String
     public let title: String
     /// 项目目录名（分组标题）。
     public let dir: String
     public let agent: AgentKind
     public let status: AgentStatus
     public let isSelected: Bool
+    /// 在 CC Desk 内嵌终端里（false = 外部终端，只能读状态 / 接管）。
+    public let isEmbedded: Bool
 
-    public init(rowID: String, title: String, dir: String, agent: AgentKind, status: AgentStatus, isSelected: Bool) {
+    public init(rowID: String, shortID: String = "", title: String, dir: String, agent: AgentKind, status: AgentStatus,
+                isSelected: Bool, isEmbedded: Bool = true) {
         self.rowID = rowID
+        self.shortID = shortID
         self.title = title
         self.dir = dir
         self.agent = agent
         self.status = status
         self.isSelected = isSelected
+        self.isEmbedded = isEmbedded
+    }
+
+    func with(shortID: String) -> AssistantSessionInfo {
+        AssistantSessionInfo(rowID: rowID, shortID: shortID, title: title, dir: dir, agent: agent, status: status,
+                             isSelected: isSelected, isEmbedded: isEmbedded)
+    }
+
+    /// 给模型看的一项（list_sessions / 上下文共用）。
+    public var json: JSONValue {
+        var item: [String: JSONValue] = [
+            "id": .string(shortID), "title": .string(AssistantContext.clip(title, AssistantContext.titleLimit)),
+            "dir": .string(dir), "agent": .string(agent.rawValue), "status": .string(AssistantContext.statusCode(status)),
+        ]
+        if isSelected { item["selected"] = true }
+        if !isEmbedded { item["embedded"] = false }
+        if case .waiting(let reason?) = status { item["waitingFor"] = .string(AssistantContext.clip(reason, AssistantContext.titleLimit)) }
+        return .object(item)
     }
 }
 
@@ -36,19 +59,26 @@ public struct AssistantProject: Equatable, Sendable {
 /// 可恢复的历史会话。
 public struct AssistantHistoryInfo: Equatable, Sendable {
     public let sessionID: String
+    public let shortID: String
     public let title: String
     public let dir: String
     public let agent: AgentKind
 
-    public init(sessionID: String, title: String, dir: String, agent: AgentKind) {
+    public init(sessionID: String, shortID: String = "", title: String, dir: String, agent: AgentKind) {
         self.sessionID = sessionID
+        self.shortID = shortID
         self.title = title
         self.dir = dir
         self.agent = agent
     }
+
+    public var json: JSONValue {
+        ["id": .string(shortID), "title": .string(AssistantContext.clip(title, AssistantContext.titleLimit)),
+         "dir": .string(dir), "agent": .string(agent.rawValue)]
+    }
 }
 
-/// 一次意图解析的完整上下文。模型只看到短 id；解析结果按这里的映射换回真实 id。
+/// 发给助手的侧栏上下文。会话没有短 id 时按位置补 s1、s2…（测试 / 旧调用方）。
 public struct AssistantContext: Equatable, Sendable {
     public static let maxSessions = 30
     public static let maxHistory = 15
@@ -69,10 +99,15 @@ public struct AssistantContext: Equatable, Sendable {
 
     public init(sessions: [AssistantSessionInfo], projects: [AssistantProject] = [], history: [AssistantHistoryInfo] = [],
                 pendingText: String = "", lastTurnSummary: String? = nil, language: String) {
-        self.sessions = Array(sessions.prefix(Self.maxSessions))
+        self.sessions = sessions.prefix(Self.maxSessions).enumerated().map { i, s in
+            s.shortID.isEmpty ? s.with(shortID: "s\(i + 1)") : s
+        }
         var seen = Set<String>()
         self.projects = Array(projects.filter { seen.insert($0.path).inserted }.prefix(Self.maxProjects))
-        self.history = Array(history.prefix(Self.maxHistory))
+        self.history = history.prefix(Self.maxHistory).enumerated().map { i, h in
+            h.shortID.isEmpty ? AssistantHistoryInfo(sessionID: h.sessionID, shortID: "h\(i + 1)", title: h.title,
+                                                     dir: h.dir, agent: h.agent) : h
+        }
         self.pendingText = pendingText
         self.lastTurnSummary = lastTurnSummary
         self.language = language
@@ -80,22 +115,8 @@ public struct AssistantContext: Equatable, Sendable {
 
     public var selected: AssistantSessionInfo? { sessions.first(where: \.isSelected) }
 
-    public func shortID(session index: Int) -> String { "s\(index + 1)" }
-    public func shortID(history index: Int) -> String { "h\(index + 1)" }
-
-    /// 短 id（或真实行 id）-> 会话。
-    public func session(id: String) -> AssistantSessionInfo? {
-        if let i = sessions.indices.first(where: { shortID(session: $0) == id }) { return sessions[i] }
-        return sessions.first { $0.rowID == id }
-    }
-
-    public func historyItem(id: String) -> AssistantHistoryInfo? {
-        if let i = history.indices.first(where: { shortID(history: $0) == id }) { return history[i] }
-        return history.first { $0.sessionID == id }
-    }
-
     /// 状态的英文代号（给模型看）。
-    static func statusCode(_ status: AgentStatus) -> String {
+    public static func statusCode(_ status: AgentStatus) -> String {
         switch status {
         case .working: return "working"
         case .waiting: return "waiting_for_approval"
@@ -105,30 +126,16 @@ public struct AssistantContext: Equatable, Sendable {
         }
     }
 
-    /// 发给模型的上下文 JSON（键名固定、按字典序输出，便于测试）。
+    /// 每句话附带的上下文 JSON（键按字典序）：会话、项目名、未发送的内容、界面语言。历史会话通过 list_history 工具取。
     public func json() -> String {
-        var sessionList: [[String: Any]] = []
-        for (i, s) in sessions.enumerated() {
-            var item: [String: Any] = [
-                "id": shortID(session: i), "title": Self.clip(s.title, Self.titleLimit), "dir": s.dir,
-                "agent": s.agent.rawValue, "status": Self.statusCode(s.status), "isSelected": s.isSelected,
-            ]
-            if case .waiting(let reason?) = s.status { item["waitingFor"] = Self.clip(reason, Self.titleLimit) }
-            sessionList.append(item)
-        }
-        var root: [String: Any] = [
-            "sessions": sessionList,
-            "projects": projects.map { ["name": $0.name, "path": $0.path] },
-            "history": history.enumerated().map { i, h in
-                ["id": shortID(history: i), "title": Self.clip(h.title, Self.titleLimit), "dir": h.dir, "agent": h.agent.rawValue]
-            },
-            "pendingText": Self.clip(pendingText, Self.pendingLimit),
-            "uiLanguage": language,
+        var root: [String: JSONValue] = [
+            "sessions": .array(sessions.map(\.json)),
+            "projects": .array(projects.map { .string($0.name) }),
+            "uiLanguage": .string(language),
         ]
-        if let summary = lastTurnSummary, !summary.isEmpty { root["lastTurnSummary"] = Self.clip(summary, Self.summaryLimit) }
-        guard let data = try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys, .withoutEscapingSlashes]),
-              let text = String(data: data, encoding: .utf8) else { return "{}" }
-        return text
+        if !pendingText.isEmpty { root["pendingText"] = .string(Self.clip(pendingText, Self.pendingLimit)) }
+        if let summary = lastTurnSummary, !summary.isEmpty { root["lastTurnSummary"] = .string(Self.clip(summary, Self.summaryLimit)) }
+        return JSONValue.object(root).compact
     }
 
     /// 单行化并截断（超出时末尾加「…」）。
@@ -141,70 +148,50 @@ public struct AssistantContext: Equatable, Sendable {
 // MARK: - 提示词
 
 public enum AssistantPrompt {
-    /// 意图解析的系统提示词。
-    public static let intentSystem = """
-    You are the voice-control router of CC Desk, a macOS app that hosts several coding-agent terminal sessions \
-    (Claude Code, Codex, pi). The user speaks; each utterance is a speech-to-text transcript (it may contain \
-    homophone errors). Decide what the utterance means and reply with ONE JSON object only, no prose, no code fence:
-    {"action":"insert|send|cancel|approve|deny|switch|new|resume|close|query|answer|stop|none","args":{...},"speak":"..."}
+    /// 系统提示词的版本：变了就换新的常驻会话（旧会话按旧提示词说话）。
+    public static let residentVersion = 2
 
-    Actions:
-    - insert {"text"}: content meant for the coding agent (a task, an instruction about code, an answer to the agent). \
-    Put the cleaned utterance in text verbatim (fix obvious transcription errors, drop filler words; never summarize, \
-    never translate, never answer it yourself). The text is typed into the agent's input box without sending.
-    - send {}: submit the pending text ("发了吧", "提交", "send it").
-    - cancel {}: discard the pending dictated text ("刚才那句不要了", "清掉").
-    - approve {} / deny {}: answer the permission prompt of the SELECTED session (isSelected true). Only valid when \
-    that selected session's status is waiting_for_approval; other sessions waiting does not count.
-    - switch {"session_id"}: show another session ("切到 poems 那个").
-    - new {"dir","agent"}: start a session; dir must be a path from projects; agent is claude, codex or pi \
-    (default claude).
-    - resume {"history_session_id"} or {"query"}: reopen a past session from history; use query (title keywords) \
-    when no history entry clearly matches.
-    - close {"session_id"}: close a session ("关掉这个会话"; "this" means the selected one).
-    - query {"question","session_id"?}: a question about what a session did or is doing ("它在干嘛", \
-    "刚才改了哪些文件", "测试过了吗"); session_id defaults to the selected one.
-    - answer {"text"}: a question about CC Desk itself that the context answers ("有哪些会话", "几个在跑", \
-    "poems 那个是什么状态", "现在选中的是哪个"). text is the spoken answer in the uiLanguage (zh-Hans: at most 80 \
-    Chinese characters; en: at most 40 words): name sessions by dir and short title, say their status in plain words.
-    - stop {}: leave conversation mode ("退出对话模式").
-    - none {}: nothing to do (noise, chit-chat, thanks).
-
-    Rules:
-    - Content for the coding agent → insert. Controlling CC Desk → the matching action. If unsure → insert.
-    - Relayed speech is content for the agent: "问他一下X" / "跟它说X" / "告诉它X" / "让它X" / "在终端里输入X" → \
-    insert with text X. A question the user wants the agent to answer is insert, not query.
-    - query only when the user asks CC Desk itself to report on a session ("它在干嘛", "它刚才改了哪些文件").
-    - new only when the user explicitly asks to open/start a new session ("新开", "新建", "开一个").
-    - none only for noise, thanks or chit-chat — never for an unclear request (unclear → insert).
-    - "让它继续" / "continue": if the selected session is waiting_for_approval → approve; otherwise → insert with \
-    text "继续" (the agent should keep going).
-    - Only use session_id / history_session_id values that appear in the context. Match sessions by title, dir \
-    name or agent; "this one"/"它"/"这个" means the selected session.
-    - speak: a short natural spoken reply in the uiLanguage (zh-Hans: at most 20 Chinese characters; en: at most \
-    12 words), no markdown, no paths. For insert, speak may be empty.
-    """
-
-    /// 常驻助手会话的系统提示词：一个会话里处理三种带标签的消息。
+    /// 常驻助手会话的系统提示词（设计 §13）：用 CC Desk 的工具做事，最后的文字回复会被朗读。
     public static let residentSystem = """
     You are the voice assistant of CC Desk, a macOS app that hosts several coding-agent terminal sessions \
-    (Claude Code, Codex, pi). This is one long-running conversation: remember what the user said and what happened \
-    earlier, and use it to resolve references like "刚才那句", "搞错了", "再说一遍", "它", "那个".
+    (Claude Code, Codex, pi). The user talks to you by voice. This is one long-running conversation: remember what \
+    was said and done earlier to resolve "刚才那句", "搞错了", "再说一遍", "它", "那个".
+
     Every user message starts with a tag:
-    - [UTTERANCE]: a speech-to-text transcript to route. Reply with ONE JSON object as described below.
-    - [SUMMARIZE]: summarize the given transcript tail of a session's last turn for someone listening: 1–2 short \
-    spoken sentences (what it did, how it turned out, whether the user needs to act). Plain text, no markdown.
-    - [QUESTION]: answer a spoken question about a session from the given transcript tail and status in 1–2 short \
-    spoken sentences; if it does not say, say so. Plain text, no markdown.
-    Plain-text replies use the uiLanguage (zh-Hans: Simplified Chinese, at most 60 characters; en: at most 35 words), \
-    no code, no full paths (file names are fine), no lists.
-    Messages may include "Events" (what CC Desk did since your last reply, e.g. text typed into a session locally) \
-    and "Context" (the sidebar). "Context: unchanged" means the last Context you saw still holds, including ids. \
-    Session ids are only valid for the latest Context.
+    - [UTTERANCE]: a speech-to-text transcript (may contain homophone errors). Do what it asks using the ccdesk tools, \
+    then reply.
+    - [SUMMARIZE]: summarize the given transcript tail of a session's last turn in 1–2 short spoken sentences (what it \
+    did, how it turned out, whether the user needs to act). Do not call tools.
+    Messages may include "Events" (what happened in CC Desk since your last reply, e.g. the user typed into a session) \
+    and "Context" (the sidebar sessions with ids, project names, pendingText = typed but not sent yet). \
+    "Context: unchanged" means the last Context still holds. Session ids stay valid until a session closes.
 
-    For [UTTERANCE]:
+    How to act on an [UTTERANCE]:
+    - Use tools to do the work; several calls in one turn are fine. Call tools without commentary — only your final \
+    reply after the last tool result is spoken. Act directly — tools that need the user's \
+    confirmation ask the user themselves; if one returns "cancelled", just acknowledge briefly, do not ask again.
+    - Anything that sounds like work for a coding agent (改 / 加 / 修 / 实现 / 写 / 看看 / 跑 / 测试 / 解释…, a \
+    question for the agent, an answer to the agent) is content for the selected session (selected:true in the latest \
+    Context): call type_text at once with submit=false. Do not ask which file or function — the agent knows its own \
+    context; "这个" / "它" refer to what the agent is working on. Type the user's words \
+    verbatim: fix obvious transcription errors and drop filler words, but never rephrase, expand, translate or \
+    answer it yourself. Relayed speech ("问他一下X", "跟它说X", "告诉它X", "让它X") is content X for that session. \
+    Use submit=true only when the user also says to send it ("…然后发出去", "直接发").
+    - new_session only when explicitly asked ("新开", "新建", "开一个"; default agent claude). Its prompt is the \
+    user's words for the new agent, verbatim like type_text (e.g. "让它看下 README" → prompt "看下 README").
+    - "发了吧" / "提交" / "send it" → press_key enter in the session you last typed into (else the selected one). \
+    "刚才那句不要了" / "清掉" → clear_input there.
+    - Approve / deny a permission prompt → respond_approval, only for a session whose status is waiting_for_approval.
+    - Questions to you about a session ("它在干嘛", "改了哪些文件", "测试过了吗") → read_transcript (what it did) \
+    or read_screen (what it shows now), then answer from what you read. Answering never changes anything: no \
+    switch_to, type_text or press_key while answering. Never guess.
+    - If a tool returns candidates, ask which one in a short question. If a tool fails, say so briefly.
+    - Noise, thanks or chit-chat → no tool, a very short reply.
 
-    """ + intentSystem
+    Your final text reply is spoken aloud: use the uiLanguage (zh-Hans: Simplified Chinese, at most 40 characters; \
+    en: at most 25 words), plain spoken words, no markdown, no lists, no code, no paths, no session ids. For \
+    [SUMMARIZE] at most 60 characters / 35 words.
+    """
 
     /// 常驻会话里的一句话：标签 + 事件 + 话语 + 上下文（unchanged 时省略 JSON）。
     public static func residentUtterance(utterance: String, events: [String], contextJSON: String?) -> String {
@@ -216,202 +203,16 @@ public enum AssistantPrompt {
     }
 
     public static func residentSummary(title: String, digest: String, language: String) -> String {
-        "[SUMMARIZE] uiLanguage=\(language)\n" + summaryMessage(title: title, digest: digest)
-    }
-
-    public static func residentQuestion(question: String, title: String, status: AgentStatus, digest: String,
-                                        language: String) -> String {
-        "[QUESTION] uiLanguage=\(language)\n" + queryMessage(question: question, title: title, status: status, digest: digest)
-    }
-
-    /// 每次调用的用户消息：话语 + 上下文 JSON。
-    public static func intentMessage(utterance: String, context: AssistantContext) -> String {
-        "Utterance: \(AssistantContext.clip(utterance, 500))\nContext: \(context.json())"
-    }
-
-    /// 回复摘要的系统提示词。
-    public static func summarySystem(language: String) -> String {
-        """
-        You summarize a coding agent's last turn for a user who is listening, not reading. Given the tail of the \
-        session transcript (USER / ASSISTANT / EDIT / RUN / OUTPUT / ERROR lines), say in 1–2 short spoken sentences \
-        what the agent did in its last turn, how it turned out, and whether the user needs to do anything. \
-        \(languageRule(language)) Plain text only: no markdown, no code, no full paths (file names are fine), no lists.
-        """
-    }
-
-    public static func summaryMessage(title: String, digest: String) -> String {
-        "Session: \(AssistantContext.clip(title, AssistantContext.titleLimit))\nTranscript tail:\n\(digest)"
-    }
-
-    /// 状态问答的系统提示词。
-    public static func querySystem(language: String) -> String {
-        """
-        You answer a spoken question about a coding agent session. Use only the transcript tail provided \
-        (USER / ASSISTANT / EDIT / RUN / OUTPUT / ERROR lines) and the session status. Answer in 1–2 short spoken \
-        sentences; if the transcript does not say, say so briefly. \(languageRule(language)) Plain text only: no \
-        markdown, no code, no full paths (file names are fine), no lists.
-        """
-    }
-
-    public static func queryMessage(question: String, title: String, status: AgentStatus, digest: String) -> String {
-        """
-        Question: \(AssistantContext.clip(question, 300))
-        Session: \(AssistantContext.clip(title, AssistantContext.titleLimit)) (status: \(AssistantContext.statusCode(status)))
-        Transcript tail:
-        \(digest)
-        """
-    }
-
-    static func languageRule(_ language: String) -> String {
-        language == "zh-Hans" ? "Reply in Simplified Chinese, at most 60 characters." : "Reply in English, at most 35 words."
+        "[SUMMARIZE] uiLanguage=\(language)\nSession: \(AssistantContext.clip(title, AssistantContext.titleLimit))\n" +
+            "Transcript tail:\n\(digest)"
     }
 }
 
-// MARK: - 模型输出
+// MARK: - 朗读文字
 
-/// 校验后的助手指令（真实 id）。
-public enum AssistantCommand: Equatable, Sendable {
-    case insert(String)
-    case send
-    case cancel
-    case approve
-    case deny
-    case switchTo(rowID: String)
-    case new(dir: String, agent: AgentKind)
-    case resume(sessionID: String)
-    case close(rowID: String)
-    case query(question: String, rowID: String?)
-    case stop
-    case none
-}
-
-public struct AssistantDecision: Equatable, Sendable {
-    public let command: AssistantCommand
-    /// 要播报的话（可能为空）。
-    public let speak: String
-    /// 模型输出无效，已退回为插入原话。
-    public let isFallback: Bool
-
-    public init(command: AssistantCommand, speak: String, isFallback: Bool = false) {
-        self.command = command
-        self.speak = speak
-        self.isFallback = isFallback
-    }
-}
-
-public enum AssistantResponse {
-    public static let speakLimit = 40
-    public static let actions: Set<String> = [
-        "insert", "send", "cancel", "approve", "deny", "switch", "new", "resume", "close", "query", "answer", "stop", "none",
-    ]
-
-    /// 模型文字里的 JSON 对象：容忍 ```json 围栏与前后多余文字（取第一个 `{` 到最后一个 `}`）。
-    public static func jsonObject(in text: String) -> [String: Any]? {
-        var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if body.hasPrefix("```") {
-            body = body.replacingOccurrences(of: #"^```[A-Za-z]*\s*"#, with: "", options: .regularExpression)
-            body = body.replacingOccurrences(of: #"\s*```$"#, with: "", options: .regularExpression)
-        }
-        guard let start = body.firstIndex(of: "{"), let end = body.lastIndex(of: "}"), start < end else { return nil }
-        let slice = String(body[start...end])
-        return (try? JSONSerialization.jsonObject(with: Data(slice.utf8))) as? [String: Any]
-    }
-
-    /// 严格校验模型输出；任何不合法（JSON 坏、未知 action、不存在的 id…）都退回为插入原话，并播报「没听懂，已填入」。
-    public static func decide(modelText: String, utterance: String, context: AssistantContext) -> AssistantDecision {
-        let fallback = AssistantDecision(command: .insert(utterance), speak: L("assistant.fallback"), isFallback: true)
-        guard let obj = jsonObject(in: modelText), let action = (obj["action"] as? String)?.lowercased(),
-              actions.contains(action) else { return fallback }
-        let args = obj["args"] as? [String: Any] ?? [:]
-        let speak = cleanSpeak(obj["speak"] as? String ?? "")
-        func arg(_ key: String) -> String? {
-            guard let v = (args[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty else { return nil }
-            return v
-        }
-        let selected = context.selected
-
-        switch action {
-        case "insert":
-            let text = arg("text") ?? utterance
-            guard ConversationText.isMeaningful(text) else { return fallback }
-            return AssistantDecision(command: .insert(text), speak: speak)
-        case "send":
-            return AssistantDecision(command: .send, speak: speak)
-        case "cancel":
-            return AssistantDecision(command: .cancel, speak: speak)
-        case "approve", "deny":
-            // 不在等批准时回车会把输入框里的内容发出去，Esc 会打断 agent：一律不执行。
-            guard selected?.status.isWaiting == true else { return fallback }
-            return AssistantDecision(command: action == "approve" ? .approve : .deny, speak: speak)
-        case "switch":
-            guard let id = arg("session_id"), let s = context.session(id: id) else { return fallback }
-            return AssistantDecision(command: .switchTo(rowID: s.rowID), speak: speak)
-        case "close":
-            // 给了 id 就必须有效；没给时指选中的会话。
-            let target = arg("session_id").map { context.session(id: $0) } ?? selected
-            guard let s = target else { return fallback }
-            return AssistantDecision(command: .close(rowID: s.rowID), speak: speak)
-        case "new":
-            let agent = arg("agent").flatMap { AgentKind(rawValue: $0.lowercased()) }.flatMap { $0.isAgent ? $0 : nil }
-                ?? .claude
-            guard let dir = resolveProject(arg("dir"), context: context) else { return fallback }
-            return AssistantDecision(command: .new(dir: dir, agent: agent), speak: speak)
-        case "resume":
-            if let id = arg("history_session_id"), let h = context.historyItem(id: id) {
-                return AssistantDecision(command: .resume(sessionID: h.sessionID), speak: speak)
-            }
-            let query = arg("query") ?? arg("history_session_id") ?? ""
-            if let h = matchHistory(query, in: context.history) {
-                return AssistantDecision(command: .resume(sessionID: h.sessionID), speak: speak)
-            }
-            return AssistantDecision(command: .none, speak: L("assistant.resume.notFound"))
-        case "query":
-            let question = arg("question") ?? utterance
-            if let id = arg("session_id") {
-                guard let s = context.session(id: id) else { return fallback }
-                return AssistantDecision(command: .query(question: question, rowID: s.rowID), speak: speak)
-            }
-            return AssistantDecision(command: .query(question: question, rowID: selected?.rowID), speak: speak)
-        case "answer":
-            guard let text = cleanSpokenAnswer(arg("text") ?? (obj["speak"] as? String ?? "")) else { return fallback }
-            return AssistantDecision(command: .none, speak: text)
-        case "stop":
-            return AssistantDecision(command: .stop, speak: speak)
-        default:
-            return AssistantDecision(command: .none, speak: speak)
-        }
-    }
-
-    /// dir 必须是上下文里的项目路径（也接受项目名）；缺省时用选中会话所在的项目。
-    static func resolveProject(_ dir: String?, context: AssistantContext) -> String? {
-        guard let dir else {
-            guard let selected = context.selected else { return nil }
-            return context.projects.first { $0.name == selected.dir }?.path
-        }
-        let trimmed = dir.hasSuffix("/") && dir.count > 1 ? String(dir.dropLast()) : dir
-        if let p = context.projects.first(where: { $0.path == trimmed }) { return p.path }
-        return context.projects.first { $0.name.lowercased() == trimmed.lowercased() }?.path
-    }
-
-    /// 按标题关键词找历史会话：标题包含整个查询，或包含查询里的每个词。
-    static func matchHistory(_ query: String, in history: [AssistantHistoryInfo]) -> AssistantHistoryInfo? {
-        let q = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return nil }
-        if let h = history.first(where: { $0.title.lowercased().contains(q) }) { return h }
-        let words = q.split(whereSeparator: { $0 == " " }).map(String.init)
-        guard words.count > 1 else { return nil }
-        return history.first { h in words.allSatisfy { h.title.lowercased().contains($0) } }
-    }
-
-    /// 去掉 markdown 符号与多余空白，截断到 `speakLimit`。
-    public static func cleanSpeak(_ s: String) -> String {
-        var text = s.replacingOccurrences(of: #"[`*#_>]"#, with: "", options: .regularExpression)
-        text = text.components(separatedBy: .newlines).joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        return text.count > speakLimit ? String(text.prefix(speakLimit)) : text
-    }
-
-    /// 摘要 / 回答的文字：去掉围栏、markdown 与换行，截断到 `limit`。
-    public static func cleanSpokenAnswer(_ s: String, limit: Int = 160) -> String? {
+public enum AssistantSpeech {
+    /// 模型回复 → 朗读的文字：去掉围栏、markdown 与换行，截断到 `limit`；空时 nil。
+    public static func clean(_ s: String, limit: Int = 160) -> String? {
         var text = s.trimmingCharacters(in: .whitespacesAndNewlines)
         text = text.replacingOccurrences(of: #"```[\s\S]*?```"#, with: " ", options: .regularExpression)
         text = text.replacingOccurrences(of: #"[`*#_>]"#, with: "", options: .regularExpression)
@@ -424,26 +225,62 @@ public enum AssistantResponse {
 
 // MARK: - claude -p 的 JSON 输出
 
-/// `claude -p --output-format json` 的输出：`{"type":"result","is_error":false,"result":"…","usage":{…}}`。
+/// `claude -p --output-format json|stream-json` 的结果行：`{"type":"result","is_error":false,"result":"…","usage":{…}}`。
 public struct AssistantEnvelope: Equatable, Sendable {
     public let result: String
+    /// 本轮所有模型调用的输入 token 合计（含缓存）。
     public let inputTokens: Int
     public let outputTokens: Int
+    /// 最后一次模型调用的输入 token（= 当前上下文大小；多次调用工具时比合计小得多）。
+    public let contextTokens: Int
+
+    public init(result: String, inputTokens: Int, outputTokens: Int, contextTokens: Int? = nil) {
+        self.result = result
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.contextTokens = contextTokens ?? inputTokens
+    }
 
     public static func parse(_ stdout: String) -> AssistantEnvelope? {
         // 输出可能夹带别的行（如警告），取最后一个能解析的 JSON 对象行。
         for line in stdout.split(whereSeparator: \.isNewline).reversed() {
-            guard let obj = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
-                  obj["type"] as? String == "result" else { continue }
-            guard obj["is_error"] as? Bool != true, let result = obj["result"] as? String else { return nil }
-            let usage = obj["usage"] as? [String: Any] ?? [:]
-            func int(_ key: String) -> Int { (usage[key] as? NSNumber)?.intValue ?? 0 }
-            return AssistantEnvelope(result: result,
-                                     inputTokens: int("input_tokens") + int("cache_read_input_tokens")
-                                         + int("cache_creation_input_tokens"),
-                                     outputTokens: int("output_tokens"))
+            guard let obj = JSONValue.parse(String(line)), obj["type"] == "result" else { continue }
+            guard obj["is_error"]?.boolValue != true, let result = obj["result"]?.stringValue else { return nil }
+            let usage = obj["usage"] ?? [:]
+            func input(_ u: JSONValue) -> Int {
+                ["input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"].reduce(0) { $0 + (u[$1]?.intValue ?? 0) }
+            }
+            let last = usage["iterations"]?.arrayValue?.last.map(input)
+            return AssistantEnvelope(result: result, inputTokens: input(usage),
+                                     outputTokens: usage["output_tokens"]?.intValue ?? 0, contextTokens: last)
         }
         return nil
+    }
+}
+
+/// 一轮里模型「最后说的话」：stream-json 的 assistant 消息里，最后一次工具调用之后的文字。
+/// haiku 有时在调用工具前先说一句「我来看看」，这些不该被朗读；result 字段会把它们拼在一起。
+public struct AssistantTurnText: Equatable, Sendable {
+    public private(set) var text = ""
+
+    public init() {}
+
+    /// 处理一条 stream-json 消息；非 assistant 消息忽略。
+    public mutating func consume(_ message: JSONValue) {
+        guard message["type"] == "assistant", let content = message["message"]?["content"]?.arrayValue else { return }
+        for block in content {
+            switch block["type"]?.stringValue {
+            case "tool_use"?: text = ""
+            case "text"?:
+                if let t = block["text"]?.stringValue { text += (text.isEmpty ? "" : "\n") + t }
+            default: break
+            }
+        }
+    }
+
+    /// 要朗读的回复：有工具调用之后的文字就用它，否则用 result。
+    public func spoken(result: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? result : text
     }
 }
 

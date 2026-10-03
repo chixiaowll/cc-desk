@@ -160,6 +160,8 @@ public enum ConversationCommand: Equatable, Sendable {
     case deny
     /// 回到待命（常驻模式下结束这一轮对话，需要再次唤醒）。
     case rest
+    /// 撤销上一个可撤销的动作（设计 §13）。
+    case undo
 }
 
 /// 把整句识别结果解析成指令（整句匹配，容忍标点、首尾语气词）。批准 / 拒绝只在 agent 等批准时生效。
@@ -174,6 +176,10 @@ public enum ConversationCommands {
     static let rest: Set<String> = [
         "休息一下", "休息", "你先休息", "先休息", "待命", "先这样", "没事了", "去休息", "你休息",
         "rest", "standby", "thatsall", "gotosleep",
+    ]
+    static let undo: Set<String> = [
+        "撤销", "撤回", "撤销上一步", "撤销刚才的", "撤销刚才的操作", "撤回刚才的", "撤回上一步", "撤销一下", "撤回一下",
+        "undo", "undothat", "undoit", "undolast",
     ]
     static let approve: Set<String> = [
         "同意", "可以", "好的", "是", "确认", "是的", "允许", "批准", "可以的", "好",
@@ -190,6 +196,7 @@ public enum ConversationCommands {
             if cancel.contains(candidate) { return .cancel }
             if stop.contains(candidate) { return .stop }
             if rest.contains(candidate) { return .rest }
+            if undo.contains(candidate) { return .undo }
             if waiting, approve.contains(candidate) { return .approve }
             if waiting, deny.contains(candidate) { return .deny }
         }
@@ -341,6 +348,8 @@ public enum ConversationAction: Equatable, Sendable {
     case deny
     /// 回到待命。
     case standby
+    /// 撤销上一个可撤销的动作。
+    case undo
 }
 
 /// 对话模式的状态机：待命时只听唤醒词（以及刚播报过「需要批准」时的批准 / 拒绝），唤醒后逐句追加、执行指令；
@@ -461,6 +470,8 @@ public struct ConversationSession: Equatable {
             return [.approve]
         case .deny?:
             return [.deny]
+        case .undo?:
+            return [.undo]
         case nil:
             return [routesToAssistant ? .assist(text) : .insert(text)]
         }

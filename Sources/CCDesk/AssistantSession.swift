@@ -6,19 +6,25 @@ import CCDeskCore
 ///
 /// - 请求串行：一次只有一条消息在等回复，其余排队。
 /// - 进程退出 / 超时：当前请求失败，下一条请求时重新启动（接回同一会话）；接回失败则换新会话。
-/// - 上下文超过 `rotateInputTokens` 时，在这条回复之后换新会话。
+/// - 上下文（最后一次模型调用的输入）超过 `rotateInputTokens` 时，在这条回复之后换新会话。
+/// - 朗读的回复取最后一次工具调用之后的文字（AssistantTurnText）。
 /// - `generation` 每启动一次新进程加一，调用方据此判断要不要重发完整的侧栏上下文。
+/// - 存下的会话带系统提示词版本；版本不同（提示词改了）就换新会话。
 final class AssistantSession: @unchecked Sendable {
     static let rotateInputTokens = 60_000
 
     struct Stored: Codable {
         var id: String
         var createdAt: Date
+        /// 创建时的系统提示词版本（旧版本没有这个字段）。
+        var promptVersion: Int?
     }
 
     private let queue = DispatchQueue(label: "cc-desk.assistant.session")
     private let executable: () -> (path: String, searchPath: String?)?
     private let system: String
+    private let promptVersion: Int
+    private let toolArguments: () -> [String]
     private let model: String
     private let directory: URL
     private var storeURL: URL { directory.appendingPathComponent("session.json") }
@@ -28,17 +34,21 @@ final class AssistantSession: @unchecked Sendable {
     private var buffer = Data()
     private var pending: [(message: String, timeout: TimeInterval, completion: (Result<AssistantReply, AssistantError>) -> Void)] = []
     private var current: (completion: (Result<AssistantReply, AssistantError>) -> Void, started: Date, token: Int)?
+    /// 当前请求里模型最后说的话（最后一次工具调用之后）。
+    private var turnText = AssistantTurnText()
     private var token = 0
     private var resumedID: String?
     private var answeredSinceStart = false
     private var rotateAfterReply = false
     private var _generation = 0
 
-    init(directory: URL, model: String, system: String,
+    init(directory: URL, model: String, system: String, promptVersion: Int, toolArguments: @escaping () -> [String],
          executable: @escaping () -> (path: String, searchPath: String?)?) {
         self.directory = directory
         self.model = model
         self.system = system
+        self.promptVersion = promptVersion
+        self.toolArguments = toolArguments
         self.executable = executable
     }
 
@@ -84,6 +94,7 @@ final class AssistantSession: @unchecked Sendable {
         token += 1
         let mine = token
         current = (next.completion, Date(), mine)
+        turnText = AssistantTurnText()
         let line = Self.userLine(next.message)
         stdin?.write(Data((line + "\n").utf8))
         queue.asyncAfter(deadline: .now() + next.timeout) { [self] in
@@ -94,21 +105,29 @@ final class AssistantSession: @unchecked Sendable {
     }
 
     private func loadStored() -> Stored? {
-        guard let data = try? Data(contentsOf: storeURL) else { return nil }
-        return try? JSONDecoder().decode(Stored.self, from: data)
+        guard let data = try? Data(contentsOf: storeURL),
+              let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return nil }
+        guard stored.promptVersion == promptVersion else {
+            AssistantDiag.log("assistant session \(stored.id) has prompt version \(stored.promptVersion ?? 1), " +
+                              "want \(promptVersion): starting a new session")
+            try? FileManager.default.removeItem(at: storeURL)
+            return nil
+        }
+        return stored
     }
 
     private func start() -> Bool {
         guard let exe = executable() else { return false }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        var args = ["-p", "--model", model, "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
-                    "--tools", "", "--strict-mcp-config", "--system-prompt", system]
+        var args = ["-p", "--model", model, "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
+            + toolArguments() + ["--system-prompt", system]
         if let stored = loadStored() {
             args += ["--resume", stored.id]
             resumedID = stored.id
         } else {
             let id = UUID().uuidString.lowercased()
-            if let data = try? JSONEncoder().encode(Stored(id: id, createdAt: Date())) { try? data.write(to: storeURL) }
+            let stored = Stored(id: id, createdAt: Date(), promptVersion: promptVersion)
+            if let data = try? JSONEncoder().encode(stored) { try? data.write(to: storeURL) }
             args += ["--session-id", id]
             resumedID = nil
         }
@@ -157,8 +176,9 @@ final class AssistantSession: @unchecked Sendable {
         while let nl = buffer.firstIndex(of: 0x0A) {
             let lineData = buffer[buffer.startIndex..<nl]
             buffer.removeSubrange(buffer.startIndex...nl)
-            guard let line = String(data: lineData, encoding: .utf8), line.contains("\"result\"") else { continue }
-            handleResult(line)
+            guard let line = String(data: lineData, encoding: .utf8) else { continue }
+            if line.contains("\"type\":\"assistant\""), let message = JSONValue.parse(line) { turnText.consume(message) }
+            if line.contains("\"result\"") { handleResult(line) }
         }
     }
 
@@ -168,10 +188,11 @@ final class AssistantSession: @unchecked Sendable {
         self.current = nil
         if let envelope = AssistantEnvelope.parse(line) {
             answeredSinceStart = true
-            current.completion(.success(AssistantReply(text: envelope.result, inputTokens: envelope.inputTokens,
+            current.completion(.success(AssistantReply(text: turnText.spoken(result: envelope.result),
+                                                       inputTokens: envelope.inputTokens,
                                                        outputTokens: envelope.outputTokens,
                                                        latency: Date().timeIntervalSince(current.started))))
-            if envelope.inputTokens > Self.rotateInputTokens { rotateAfterReply = true }
+            if envelope.contextTokens > Self.rotateInputTokens { rotateAfterReply = true }
         } else {
             current.completion(.failure(.failed(String(line.prefix(200)))))
         }
