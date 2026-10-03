@@ -43,6 +43,13 @@ final class AssistantClient: @unchecked Sendable {
     private var executable: Executable?
     private var resolveFailedAt: Date?
 
+    /// 常驻助手会话（意图 / 问答 / 摘要共用，有上下文）。
+    lazy var session = AssistantSession(directory: Self.workingDirectory, model: Self.model,
+                                        system: AssistantPrompt.residentSystem) { [weak self] in
+        guard let self else { return nil }
+        return self.resolveQueue.sync { self.resolve() }.map { ($0.path, $0.searchPath) }
+    }
+
     /// 已解析到 claude（nil = 尚未解析）。
     var isAvailable: Bool? {
         lock.lock(); defer { lock.unlock() }

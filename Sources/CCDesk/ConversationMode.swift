@@ -323,17 +323,20 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             let payload = ConversationText.insertion(text, after: inserted)
             terminal.send(text: payload, submit: false)
             inserted += payload
+            assistant.note("typed \"\(text)\" into \(targetTitle)")
         case .send:
             guard let terminal else { return noTarget() }
             terminal.sendKeys("\r")
             inserted = ""
             showToast(L("conversation.toast.sent"))
+            assistant.note("pressed Enter (sent) in \(targetTitle)")
         case .cancel:
             // Claude Code 的 Ctrl+U 只删到当前可视行的行首（长文本自动换行后删不干净），
             // 按插入的字符数退格才能准确删掉本轮插入的内容（实测 Claude Code 中可靠）。
             if !inserted.isEmpty { terminal?.sendKeys(String(repeating: "\u{7f}", count: inserted.count)) }
             inserted = ""
             showToast(L("conversation.toast.cleared"))
+            assistant.note("cleared the pending text in \(targetTitle)")
         case .approve:
             // Claude Code / Codex 的权限对话框默认高亮第一项「Yes」，回车即批准。
             terminal?.sendKeys("\r")
@@ -345,6 +348,17 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             turnOff()
             showToast(L("conversation.toast.stopped"))
         }
+    }
+
+    /// 选中会话的标题（给助手的事件记录用）。
+    private var targetTitle: String {
+        host?.assistantContext(pendingText: "", lastSummary: nil).selected.map { "\($0.title) (\($0.dir))" } ?? "no session"
+    }
+
+    /// 菜单「重置助手对话」：丢弃助手的对话记忆。
+    func resetAssistant() {
+        assistant.reset()
+        showToast(L("assistant.toast.reset"))
     }
 
     /// 要往终端里输入，但当前没选中 CC Desk 里的会话。
@@ -380,7 +394,9 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             return perform(.insert(content), target: target)
         }
         if AssistantLocal.isListQuestion(text) {
-            return speak(AssistantLocal.listAnswer(sessions: context.sessions))
+            let answer = AssistantLocal.listAnswer(sessions: context.sessions)
+            assistant.note("user asked \"\(text)\"; CC Desk answered \"\(answer)\"")
+            return speak(answer)
         }
         let current = generation
         beginThinking()

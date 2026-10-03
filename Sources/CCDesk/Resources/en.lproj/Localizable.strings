@@ -202,6 +202,7 @@
 "voice.speech.premium" = "%@ (Premium)";
 "voice.speech.enhanced" = "%@ (Enhanced)";
 "voice.speech.sample" = "Hi, I’m your CC Desk assistant";
+"menu.resetAssistant" = "Reset Assistant Conversation";
 "menu.autoStartConversation" = "Start Assistant at Launch";
 "menu.persistentConversation" = "Stay Awake After Wake Word";
 "menu.turnSummaries" = "Spoken Turn Summaries";
@@ -214,3 +215,4 @@
 "assistant.toast.takenOver" = "Taken over: %@";
 "assistant.takeOver.done" = "Done, moved it here";
 "assistant.toast.cancelled" = "Cancelled";
+"assistant.toast.reset" = "Assistant memory cleared";

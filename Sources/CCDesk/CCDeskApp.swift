@@ -159,6 +159,7 @@ struct CCDeskApp: App {
                 TurnSummaryMenuItem()
                 PersistentConversationMenuItem()
                 AutoStartConversationMenuItem()
+                Button(L("menu.resetAssistant")) { delegate.model.conversation.resetAssistant() }
                 SpeechVoiceMenu(conversation: delegate.model.conversation)
                 Divider()
                 ForEach(1...9, id: \.self) { index in

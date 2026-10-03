@@ -202,6 +202,7 @@
 "voice.speech.premium" = "%@（高级）";
 "voice.speech.enhanced" = "%@（增强）";
 "voice.speech.sample" = "你好，我是 CC Desk 助手";
+"menu.resetAssistant" = "重置助手对话";
 "menu.autoStartConversation" = "启动时开启助手";
 "menu.persistentConversation" = "常驻对话";
 "menu.turnSummaries" = "回复摘要";
@@ -214,3 +215,4 @@
 "assistant.toast.takenOver" = "已接管：%@";
 "assistant.takeOver.done" = "好，已移过来";
 "assistant.toast.cancelled" = "已取消";
+"assistant.toast.reset" = "已清空助手的对话记忆";

@@ -65,6 +65,8 @@ public final class TranscriptIndex {
             let sessionID = url.deletingPathExtension().lastPathComponent
             if live.contains(sessionID) { continue }
             guard let e = entry(for: url), let cwd = e.cwd else { continue }
+            // CC Desk 自己的语音助手会话（~/.cc-desk/assistant）不进历史。
+            if SessionBuilder.isInternal(cwd: cwd, internalDirectory: SessionBuilder.internalDirectory) { continue }
             let title = e.meta.displayTitle(fallbackName: nil, fallbackIsDerived: true)
             items.append(HistoryItem(sessionID: sessionID, cwd: cwd, title: title, lastPrompt: e.meta.lastPrompt, modifiedAt: e.mtime,
                                      kind: .claude))

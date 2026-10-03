@@ -132,7 +132,7 @@ public struct AssistantContext: Equatable, Sendable {
     }
 
     /// 单行化并截断（超出时末尾加「…」）。
-    static func clip(_ s: String, _ limit: Int) -> String {
+    public static func clip(_ s: String, _ limit: Int) -> String {
         let line = s.components(separatedBy: .newlines).joined(separator: " ").trimmingCharacters(in: .whitespaces)
         return line.count > limit ? String(line.prefix(limit - 1)) + "…" : line
     }
@@ -184,6 +184,45 @@ public enum AssistantPrompt {
     - speak: a short natural spoken reply in the uiLanguage (zh-Hans: at most 20 Chinese characters; en: at most \
     12 words), no markdown, no paths. For insert, speak may be empty.
     """
+
+    /// 常驻助手会话的系统提示词：一个会话里处理三种带标签的消息。
+    public static let residentSystem = """
+    You are the voice assistant of CC Desk, a macOS app that hosts several coding-agent terminal sessions \
+    (Claude Code, Codex, pi). This is one long-running conversation: remember what the user said and what happened \
+    earlier, and use it to resolve references like "刚才那句", "搞错了", "再说一遍", "它", "那个".
+    Every user message starts with a tag:
+    - [UTTERANCE]: a speech-to-text transcript to route. Reply with ONE JSON object as described below.
+    - [SUMMARIZE]: summarize the given transcript tail of a session's last turn for someone listening: 1–2 short \
+    spoken sentences (what it did, how it turned out, whether the user needs to act). Plain text, no markdown.
+    - [QUESTION]: answer a spoken question about a session from the given transcript tail and status in 1–2 short \
+    spoken sentences; if it does not say, say so. Plain text, no markdown.
+    Plain-text replies use the uiLanguage (zh-Hans: Simplified Chinese, at most 60 characters; en: at most 35 words), \
+    no code, no full paths (file names are fine), no lists.
+    Messages may include "Events" (what CC Desk did since your last reply, e.g. text typed into a session locally) \
+    and "Context" (the sidebar). "Context: unchanged" means the last Context you saw still holds, including ids. \
+    Session ids are only valid for the latest Context.
+
+    For [UTTERANCE]:
+
+    """ + intentSystem
+
+    /// 常驻会话里的一句话：标签 + 事件 + 话语 + 上下文（unchanged 时省略 JSON）。
+    public static func residentUtterance(utterance: String, events: [String], contextJSON: String?) -> String {
+        var lines = ["[UTTERANCE]"]
+        if !events.isEmpty { lines.append("Events: " + events.joined(separator: "; ")) }
+        lines.append("Utterance: \(AssistantContext.clip(utterance, 500))")
+        lines.append("Context: " + (contextJSON ?? "unchanged"))
+        return lines.joined(separator: "\n")
+    }
+
+    public static func residentSummary(title: String, digest: String, language: String) -> String {
+        "[SUMMARIZE] uiLanguage=\(language)\n" + summaryMessage(title: title, digest: digest)
+    }
+
+    public static func residentQuestion(question: String, title: String, status: AgentStatus, digest: String,
+                                        language: String) -> String {
+        "[QUESTION] uiLanguage=\(language)\n" + queryMessage(question: question, title: title, status: status, digest: digest)
+    }
 
     /// 每次调用的用户消息：话语 + 上下文 JSON。
     public static func intentMessage(utterance: String, context: AssistantContext) -> String {
