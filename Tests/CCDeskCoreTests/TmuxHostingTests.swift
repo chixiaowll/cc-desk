@@ -47,7 +47,7 @@ final class TmuxHostingTests: XCTestCase {
             "set -g status off", "set -g prefix None", "set -g prefix2 None", "unbind -q -a -T prefix",
             "set -s escape-time 0", "set -g history-limit 20000", "set -g mouse on",
             "set -g set-titles on", "set -g set-titles-string '#{pane_title}'",
-            "set -s extended-keys on", "set -s extended-keys-format csi-u",
+            "set -s extended-keys always", "set -s extended-keys-format csi-u",
             "set -g default-terminal tmux-256color", "set -s exit-empty on", "set -wg remain-on-exit off",
             "set -g destroy-unattached off", "set -wg window-size latest", "set -s set-clipboard on",
         ] {
@@ -116,8 +116,7 @@ final class TmuxHostingTests: XCTestCase {
 
     func testPaneCommandHidesTmuxFromThePane() {
         let args = TmuxCommand.paneCommand(shell: "/bin/zsh", command: "claude")
-        XCTAssertEqual(args, ["/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE", "-u", "TERM_PROGRAM_VERSION",
-                              "TERM_PROGRAM=CCDesk", "COLORTERM=truecolor",
+        XCTAssertEqual(args, ["/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE", "COLORTERM=truecolor",
                               "/bin/zsh", "-l", "-i", "-c", "claude\nexec \"$SHELL\" -l -i"])
         XCTAssertEqual(Array(TmuxCommand.paneCommand(shell: "/bin/bash", command: nil).suffix(3)),
                        ["/bin/bash", "-l", "-i"])

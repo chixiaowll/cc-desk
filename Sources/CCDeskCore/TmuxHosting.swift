@@ -79,8 +79,10 @@ public enum TmuxConfig {
         set -s escape-time 0
         set -s set-clipboard on
         set -s focus-events on
-        # 修饰键（Shift+Enter 等）：程序请求时用 CSI u 报告；Claude Code 会请求。
-        set -s extended-keys on
+        # 修饰键（Shift+Enter 等）用 CSI u 报告。always：没有传统编码的组合键（Shift+Enter、Ctrl+Enter…）
+        # 即使程序没请求也这样报告（Codex 不请求，但能解析，Shift+Enter 才是换行而不是提交）；
+        # Claude Code / pi 自己请求 mode 2。
+        set -s extended-keys always
         set -s extended-keys-format csi-u
         # 外层终端是 SwiftTerm（TERM=xterm-256color）：真彩色、扩展按键、剪贴板、标题、焦点、光标样式。
         set -s terminal-features[90] 'xterm*:RGB:extkeys:clipboard:title:focus:ccolour:cstyle:sync'
@@ -239,10 +241,11 @@ public struct TmuxCommand: Equatable, Sendable {
     }
 
     /// 窗格里实际运行的命令：去掉 tmux 写入的 TMUX / TMUX_PANE（窗格里的 tmux 命令不应连到 CC Desk 的服务器，
-    /// 用户自己的 tmux 也不会因「嵌套」拒绝启动），并恢复 CC Desk 的终端身份；随后是与直连 PTY 相同的登录交互 shell。
+    /// 用户自己的 tmux 也不会因「嵌套」拒绝启动）；随后是与直连 PTY 相同的登录交互 shell。
+    /// 保留 tmux 写入的 `TERM_PROGRAM=tmux`：Claude Code 据此请求 modifyOtherKeys（Shift+Enter 才能换行）；
+    /// 改成 CCDesk 时它会去问 kitty 键盘协议，tmux 不回应，Shift+Enter 就退化成回车。
     public static func paneCommand(shell: String, command: String?) -> [String] {
-        ["/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE", "-u", "TERM_PROGRAM_VERSION",
-         "TERM_PROGRAM=CCDesk", "COLORTERM=truecolor", shell] + LaunchSpec.shellArgs(command: command)
+        ["/usr/bin/env", "-u", "TMUX", "-u", "TMUX_PANE", "COLORTERM=truecolor", shell] + LaunchSpec.shellArgs(command: command)
     }
 }
 

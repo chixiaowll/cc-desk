@@ -24,7 +24,7 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 
 ### 非目标（v1 不做）
 
-- 后台守护进程（关闭 App 后 session 不继续运行）
+- 后台守护进程（v1 初版关闭 App 后 session 不继续运行；后来改由 tmux 托管保持，见 §4.9）
 - 右侧分屏 / 同时显示多个终端
 - 手机端、远程机器
 - 搜索、自定义分组、标签（按项目目录的自动分组在 v1 内）
@@ -252,7 +252,7 @@ protocol TerminalInputSink {
 
 - CC Desk 使用专用的 tmux 服务器：`tmux -L ccdesk -f ~/.cc-desk/tmux.conf -u …`。从不连接用户默认的 tmux 服务器，也不读 `~/.tmux.conf`。`CCDESK_TMUX_SOCKET` 可换 socket 名（隔离测试用）。
 - 每个内嵌终端 = 一个 tmux 会话 `ccdesk-<终端 UUID>`（一个窗口、一个窗格）。新建时先 `new-session -d -P -F '#{session_name}\t#{pane_pid}\t#{pane_tty}' -s … -c <cwd> -x <cols> -y <rows> -e CC_DESK=1 -e CC_DESK_TERMINAL_ID=<uuid> -- <窗格命令>`，再让 SwiftTerm 运行 `tmux attach-session -t =ccdesk-<uuid>`。SwiftTerm 里只是 tmux 客户端。
-- 窗格命令：`/usr/bin/env -u TMUX -u TMUX_PANE -u TERM_PROGRAM_VERSION TERM_PROGRAM=CCDesk COLORTERM=truecolor $SHELL -l -i [-c "<命令>\nexec $SHELL -l -i"]`，与直连时相同的登录交互 shell。去掉 `TMUX`，这样窗格里的 `tmux` 命令不会连到（或误杀）CC Desk 的服务器，用户自己的 tmux 也不会拒绝「嵌套」启动。
+- 窗格命令：`/usr/bin/env -u TMUX -u TMUX_PANE COLORTERM=truecolor $SHELL -l -i [-c "<命令>\nexec $SHELL -l -i"]`，与直连时相同的登录交互 shell。去掉 `TMUX`，这样窗格里的 `tmux` 命令不会连到（或误杀）CC Desk 的服务器，用户自己的 tmux 也不会拒绝「嵌套」启动。保留 tmux 写入的 `TERM_PROGRAM=tmux`：实测 Claude Code 只在 `TERM_PROGRAM=tmux` 时请求 modifyOtherKeys（`pane_key_mode` 为 `Ext 2`）；设成 `CCDesk` 时它改问 kitty 键盘协议，tmux 不回应，`pane_key_mode` 停在 `VT10x`，Shift+Enter 就退化成回车。
 - 环境：tmux 客户端的环境（同 `LaunchSpec.sanitizedEnvironment`，去掉会话级 Claude / Codex 变量与宿主终端变量，`TERM=xterm-256color`、`COLORTERM=truecolor`、缺省时补 UTF-8 的 `LANG`）会成为服务器的全局环境，所以不含 `CC_DESK_TERMINAL_ID`；终端 id 用 `-e` 只写进对应会话。窗格内 `TERM=tmux-256color`（macOS 14 自带该 terminfo）。
 - tty 映射：agent 的 tty 是**窗格**的 tty。新建 / 附着时就拿到窗格 shell 的 pid（`pane_pid`），之后每秒的轮询照旧用 `ps` 的进程表求 `tty(of: pane_pid)`，不再为轮询起 tmux 子进程。hook 状态、Codex / pi 的 tty 匹配、「已结束」判断都沿用 tty。
 
@@ -261,7 +261,7 @@ protocol TerminalInputSink {
 - `status off`、`prefix None` / `prefix2 None`、`unbind -q -a -T prefix`：没有前缀键，所有键盘按键交给 agent；`escape-time 0`。
 - `set-titles on` + `set-titles-string '#{pane_title}'`：程序的 OSC 0/2 标题原样转给 SwiftTerm（屏幕规则的 `osc_title` 依赖）。
 - 真彩色：`terminal-features[90] 'xterm*:RGB:extkeys:clipboard:title:focus:ccolour:cstyle:sync'`（固定下标，重复加载不累积）。`focus-events on`、`allow-passthrough on`、`set-clipboard on`（复制经 OSC 52 到 SwiftTerm，再写入系统剪贴板）。
-- 修饰键：`extended-keys on` + `extended-keys-format csi-u`。Claude Code 会请求 modifyOtherKeys 2（窗格 `pane_key_mode` 为 `Ext 2`），此时 Shift+Enter 以 `ESC[13;2u` 到达。SwiftTerm 不支持 modifyOtherKeys，tmux 也不发 kitty 键盘协议请求，SwiftTerm 默认把 Shift+Enter 发成 `\r`；所以 CC Desk 在 tmux 托管的终端里拦截 Return + Shift / Ctrl，改发 `ESC[13;2u` / `ESC[13;5u`。tmux 再按窗格程序请求的模式转发：普通 shell 收到回车。Shift+Tab 本来就是 `ESC[Z`，tmux 会转换。
+- 修饰键：`extended-keys always` + `extended-keys-format csi-u`。SwiftTerm 不支持 modifyOtherKeys，tmux 也不发 kitty 键盘协议请求，所以 SwiftTerm 把 Shift+Enter 发成 `\r`。CC Desk 因此在 tmux 托管的终端里拦截 Return + Shift / Ctrl，改发 `ESC[13;2u` / `ESC[13;5u`，tmux 会解析。实测各 agent 的 `pane_key_mode`：Claude Code（在 `TERM_PROGRAM=tmux` 时）与 pi 自己请求 `Ext 2`；Codex 不请求（`VT10x`），但能解析 CSI u。`always` 让没有传统编码的组合键（Shift+Enter、Ctrl+Enter…）对所有程序都以 CSI u 报告，于是 Codex 里 Shift+Enter 是换行而不是提交（实测输入 `abc`、Shift+Enter、`def` 得到两行、未提交）。普通键与 Ctrl+字母不受影响。Shift+Tab 本来就是 `ESC[Z`，tmux 会转换。
 - 鼠标：`mouse on`。不选 `mouse off` 的原因是：tmux 客户端用备用屏幕，SwiftTerm 里没有回滚区，`mouse off` 时滚轮会被 SwiftTerm 转成方向键（发给 Claude Code 就成了翻输入历史）。`mouse on` 时滚轮进入 tmux 复制模式，每格滚一行，翻看 20000 行的 `history-limit` 历史；滚回底部自动退出（`copy-mode -e`）。窗格程序自己请求鼠标时原样转发。拖选在复制模式里进行，松开即复制（OSC 52）并回到底部；按住 Shift 拖选是 SwiftTerm 自己的选择（只限当前屏幕，⌘C 复制）。右键菜单解除绑定。
 - 复制模式里键盘会被 tmux 吞掉，所以 CC Desk 记下「用户向上滚过」，下一次输入（键盘、语音、助手 `type_text` / `send_keys`）前先执行 `if -F '#{pane_in_mode}' 'send -X cancel'`（一次几毫秒）。这段时间屏幕上是历史，屏幕检测先用 `display -p '#{pane_in_mode}'` 确认已回到底部再做。
 - 其他：`exit-empty on`（没有会话时服务器退出）、`destroy-unattached off`、`remain-on-exit off`、`aggressive-resize on`、`window-size latest`、`automatic-rename off`、`mode-keys emacs`。服务器已在运行时（上一版 App 启动的），启动时 `source-file` 重新加载配置。
@@ -295,7 +295,8 @@ protocol TerminalInputSink {
 - 内置的 3.6a 与 Homebrew 的版本可能不同。tmux 协议版本多年未变，但若两者不兼容，`list-panes` 会报错，此时新会话回退为直连。
 - tmux 服务器自身崩溃或被 `kill-server` 时，所有会话一起结束；终端随之移除，需从历史恢复。
 - socket 位于 `/private/tmp/tmux-<uid>/ccdesk`；若被系统清理，可向服务器发 `SIGUSR1` 重建（tmux 的标准做法）。
-- 窗格里看不到 `TMUX` 变量，依赖它的程序（如需要 tmux passthrough 包装的通知）不会以为自己在 tmux 里。
+- 窗格里看不到 `TMUX` 变量（`TERM_PROGRAM` 仍是 `tmux`）；只认 `TMUX` 的程序不会以为自己在 tmux 里。
+- 在普通 shell 提示符下按 Shift+Enter 会收到 `ESC[13;2u`（直连时是回车），zsh 可能显示一段乱码。
 
 ## 5. 关键流程
 

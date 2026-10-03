@@ -22,8 +22,8 @@ extension EmbeddedTerminal {
     }
 
     /// tmux 不会请求外层终端的 kitty 键盘协议，SwiftTerm 于是把 Shift+Enter 发成普通回车。
-    /// 这里改发 CSI u（`ESC [13;2u`）：tmux 能解析，并按窗格里程序请求的模式转发（Claude Code 请求了扩展按键，
-    /// 收到的就是 Shift+Enter；普通 shell 收到的是回车）。返回 true 表示已处理。
+    /// 这里改发 CSI u（`ESC [13;2u`）：tmux 能解析，并按 `extended-keys always` 以 CSI u 转给窗格里的程序
+    /// （Claude Code / pi 请求了 mode 2，Codex 不请求但能解析）。返回 true 表示已处理。
     func handleTmuxKey(_ event: NSEvent) -> Bool {
         guard case .tmux = backend else { return false }
         // ⌘ 组合键是菜单快捷键（如 ⌘C 复制），不是输入。

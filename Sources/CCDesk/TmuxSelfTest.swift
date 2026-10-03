@@ -84,7 +84,7 @@ enum TmuxSelfTest {
         }
         check(paneEnv["TERM"] == "tmux-256color", "pane TERM=\(paneEnv["TERM"] ?? "nil")")
         check(paneEnv["COLORTERM"] == "truecolor", "pane COLORTERM=\(paneEnv["COLORTERM"] ?? "nil")")
-        check(paneEnv["TERM_PROGRAM"] == "CCDesk", "pane TERM_PROGRAM=\(paneEnv["TERM_PROGRAM"] ?? "nil")")
+        check(paneEnv["TERM_PROGRAM"] == "tmux", "pane TERM_PROGRAM=\(paneEnv["TERM_PROGRAM"] ?? "nil")")
         check((paneEnv["LANG"] ?? paneEnv["LC_ALL"] ?? paneEnv["LC_CTYPE"] ?? "").uppercased().contains("UTF-8"),
               "pane locale is UTF-8 (LANG=\(paneEnv["LANG"] ?? "nil"))")
         check(paneEnv["TMUX"] == nil && paneEnv["TMUX_PANE"] == nil, "pane does not see TMUX / TMUX_PANE")
@@ -150,10 +150,10 @@ enum TmuxSelfTest {
         check(!client2.screen.contains("not in a mode"), "cancel outside copy mode is silent")
         client2.stop()
 
-        // 9. Shift+Enter / Shift+Tab：程序请求扩展按键（如 Claude Code 的 modifyOtherKeys 2）时收到 CSI u。
+        // 9. Shift+Enter / Shift+Tab：程序没请求扩展按键（如 Codex）时也以 CSI u 收到（extended-keys always）。
         if FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") || env["PATH"]?.contains("python") == true {
             let keysFile = dir.appendingPathComponent("keys.bin").path
-            let py = "import os,sys,tty,select,time\ntty.setraw(0)\nos.write(1,b'\\x1b[>4;2mKEYS-READY\\r\\n')\n"
+            let py = "import os,sys,tty,select,time\ntty.setraw(0)\nos.write(1,b'KEYS-READY\\r\\n')\n"
                 + "g=b''\nt=time.time()\nwhile time.time()-t<3:\n r,_,_=select.select([0],[],[],0.1)\n if r: g+=os.read(0,64)\n"
                 + "open(sys.argv[1],'wb').write(g)\ntime.sleep(30)\n"
             let pyFile = dir.appendingPathComponent("keys.py").path
@@ -175,6 +175,39 @@ enum TmuxSelfTest {
             host.killSession(terminalID: k)
         } else {
             print("SKIP key passthrough (no python3)")
+        }
+
+        // 9b. 可选：真实的 claude（CCDESK_SELFTEST_CLAUDE=1）。只停在首次的目录信任提示，不发消息、不产生会话记录。
+        if env["CCDESK_SELFTEST_CLAUDE"] == "1" {
+            let c = UUID()
+            let claudeDir = dir.appendingPathComponent("claude-cwd")
+            try? FileManager.default.createDirectory(at: claudeDir, withIntermediateDirectories: true)
+            if let pane = host.createSession(terminalID: c, cwd: claudeDir.path, cols: 100, rows: 30,
+                                             shell: EmbeddedTerminal.userShell(), command: "claude") {
+                var claudePID: Int32?
+                for _ in 0..<100 where claudePID == nil {
+                    usleep(100_000)
+                    let table = SystemProbe.processTable()
+                    claudePID = table.byPID.values.first { proc in
+                        (proc.command.split(separator: "/").last.map(String.init) ?? proc.command) == "claude"
+                            && proc.tty == pane.paneTTY
+                    }?.pid
+                }
+                check(claudePID != nil, "a real claude process runs on the pane tty \(pane.paneTTY) (pid \(claudePID.map(String.init) ?? "none"))")
+                // claude 初始化完成后才请求扩展按键，最多等 15 秒。
+                var mode = ""
+                for _ in 0..<150 where !mode.hasPrefix("Ext") {
+                    usleep(100_000)
+                    mode = host.run(host.command.base + ["display-message", "-p", "-t", TmuxNaming.paneTarget(for: c), "#{pane_key_mode}"])?
+                        .stdout.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                }
+                check(mode.hasPrefix("Ext"), "claude requested extended keys (pane_key_mode=\(mode))")
+                host.killSession(terminalID: c)
+                usleep(1_000_000)
+                check(claudePID.map { kill($0, 0) != 0 } ?? false, "claude exits when the session is closed")
+            } else {
+                check(false, "create claude session")
+            }
         }
 
         // 10. 启动恢复：有记录的会话附着、没有记录的残留会话被结束。
