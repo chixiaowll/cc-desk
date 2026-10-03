@@ -13,8 +13,14 @@ enum TranscriberProgress: Sendable, Equatable {
 protocol Transcriber: Sendable {
     /// 确保模型已下载并加载到内存；重复调用开销很小。
     func prepare(progress: @escaping @Sendable (TranscriberProgress) -> Void) async throws
-    /// 16 kHz 单声道 Float32 采样 -> 清理后的文本。
-    func transcribe(_ samples: [Float]) async throws -> String
+    /// 16 kHz 单声道 Float32 采样 -> 清理后的文本。hint：追加到 Whisper 提示词里的词汇（如唤醒词），提高识别率。
+    func transcribe(_ samples: [Float], hint: String?) async throws -> String
+}
+
+extension Transcriber {
+    func transcribe(_ samples: [Float]) async throws -> String {
+        try await transcribe(samples, hint: nil)
+    }
 }
 
 /// 本机 Whisper（WhisperKit / CoreML）。模型首次使用时下载到
@@ -59,13 +65,13 @@ actor WhisperTranscriber: Transcriber {
         _ = try await loadedKit(progress: progress)
     }
 
-    func transcribe(_ samples: [Float]) async throws -> String {
+    func transcribe(_ samples: [Float], hint: String?) async throws -> String {
         let kit = try await loadedKit(progress: { _ in })
         var options = DecodingOptions(
             task: .transcribe, language: "zh", temperature: 0, usePrefillPrompt: true, detectLanguage: false,
             skipSpecialTokens: true, withoutTimestamps: true, chunkingStrategy: .vad)
         if let tokenizer = kit.tokenizer {
-            options.promptTokens = tokenizer.encode(text: " " + Self.initialPrompt)
+            options.promptTokens = tokenizer.encode(text: " " + Self.initialPrompt + (hint ?? ""))
                 .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
         }
         let results = try await kit.transcribe(audioArray: samples, decodeOptions: options)

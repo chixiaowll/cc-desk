@@ -127,6 +127,22 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// 确保模型已下载并加载（期间浮层显示下载 / 加载进度），完成后在主线程回调；失败时提示并回调 false。
+    func ensureModel(_ completion: @escaping (Bool) -> Void) {
+        Task { @MainActor [weak self, transcriber] in
+            do {
+                try await transcriber.prepare(progress: self?.progressSink ?? { @Sendable _ in })
+                self?.modelReady = true
+                self?.preparing = nil
+                completion(true)
+            } catch {
+                self?.preparing = nil
+                self?.showHint(L("voice.hint.downloadFailed", error.localizedDescription))
+                completion(false)
+            }
+        }
+    }
+
     // MARK: 状态机
 
     private func press(_ from: Source) {
@@ -291,7 +307,7 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func showHint(_ text: String) {
+    func showHint(_ text: String) {
         hintWork?.cancel()
         phase = .hint(text)
         let work = DispatchWorkItem { [weak self] in
@@ -301,7 +317,7 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.2, execute: work)
     }
 
-    private func alertMicrophoneDenied() {
+    func alertMicrophoneDenied() {
         let alert = NSAlert()
         alert.messageText = L("alert.micDenied.title")
         alert.informativeText = L("alert.micDenied.message")
@@ -340,36 +356,13 @@ final class AudioRecorder {
             lock.unlock()
 
             let engine = AVAudioEngine()
-            let input = engine.inputNode
-            let inFormat = input.outputFormat(forBus: 0)
-            guard inFormat.sampleRate > 0, inFormat.channelCount > 0,
-                  let outFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(Self.sampleRate),
-                                                channels: 1, interleaved: false),
-                  let converter = AVAudioConverter(from: inFormat, to: outFormat) else { return }
-            let ratio = outFormat.sampleRate / inFormat.sampleRate
-            input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) { [weak self] buffer, _ in
-                let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 64
-                guard let self, let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: capacity) else { return }
-                var fed = false
-                var error: NSError?
-                converter.convert(to: out, error: &error) { _, status in
-                    if fed {
-                        status.pointee = .noDataNow
-                        return nil
-                    }
-                    fed = true
-                    status.pointee = .haveData
-                    return buffer
-                }
-                guard error == nil, let data = out.floatChannelData?[0] else { return }
-                self.append(UnsafeBufferPointer(start: data, count: Int(out.frameLength)))
-            }
+            guard MicrophoneTap.install(on: engine, handler: { [weak self] chunk in self?.append(chunk) }) else { return }
             do {
                 engine.prepare()
                 try engine.start()
                 self.engine = engine
             } catch {
-                input.removeTap(onBus: 0)
+                engine.inputNode.removeTap(onBus: 0)
             }
         }
     }
@@ -393,15 +386,55 @@ final class AudioRecorder {
 
     private func append(_ chunk: UnsafeBufferPointer<Float>) {
         guard !chunk.isEmpty else { return }
-        var sum: Float = 0
-        for value in chunk { sum += value * value }
-        let rms = (sum / Float(chunk.count)).squareRoot()
-        let db = 20 * log10(max(rms, 1e-6))
-        let level = min(1, max(0, (db + 50) / 45))
+        let level = MicrophoneTap.level(of: chunk)
         lock.lock()
         let room = Self.maxSamples - samples.count
         if room > 0 { samples.append(contentsOf: chunk.prefix(room)) }
         currentLevel = currentLevel * 0.4 + level * 0.6
         lock.unlock()
+    }
+}
+
+/// 麦克风输入 -> 16 kHz 单声道 Float32 的转换 tap（按住说话与对话模式共用）。
+enum MicrophoneTap {
+    static let sampleRate = 16_000
+
+    /// 在 engine 的输入节点上安装 tap，handler 在音频线程上收到转换后的采样。没有可用输入时返回 false。
+    static func install(on engine: AVAudioEngine, handler: @escaping (UnsafeBufferPointer<Float>) -> Void) -> Bool {
+        let input = engine.inputNode
+        let inFormat = input.outputFormat(forBus: 0)
+        guard inFormat.sampleRate > 0, inFormat.channelCount > 0,
+              let outFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: Double(sampleRate),
+                                            channels: 1, interleaved: false),
+              let converter = AVAudioConverter(from: inFormat, to: outFormat) else { return false }
+        let ratio = outFormat.sampleRate / inFormat.sampleRate
+        input.installTap(onBus: 0, bufferSize: 2048, format: inFormat) { buffer, _ in
+            let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 64
+            guard let out = AVAudioPCMBuffer(pcmFormat: outFormat, frameCapacity: capacity) else { return }
+            var fed = false
+            var error: NSError?
+            converter.convert(to: out, error: &error) { _, status in
+                if fed {
+                    status.pointee = .noDataNow
+                    return nil
+                }
+                fed = true
+                status.pointee = .haveData
+                return buffer
+            }
+            guard error == nil, let data = out.floatChannelData?[0] else { return }
+            handler(UnsafeBufferPointer(start: data, count: Int(out.frameLength)))
+        }
+        return true
+    }
+
+    /// 电平条用的 0...1（-50 dB 以下为 0，-5 dB 以上为 1）。
+    static func level(of chunk: UnsafeBufferPointer<Float>) -> Float {
+        guard !chunk.isEmpty else { return 0 }
+        var sum: Float = 0
+        for value in chunk { sum += value * value }
+        let rms = (sum / Float(chunk.count)).squareRoot()
+        let db = 20 * log10(max(rms, 1e-6))
+        return min(1, max(0, (db + 50) / 45))
     }
 }
