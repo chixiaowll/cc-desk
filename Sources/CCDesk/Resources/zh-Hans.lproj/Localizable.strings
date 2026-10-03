@@ -260,3 +260,23 @@
 "notify.approval.gone" = "该会话已不在 CC Desk 中运行。";
 "notify.approval.unknownSession" = "会话";
 "menu.showMainWindow" = "显示主窗口";
+
+/* Menu bar status item / launch at login / global shortcuts */
+"statusMenu.noSessions" = "没有会话";
+"statusMenu.showMainWindow" = "显示 CC Desk 主窗口";
+"statusMenu.newSession" = "新建会话…";
+"statusMenu.quit" = "退出 CC Desk";
+"statusMenu.hideIconHint" = "隐藏后可在 CC Desk 菜单里重新打开";
+"menu.launchAtLogin" = "登录时启动";
+"menu.launchAtLogin.needsApproval" = "登录时启动（待在系统设置中允许）";
+"menu.showMenuBarIcon" = "在菜单栏显示图标";
+"menu.globalHotkeys" = "启用全局快捷键";
+"menu.globalHotkeys.detail" = "启用全局快捷键（%1$@ 主窗口 · %2$@ 对话模式）";
+"hotkey.unavailable" = "%@ 已被其他 App 占用";
+"hotkey.listSeparator" = "、";
+"alert.hotkeyUnavailable.title" = "部分全局快捷键不可用";
+"alert.hotkeyUnavailable.message" = "%@ 已被系统或其他 App 占用。可以在占用它的 App 里改掉，或关闭 CC Desk 的全局快捷键。";
+"alert.loginItemApproval.title" = "需要在系统设置中允许";
+"alert.loginItemApproval.message" = "已把 CC Desk 加入登录项，但 macOS 需要你在「系统设置 › 通用 › 登录项」里允许它在登录时启动。";
+"alert.loginItemFailed.title" = "无法设置登录时启动";
+"alert.loginItemFailed.message" = "%@\n\n请从「应用程序」文件夹运行 CC Desk 后再试。";

@@ -260,3 +260,23 @@
 "notify.approval.gone" = "The session is no longer running in CC Desk.";
 "notify.approval.unknownSession" = "Session";
 "menu.showMainWindow" = "Show Main Window";
+
+/* Menu bar status item / launch at login / global shortcuts */
+"statusMenu.noSessions" = "No sessions";
+"statusMenu.showMainWindow" = "Show CC Desk Window";
+"statusMenu.newSession" = "New Session…";
+"statusMenu.quit" = "Quit CC Desk";
+"statusMenu.hideIconHint" = "You can turn it back on from the CC Desk menu";
+"menu.launchAtLogin" = "Launch at Login";
+"menu.launchAtLogin.needsApproval" = "Launch at Login (allow in System Settings)";
+"menu.showMenuBarIcon" = "Show Icon in Menu Bar";
+"menu.globalHotkeys" = "Enable Global Shortcuts";
+"menu.globalHotkeys.detail" = "Enable Global Shortcuts (%1$@ Window · %2$@ Conversation)";
+"hotkey.unavailable" = "%@ is taken by another app";
+"hotkey.listSeparator" = ", ";
+"alert.hotkeyUnavailable.title" = "Some global shortcuts are unavailable";
+"alert.hotkeyUnavailable.message" = "%@ is already used by the system or another app. Change it there, or turn off CC Desk's global shortcuts.";
+"alert.loginItemApproval.title" = "Allow in System Settings";
+"alert.loginItemApproval.message" = "CC Desk was added to your login items, but macOS needs you to allow it in System Settings › General › Login Items.";
+"alert.loginItemFailed.title" = "Couldn't set Launch at Login";
+"alert.loginItemFailed.message" = "%@\n\nRun CC Desk from the Applications folder and try again.";

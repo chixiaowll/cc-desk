@@ -38,16 +38,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
     /// 正在为切换语言而重启。
     var relaunching = false
+    /// 这次是登录时自动启动（不显示 / 不激活主窗口，见设计 §15）。
+    private(set) var launchedAtLogin = false
+    /// applicationWillFinishLaunching 时启动 Apple 事件是否带「作为登录项启动」标记。
+    private var loginItemEvent = false
+    private var desktop: DesktopPresence?
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         LocalizationProbe.runIfRequested()
+        loginItemEvent = LoginLaunchDetector.appleEventSaysLoginItem()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        launchedAtLogin = LoginLaunchDetector.detect(
+            appleEventSaysLoginItem: loginItemEvent || LoginLaunchDetector.appleEventSaysLoginItem())
+        let desktop = DesktopPresence(delegate: self)
+        self.desktop = desktop
+        if launchedAtLogin {
+            // 登录启动：不抢焦点，主窗口出现后立即收起；点 Dock 图标 / 菜单栏菜单再显示。
+            desktop.suppressMainWindowAtLaunch()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         AppearancePreference.stored.apply(pool: model.pool)
         model.start()
+        desktop.start()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -76,19 +92,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    /// 主窗口还在（被关闭 / 最小化）就拿到最前；已经销毁则重新打开。
-    func showMainWindow() {
-        let main = NSApp.windows.first { window in
+    /// 主窗口（`Window` scene 的 NSWindow）；被关闭 / 销毁后为 nil。
+    var mainWindow: NSWindow? {
+        NSApp.windows.first { window in
             guard let id = window.identifier?.rawValue else { return false }
             return id == "main" || id.hasPrefix("main-")
         }
-        if let main {
+    }
+
+    /// 主窗口还在（被关闭 / 最小化 / 登录启动时收起）就拿到最前；已经销毁则重新打开。
+    func showMainWindow() {
+        desktop?.endLaunchSuppression()
+        if NSApp.isHidden { NSApp.unhide(nil) }
+        if let main = mainWindow {
             if main.isMiniaturized { main.deminiaturize(nil) }
             main.makeKeyAndOrderFront(nil)
         } else {
             model.openMainWindow?()
         }
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// 全局快捷键「显示 / 隐藏 CC Desk」：已在最前且主窗口可见时隐藏 App，否则显示主窗口。
+    func toggleMainWindow() {
+        if NSApp.isActive, let main = mainWindow, main.isVisible, !main.isMiniaturized {
+            NSApp.hide(nil)
+        } else {
+            showMainWindow()
+        }
+    }
+
+    /// 菜单「新建会话」：显示主窗口并打开新建表单。
+    func showNewSession() {
+        showMainWindow()
+        model.openMainWindow?()
+        model.showNewSession = true
     }
 }
 
@@ -182,6 +220,8 @@ struct CCDeskApp: App {
                     delegate.model.showIntegrations = true
                 }
                 .keyboardShortcut(",")
+                Divider()
+                DesktopMenuItems()
             }
             CommandMenu(L("menu.session")) {
                 Button(L("menu.installIntegrations")) {

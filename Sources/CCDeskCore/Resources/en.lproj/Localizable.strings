@@ -112,3 +112,8 @@
 "assistant.status.idle" = "idle";
 "assistant.status.ended" = "ended";
 "assistant.status.unknown" = "unknown";
+
+/* Menu bar status item */
+"statusItem.waiting" = "%d waiting";
+"statusItem.unread" = "%d done, unread";
+"statusItem.nothing" = "Nothing needs attention";
