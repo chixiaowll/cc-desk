@@ -11,10 +11,10 @@ public enum IntegrationStatus: Equatable, Sendable {
 
     public var label: String {
         switch self {
-        case .agentMissing: return "未检测到"
-        case .notInstalled: return "未安装"
-        case .installed: return "已安装"
-        case .needsRepair(let why): return "需要修复：\(why)"
+        case .agentMissing: return L("integration.status.agentMissing")
+        case .notInstalled: return L("integration.status.notInstalled")
+        case .installed: return L("integration.status.installed")
+        case .needsRepair(let why): return L("integration.status.needsRepair", why)
         }
     }
 }
@@ -218,7 +218,7 @@ public enum CodexHooksEdit {
         var hooks = root["hooks"] as? [String: Any] ?? [:]
         for (event, action) in events {
             guard var entries = (hooks[event] ?? []) as? [Any] else {
-                throw IntegrationError("hooks.json 中 \(event) 不是数组，未做改动")
+                throw IntegrationError(L("integration.error.eventNotArray", event))
             }
             entries.append(["hooks": [["type": "command", "command": command(scriptPath: scriptPath, action: action), "timeout": 10]]])
             hooks[event] = entries
@@ -231,7 +231,7 @@ public enum CodexHooksEdit {
     public static func uninstall(_ root: [String: Any], scriptPath: String) throws -> [String: Any] {
         var root = root
         guard let rawHooks = root["hooks"] else { return root }
-        guard var hooks = rawHooks as? [String: Any] else { throw IntegrationError("hooks.json 的 hooks 不是对象，未做改动") }
+        guard var hooks = rawHooks as? [String: Any] else { throw IntegrationError(L("integration.error.hooksNotObject")) }
         for (event, value) in hooks {
             guard let entries = value as? [Any] else { continue }
             var kept: [Any] = []
@@ -281,7 +281,7 @@ public struct CodexIntegration {
     func readHooks() throws -> [String: Any]? {
         guard let data = try? Data(contentsOf: hooksFile) else { return nil }
         guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw IntegrationError("hooks.json 不是 JSON 对象，未做改动")
+            throw IntegrationError(L("integration.error.notJSONObject"))
         }
         return obj
     }
@@ -304,16 +304,16 @@ public struct CodexIntegration {
             return !NSDictionary(dictionary: stripped).isEqual(to: root)
         } ?? false
         if !anyOurs && !FileManager.default.fileExists(atPath: scriptFile.path) { return .notInstalled }
-        if !entries { return .needsRepair("hooks.json 条目不完整") }
-        if !script { return .needsRepair("hook 脚本缺失或已过期") }
-        return .needsRepair("config.toml 未开启 [features] hooks")
+        if !entries { return .needsRepair(L("integration.repair.entries")) }
+        if !script { return .needsRepair(L("integration.repair.script")) }
+        return .needsRepair(L("integration.repair.feature"))
     }
 
     /// 安装：写脚本；备份并合并 hooks.json；备份并在 config.toml 中开启 hooks（只改这一个键）。可重复执行。
     public func install() throws {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: codexDir.path, isDirectory: &isDir), isDir.boolValue else {
-            throw IntegrationError("没有找到 \(codexDir.path)，请先安装并运行一次 Codex")
+            throw IntegrationError(L("integration.error.codexMissing", codexDir.path))
         }
         var ledger = IntegrationLedger.load(ledgerFile)
 
@@ -388,17 +388,17 @@ public struct PiIntegration {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: agentDir.path, isDirectory: &isDir), isDir.boolValue else { return .agentMissing }
         guard let text = try? String(contentsOf: extensionFile, encoding: .utf8) else { return .notInstalled }
-        guard text.contains(IntegrationAssets.marker) else { return .needsRepair("同名文件不是 CC Desk 安装的") }
-        return text == IntegrationAssets.piExtension ? .installed : .needsRepair("扩展文件已过期")
+        guard text.contains(IntegrationAssets.marker) else { return .needsRepair(L("integration.repair.foreignFile")) }
+        return text == IntegrationAssets.piExtension ? .installed : .needsRepair(L("integration.repair.outdatedExtension"))
     }
 
     public func install() throws {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: agentDir.path, isDirectory: &isDir), isDir.boolValue else {
-            throw IntegrationError("没有找到 \(agentDir.path)，请先安装并运行一次 pi")
+            throw IntegrationError(L("integration.error.piMissing", agentDir.path))
         }
         if let text = try? String(contentsOf: extensionFile, encoding: .utf8), !text.contains(IntegrationAssets.marker) {
-            throw IntegrationError("\(extensionFile.path) 已存在且不是 CC Desk 安装的，未做改动")
+            throw IntegrationError(L("integration.error.foreignExists", extensionFile.path))
         }
         try IntegrationFiles.write(IntegrationAssets.piExtension, to: extensionFile)
         try FileManager.default.createDirectory(at: home.appendingPathComponent(".cc-desk/state", isDirectory: true),
@@ -408,7 +408,7 @@ public struct PiIntegration {
     public func uninstall() throws {
         guard let text = try? String(contentsOf: extensionFile, encoding: .utf8) else { return }
         guard text.contains(IntegrationAssets.marker) else {
-            throw IntegrationError("\(extensionFile.path) 不是 CC Desk 安装的，未删除")
+            throw IntegrationError(L("integration.error.foreignNotDeleted", extensionFile.path))
         }
         try FileManager.default.removeItem(at: extensionFile)
     }

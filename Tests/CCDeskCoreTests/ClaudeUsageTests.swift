@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class ClaudeUsageTests: XCTestCase {
+final class ClaudeUsageTests: ZhHansTestCase {
     private func json(_ s: String) -> Data { Data(s.utf8) }
 
     private let withLimits = """

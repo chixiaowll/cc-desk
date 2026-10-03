@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class ModelTests: XCTestCase {
+final class ModelTests: ZhHansTestCase {
     func testStatusRankOrdersWaitingFirst() {
         let ordered: [AgentStatus] = [.unknown, .ended, .idle, .working, .waiting(nil)].sorted { $0.rank < $1.rank }
         XCTAssertEqual(ordered, [.waiting(nil), .working, .idle, .ended, .unknown])

@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class TranscriptIndexTests: XCTestCase {
+final class TranscriptIndexTests: ZhHansTestCase {
     private var root: URL!
 
     override func setUp() {

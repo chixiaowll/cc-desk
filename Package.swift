@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "CCDesk",
+    defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "CCDesk", targets: ["CCDesk"]),
@@ -13,7 +14,7 @@ let package = Package(
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", exact: "1.1.0"),
     ],
     targets: [
-        .target(name: "CCDeskCore"),
+        .target(name: "CCDeskCore", resources: [.process("Resources")]),
         .executableTarget(
             name: "CCDesk",
             dependencies: [

@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class SidebarTests: XCTestCase {
+final class SidebarTests: ZhHansTestCase {
     func s(_ id: String, cwd: String, status: AgentStatus = .idle, at: TimeInterval = 0,
            name: String = "n", derived: Bool = false, host: SessionHost = .vscode) -> AgentSession {
         AgentSession(id: id, kind: .claude, sessionID: id, pid: 1, tty: nil, cwd: cwd, name: name,

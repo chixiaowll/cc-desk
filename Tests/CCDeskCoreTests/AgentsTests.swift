@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class AgentsTests: XCTestCase {
+final class AgentsTests: ZhHansTestCase {
     func testShellQuote() {
         XCTAssertEqual(ShellQuote.quote("abc"), "'abc'")
         XCTAssertEqual(ShellQuote.quote("it's"), "'it'\\''s'")

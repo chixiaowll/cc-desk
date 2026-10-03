@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class HistoryGroupingTests: XCTestCase {
+final class HistoryGroupingTests: ZhHansTestCase {
     private var calendar: Calendar {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "UTC")!

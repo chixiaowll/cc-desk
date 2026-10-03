@@ -29,7 +29,7 @@ public struct TranscriptMeta: Equatable, Sendable {
             guard let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { continue }
             return trimmed
         }
-        return "新会话"
+        return L("transcript.untitled")
     }
 
     private static func truncatedPrompt(_ prompt: String) -> String {

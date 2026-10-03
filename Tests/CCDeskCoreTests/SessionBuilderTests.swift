@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class SessionBuilderTests: XCTestCase {
+final class SessionBuilderTests: ZhHansTestCase {
     let ps = ProcessTable.parse("""
         500     1 ??       /System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal
         601   500 ttys007  -zsh

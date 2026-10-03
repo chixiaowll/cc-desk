@@ -18,7 +18,7 @@ public enum AgentKind: String, Codable, Sendable, CaseIterable {
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .pi: return "pi"
-        case .other: return "终端"
+        case .other: return L("agent.terminal")
         }
     }
 
@@ -50,11 +50,11 @@ public enum AgentStatus: Equatable, Sendable {
 
     public var label: String {
         switch self {
-        case .waiting: return "等批准"
-        case .working: return "处理中"
-        case .idle: return "空闲"
-        case .ended: return "已结束"
-        case .unknown: return "未知"
+        case .waiting: return L("status.waiting")
+        case .working: return L("status.working")
+        case .idle: return L("status.idle")
+        case .ended: return L("status.ended")
+        case .unknown: return L("status.unknown")
         }
     }
 

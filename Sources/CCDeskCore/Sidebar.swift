@@ -44,8 +44,8 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
 
     /// 状态文字：内嵌终端里没有运行 agent 的普通 shell 显示「终端」，其余取状态本身的文字。
     public var statusLabel: String {
-        if showsUnread { return "已完成" }
-        if session.status == .unknown, session.host.isEmbedded, !session.kind.isAgent { return "终端" }
+        if showsUnread { return L("status.done") }
+        if session.status == .unknown, session.host.isEmbedded, !session.kind.isAgent { return L("status.terminal") }
         return session.status.label
     }
 
@@ -172,22 +172,22 @@ public enum SidebarBuilder {
     /// "<完整标题>\n[Agent：<名>\n]<运行位置>"，若有 lastPrompt 再加一行 "最近：…"（单行化，最长 80 字）。
     static func tooltip(_ s: AgentSession, displayName: String, meta: TranscriptMeta?) -> String {
         var text = displayName
-        if let agent = agentLabel(s) { text += "\nAgent：\(agent)" }
+        if let agent = agentLabel(s) { text += "\n" + L("tooltip.agent", agent) }
         text += "\n\(whereText(s))"
         if let prompt = meta?.lastPrompt {
             let collapsed = singleLine(prompt, maxLength: 80)
-            if !collapsed.isEmpty { text += "\n最近：\(collapsed)" }
+            if !collapsed.isEmpty { text += "\n" + L("tooltip.recent", collapsed) }
         }
         return text
     }
 
     static func whereText(_ s: AgentSession) -> String {
         switch s.host {
-        case .embedded: return "在 CC Desk 内运行"
-        case .terminalApp: return "在 Terminal 中运行，点击跳转"
-        case .vscode: return "在 VS Code 中运行，点击跳转"
-        case .other: return "在外部终端中运行"
-        case .missing: return "目录缺失：\(s.cwd)"
+        case .embedded: return L("where.embedded")
+        case .terminalApp: return L("where.terminalApp")
+        case .vscode: return L("where.vscode")
+        case .other: return L("where.other")
+        case .missing: return L("where.missing", s.cwd)
         }
     }
 
@@ -201,7 +201,7 @@ public enum SidebarBuilder {
     }
 
     static func subtitle(_ s: AgentSession, ref: ProjectRef) -> String? {
-        if case .waiting(let reason) = s.status { return reason ?? "等待输入" }
+        if case .waiting(let reason) = s.status { return reason ?? L("status.waitingForInput") }
         if case .missing = s.host { return s.cwd }
         if let branch = ref.branch { return branch }
         if ref.cwd != ref.root, ref.cwd.hasPrefix(ref.root + "/") {
@@ -215,8 +215,8 @@ public enum SidebarBuilder {
         case .embedded: return nil
         case .terminalApp: return "Terminal"
         case .vscode: return "VS Code"
-        case .other: return "外部"
-        case .missing: return "目录缺失"
+        case .other: return L("source.external")
+        case .missing: return L("source.missing")
         }
     }
 }
@@ -225,11 +225,11 @@ public enum RelativeTime {
     public static func short(from date: Date, now: Date) -> String {
         if date == .distantPast { return "" }
         let seconds = max(0, now.timeIntervalSince(date))
-        if seconds < 60 { return "刚刚" }
-        if seconds < 3600 { return "\(Int(seconds / 60))分钟" }
-        if seconds < 86400 { return "\(Int(seconds / 3600))小时" }
-        if seconds < 7 * 86400 { return "\(Int(seconds / 86400))天" }
-        return "\(Int(seconds / (7 * 86400)))周"
+        if seconds < 60 { return L("time.now") }
+        if seconds < 3600 { return L("time.minutes", Int(seconds / 60)) }
+        if seconds < 86400 { return L("time.hours", Int(seconds / 3600)) }
+        if seconds < 7 * 86400 { return L("time.days", Int(seconds / 86400)) }
+        return L("time.weeks", Int(seconds / (7 * 86400)))
     }
 
     /// 超过 24 小时没有状态变化。
@@ -259,9 +259,9 @@ public enum HistoryGrouping {
         func sorted(_ items: [HistoryItem]) -> [HistoryItem] { items.sorted { $0.modifiedAt > $1.modifiedAt } }
 
         var groups: [(label: String, items: [HistoryItem])] = []
-        if !today.isEmpty { groups.append((label: "今天", items: sorted(today))) }
-        if !yesterday.isEmpty { groups.append((label: "昨天", items: sorted(yesterday))) }
-        if !earlier.isEmpty { groups.append((label: "更早", items: sorted(earlier))) }
+        if !today.isEmpty { groups.append((label: L("history.today"), items: sorted(today))) }
+        if !yesterday.isEmpty { groups.append((label: L("history.yesterday"), items: sorted(yesterday))) }
+        if !earlier.isEmpty { groups.append((label: L("history.earlier"), items: sorted(earlier))) }
         return groups
     }
 

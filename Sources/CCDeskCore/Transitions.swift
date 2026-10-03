@@ -30,10 +30,12 @@ public enum TransitionDetector {
             let now = row.session.status
             if case .waiting(let reason) = now, !before.isWaiting {
                 out.append(StatusEvent(kind: .needsInput, sessionKey: row.id,
-                                       title: "\(row.notificationName) 需要批准", body: reason ?? "等待输入"))
+                                       title: L("notify.needsApproval.title", row.notificationName),
+                                       body: reason ?? L("status.waitingForInput")))
             } else if now == .idle, before == .working {
                 out.append(StatusEvent(kind: .finished, sessionKey: row.id,
-                                       title: "\(row.notificationName) 已完成", body: "本轮已结束"))
+                                       title: L("notify.finished.title", row.notificationName),
+                                       body: L("notify.finished.body")))
             }
         }
         return out

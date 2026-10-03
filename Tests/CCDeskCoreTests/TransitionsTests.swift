@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class TransitionsTests: XCTestCase {
+final class TransitionsTests: ZhHansTestCase {
     func row(_ id: String, _ status: AgentStatus, name: String = "旅行攻略", groupTitle: String = "poems") -> SidebarRow {
         SidebarRow(session: AgentSession(id: id, kind: .claude, sessionID: id, pid: 1, tty: nil, cwd: "/a",
                                          name: name, nameIsDerived: false, host: .vscode, status: status,

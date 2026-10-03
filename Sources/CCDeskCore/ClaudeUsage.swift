@@ -43,9 +43,9 @@ public struct UsageLimit: Equatable, Identifiable {
     /// 完整名称：「5 小时」「7 天（全部）」「7 天 · Fable」；未知 kind 用原值。
     public var label: String {
         switch kind {
-        case "session": return "5 小时"
-        case "weekly_all": return "7 天（全部）"
-        case "weekly_scoped": return scopeLabel.map { "7 天 · \($0)" } ?? "7 天"
+        case "session": return L("usage.limit.session")
+        case "weekly_all": return L("usage.limit.weeklyAll")
+        case "weekly_scoped": return scopeLabel.map { L("usage.limit.weeklyScoped", $0) } ?? L("usage.limit.weekly")
         default: return scopeLabel.map { "\(kind) · \($0)" } ?? kind
         }
     }
@@ -94,9 +94,9 @@ public struct ClaudeUsage: Equatable {
     }
 
     public var extraUsageText: String {
-        guard extraUsageEnabled else { return "未开启" }
-        guard let reason = extraUsageDisabledReason else { return "已开启" }
-        return reason.hasPrefix("org_level_disabled") ? "未开启（组织已停用）" : "未开启（\(reason)）"
+        guard extraUsageEnabled else { return L("usage.extra.off") }
+        guard let reason = extraUsageDisabledReason else { return L("usage.extra.on") }
+        return reason.hasPrefix("org_level_disabled") ? L("usage.extra.offByOrg") : L("usage.extra.offReason", reason)
     }
 
     /// 侧栏底部显示的额度：会话额度 + 百分比最高的周额度（并列时取当前限制的那个）。
@@ -221,20 +221,20 @@ public struct ClaudeUsage: Equatable {
 public enum UsageResetText {
     public static func text(resetsAt: Date, now: Date, calendar: Calendar) -> String {
         let delta = resetsAt.timeIntervalSince(now)
-        if delta <= 0 { return "已重置" }
-        if delta < 60 { return "即将重置" }
-        if delta < 3600 { return "\(Int(delta / 60))分钟后重置" }
-        if delta < 6 * 3600 { return "\(Int(delta / 3600))小时后重置" }
+        if delta <= 0 { return L("reset.done") }
+        if delta < 60 { return L("reset.soon") }
+        if delta < 3600 { return L("reset.inMinutes", Int(delta / 60)) }
+        if delta < 6 * 3600 { return L("reset.inHours", Int(delta / 3600)) }
         // 服务端常给 xx:59:59.6 这样的时间，按最近的整分钟显示。
         let resetsAt = Date(timeIntervalSince1970: (resetsAt.timeIntervalSince1970 / 60).rounded() * 60)
         let time = String(format: "%02d:%02d", calendar.component(.hour, from: resetsAt),
                           calendar.component(.minute, from: resetsAt))
-        if calendar.isDate(resetsAt, inSameDayAs: now) { return "今天 \(time) 重置" }
+        if calendar.isDate(resetsAt, inSameDayAs: now) { return L("reset.today", time) }
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
            calendar.isDate(resetsAt, inSameDayAs: tomorrow) {
-            return "明天 \(time) 重置"
+            return L("reset.tomorrow", time)
         }
-        return "\(calendar.component(.month, from: resetsAt))月\(calendar.component(.day, from: resetsAt))日 重置"
+        return L("reset.date", calendar.component(.month, from: resetsAt), calendar.component(.day, from: resetsAt))
     }
 }
 
@@ -260,17 +260,17 @@ extension ClaudeUsage {
         let age = now.timeIntervalSince(fetchedAt)
         let when: String
         if fetchedAt == .distantPast {
-            when = "未知时间"
+            when = L("usage.age.unknown")
         } else if age < 60 {
-            when = "刚刚"
+            when = L("usage.age.now")
         } else if age < 3600 {
-            when = "\(Int(age / 60)) 分钟前"
+            when = L("usage.age.minutes", Int(age / 60))
         } else if age < 86400 {
-            when = "\(Int(age / 3600)) 小时前"
+            when = L("usage.age.hours", Int(age / 3600))
         } else {
-            when = "\(Int(age / 86400)) 天前"
+            when = L("usage.age.days", Int(age / 86400))
         }
-        return "数据更新于 \(when)（来自 Claude Code 缓存）"
+        return L("usage.age.format", when)
     }
 
     /// 悬停提示的多行文本。
@@ -279,10 +279,10 @@ extension ClaudeUsage {
         for limit in limits {
             var line = "\(limit.label)  \(limit.percentText(now: now))"
             if let reset = limit.resetText(now: now, calendar: calendar) { line += "  \(reset)" }
-            if limit.isActive { line += "（当前限制）" }
+            if limit.isActive { line += L("usage.activeLimitSuffix") }
             lines.append(line)
         }
-        lines.append("额外用量：\(extraUsageText)")
+        lines.append(L("usage.extraLine", extraUsageText))
         lines.append(ageText(now: now))
         return lines.joined(separator: "\n")
     }
@@ -310,8 +310,8 @@ public enum UsageAlerts {
             let key = periodKey(resetsAt)
             guard lastNotified[limit.id] != key else { return nil }
             let reset = UsageResetText.text(resetsAt: resetsAt, now: now, calendar: calendar)
-            return UsageAlert(limitID: limit.id, periodKey: key, title: "Claude 用量提醒",
-                              body: "\(limit.label)额度已用 \(Int(limit.percent.rounded()))%，\(reset)")
+            return UsageAlert(limitID: limit.id, periodKey: key, title: L("usage.alert.title"),
+                              body: L("usage.alert.body", limit.label, Int(limit.percent.rounded()), reset))
         }
     }
 

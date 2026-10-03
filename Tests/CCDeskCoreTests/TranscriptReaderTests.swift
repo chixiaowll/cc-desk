@@ -1,7 +1,7 @@
 import XCTest
 @testable import CCDeskCore
 
-final class TranscriptReaderTests: XCTestCase {
+final class TranscriptReaderTests: ZhHansTestCase {
     private func data(_ lines: [String]) -> Data {
         Data(lines.joined(separator: "\n").utf8)
     }

@@ -67,8 +67,8 @@ public enum AgentAvailability: Equatable, Sendable {
     public var hint: String? {
         switch self {
         case .available: return nil
-        case .checking: return "检测中…"
-        case .notInstalled: return "未安装"
+        case .checking: return L("availability.checking")
+        case .notInstalled: return L("availability.notInstalled")
         }
     }
 }

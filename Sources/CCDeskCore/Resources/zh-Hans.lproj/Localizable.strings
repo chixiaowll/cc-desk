@@ -1,0 +1,92 @@
+/* CCDeskCore — 简体中文 */
+
+/* Agents & status */
+"agent.terminal" = "终端";
+"status.waiting" = "等批准";
+"status.working" = "处理中";
+"status.idle" = "空闲";
+"status.ended" = "已结束";
+"status.unknown" = "未知";
+"status.done" = "已完成";
+"status.terminal" = "终端";
+"status.waitingForInput" = "等待输入";
+"availability.checking" = "检测中…";
+"availability.notInstalled" = "未安装";
+
+/* Sidebar tooltip & source */
+"tooltip.agent" = "Agent：%@";
+"tooltip.recent" = "最近：%@";
+"where.embedded" = "在 CC Desk 内运行";
+"where.terminalApp" = "在 Terminal 中运行，点击跳转";
+"where.vscode" = "在 VS Code 中运行，点击跳转";
+"where.other" = "在外部终端中运行";
+"where.missing" = "目录缺失：%@";
+"source.external" = "外部";
+"source.missing" = "目录缺失";
+
+/* Relative time (short) */
+"time.now" = "刚刚";
+"time.minutes" = "%d分钟";
+"time.hours" = "%d小时";
+"time.days" = "%d天";
+"time.weeks" = "%d周";
+
+/* History grouping */
+"history.today" = "今天";
+"history.yesterday" = "昨天";
+"history.earlier" = "更早";
+
+/* Notifications */
+"notify.needsApproval.title" = "%@ 需要批准";
+"notify.finished.title" = "%@ 已完成";
+"notify.finished.body" = "本轮已结束";
+
+/* Transcript */
+"transcript.untitled" = "新会话";
+
+/* Claude usage */
+"usage.limit.session" = "5 小时";
+"usage.limit.weeklyAll" = "7 天（全部）";
+"usage.limit.weeklyScoped" = "7 天 · %@";
+"usage.limit.weekly" = "7 天";
+"usage.extra.off" = "未开启";
+"usage.extra.on" = "已开启";
+"usage.extra.offByOrg" = "未开启（组织已停用）";
+"usage.extra.offReason" = "未开启（%@）";
+"usage.activeLimitSuffix" = "（当前限制）";
+"usage.extraLine" = "额外用量：%@";
+"usage.age.unknown" = "未知时间";
+"usage.age.now" = "刚刚";
+"usage.age.minutes" = "%d 分钟前";
+"usage.age.hours" = "%d 小时前";
+"usage.age.days" = "%d 天前";
+"usage.age.format" = "数据更新于 %@（来自 Claude Code 缓存）";
+"usage.alert.title" = "Claude 用量提醒";
+"usage.alert.body" = "%1$@额度已用 %2$d%%，%3$@";
+
+/* Reset text */
+"reset.done" = "已重置";
+"reset.soon" = "即将重置";
+"reset.inMinutes" = "%d分钟后重置";
+"reset.inHours" = "%d小时后重置";
+"reset.today" = "今天 %@ 重置";
+"reset.tomorrow" = "明天 %@ 重置";
+"reset.date" = "%1$d月%2$d日 重置";
+
+/* Integrations */
+"integration.status.agentMissing" = "未检测到";
+"integration.status.notInstalled" = "未安装";
+"integration.status.installed" = "已安装";
+"integration.status.needsRepair" = "需要修复：%@";
+"integration.repair.entries" = "hooks.json 条目不完整";
+"integration.repair.script" = "hook 脚本缺失或已过期";
+"integration.repair.feature" = "config.toml 未开启 [features] hooks";
+"integration.repair.foreignFile" = "同名文件不是 CC Desk 安装的";
+"integration.repair.outdatedExtension" = "扩展文件已过期";
+"integration.error.eventNotArray" = "hooks.json 中 %@ 不是数组，未做改动";
+"integration.error.hooksNotObject" = "hooks.json 的 hooks 不是对象，未做改动";
+"integration.error.notJSONObject" = "hooks.json 不是 JSON 对象，未做改动";
+"integration.error.codexMissing" = "没有找到 %@，请先安装并运行一次 Codex";
+"integration.error.piMissing" = "没有找到 %@，请先安装并运行一次 pi";
+"integration.error.foreignExists" = "%@ 已存在且不是 CC Desk 安装的，未做改动";
+"integration.error.foreignNotDeleted" = "%@ 不是 CC Desk 安装的，未删除";

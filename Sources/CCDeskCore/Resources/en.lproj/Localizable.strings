@@ -1,0 +1,92 @@
+/* CCDeskCore — English (development language) */
+
+/* Agents & status */
+"agent.terminal" = "Terminal";
+"status.waiting" = "Waiting";
+"status.working" = "Working";
+"status.idle" = "Idle";
+"status.ended" = "Ended";
+"status.unknown" = "Unknown";
+"status.done" = "Done";
+"status.terminal" = "Terminal";
+"status.waitingForInput" = "Waiting for input";
+"availability.checking" = "Checking…";
+"availability.notInstalled" = "Not installed";
+
+/* Sidebar tooltip & source */
+"tooltip.agent" = "Agent: %@";
+"tooltip.recent" = "Recent: %@";
+"where.embedded" = "Running in CC Desk";
+"where.terminalApp" = "Running in Terminal — click to jump";
+"where.vscode" = "Running in VS Code — click to jump";
+"where.other" = "Running in an external terminal";
+"where.missing" = "Directory missing: %@";
+"source.external" = "External";
+"source.missing" = "Directory missing";
+
+/* Relative time (short) */
+"time.now" = "now";
+"time.minutes" = "%dm";
+"time.hours" = "%dh";
+"time.days" = "%dd";
+"time.weeks" = "%dw";
+
+/* History grouping */
+"history.today" = "Today";
+"history.yesterday" = "Yesterday";
+"history.earlier" = "Earlier";
+
+/* Notifications */
+"notify.needsApproval.title" = "%@ needs approval";
+"notify.finished.title" = "%@ is done";
+"notify.finished.body" = "Turn finished";
+
+/* Transcript */
+"transcript.untitled" = "New Session";
+
+/* Claude usage */
+"usage.limit.session" = "5 hours";
+"usage.limit.weeklyAll" = "7 days (all)";
+"usage.limit.weeklyScoped" = "7 days · %@";
+"usage.limit.weekly" = "7 days";
+"usage.extra.off" = "Off";
+"usage.extra.on" = "On";
+"usage.extra.offByOrg" = "Off (disabled by organization)";
+"usage.extra.offReason" = "Off (%@)";
+"usage.activeLimitSuffix" = " (current limit)";
+"usage.extraLine" = "Extra usage: %@";
+"usage.age.unknown" = "at an unknown time";
+"usage.age.now" = "just now";
+"usage.age.minutes" = "%d min ago";
+"usage.age.hours" = "%d hr ago";
+"usage.age.days" = "%d days ago";
+"usage.age.format" = "Updated %@ (from Claude Code cache)";
+"usage.alert.title" = "Claude usage alert";
+"usage.alert.body" = "%1$@ limit: %2$d%% used. %3$@";
+
+/* Reset text */
+"reset.done" = "Reset";
+"reset.soon" = "Resets soon";
+"reset.inMinutes" = "Resets in %dm";
+"reset.inHours" = "Resets in %dh";
+"reset.today" = "Resets today at %@";
+"reset.tomorrow" = "Resets tomorrow at %@";
+"reset.date" = "Resets %1$d/%2$d";
+
+/* Integrations */
+"integration.status.agentMissing" = "Not detected";
+"integration.status.notInstalled" = "Not installed";
+"integration.status.installed" = "Installed";
+"integration.status.needsRepair" = "Needs repair: %@";
+"integration.repair.entries" = "hooks.json entries are incomplete";
+"integration.repair.script" = "Hook script is missing or outdated";
+"integration.repair.feature" = "[features] hooks is not enabled in config.toml";
+"integration.repair.foreignFile" = "A file with the same name was not installed by CC Desk";
+"integration.repair.outdatedExtension" = "Extension file is outdated";
+"integration.error.eventNotArray" = "%@ in hooks.json is not an array. Nothing was changed.";
+"integration.error.hooksNotObject" = "\"hooks\" in hooks.json is not an object. Nothing was changed.";
+"integration.error.notJSONObject" = "hooks.json is not a JSON object. Nothing was changed.";
+"integration.error.codexMissing" = "%@ was not found. Install and run Codex once first.";
+"integration.error.piMissing" = "%@ was not found. Install and run pi once first.";
+"integration.error.foreignExists" = "%@ already exists and was not installed by CC Desk. Nothing was changed.";
+"integration.error.foreignNotDeleted" = "%@ was not installed by CC Desk, so it was not deleted.";

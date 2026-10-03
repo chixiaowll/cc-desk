@@ -64,7 +64,7 @@ final class CodexConfigEditTests: XCTestCase {
     }
 }
 
-final class IntegrationsTests: XCTestCase {
+final class IntegrationsTests: ZhHansTestCase {
     private var home: URL!
 
     override func setUp() {
