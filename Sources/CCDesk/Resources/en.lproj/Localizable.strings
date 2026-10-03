@@ -225,3 +225,18 @@
 "assistant.undo.created" = "Closed the new %@ session";
 "assistant.undo.typed" = "Removed what was just typed";
 "assistant.undo.switched" = "Switched back to %@";
+
+/* Natural voice (local Qwen3-TTS) */
+"menu.speechVoice.natural" = "Natural Voice (Qwen serena)";
+"menu.speechVoice.naturalInstalling" = "Natural Voice (installing…)";
+"naturalVoice.install.title" = "Install the natural voice?";
+"naturalVoice.install.message" = "CC Desk can read replies with a natural neural voice (Qwen3-TTS, speaker serena) that runs entirely on this Mac. It needs uv and downloads about 2.5 GB (Python packages and model) into Application Support. Until it is ready, the system voice is used.";
+"naturalVoice.install.confirm" = "Download and Install";
+"naturalVoice.hint.installing" = "Installing the natural voice…";
+"naturalVoice.hint.step.python" = "Natural voice: preparing Python…";
+"naturalVoice.hint.step.packages" = "Natural voice: installing packages…";
+"naturalVoice.hint.downloading" = "Natural voice: downloading model %d%%";
+"naturalVoice.hint.ready" = "Natural voice is ready";
+"naturalVoice.hint.failed" = "Natural voice install failed, keeping the system voice: %@";
+"naturalVoice.error.noUV" = "uv not found (install it with brew install uv)";
+"naturalVoice.error.timeout" = "timed out";

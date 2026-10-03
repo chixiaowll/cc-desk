@@ -1,7 +1,8 @@
 import AVFoundation
 import CCDeskCore
 
-/// 系统朗读声音：按界面语言选音质最好的（Premium > Enhanced > 默认），可在菜单里改选。
+/// 朗读声音：自然语音（本机 Qwen3-TTS serena，装好后默认）或系统声音（按界面语言选音质最好的
+/// Premium > Enhanced > 默认），可在菜单里改选。
 enum SpeechVoices {
     static let qualityHintShownKey = "voiceQualityHintShown"
     static let spokenContentSettingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.universalaccess?SpokenContent")
@@ -25,20 +26,18 @@ enum SpeechVoices {
         SpeechVoiceRanking.candidates(installed(), uiLanguage: Localization.currentLanguage)
     }
 
-    /// 用户在菜单里选的声音（空 = 自动）。
+    /// 用户在菜单里选的系统声音（空 = 自动；选了自然语音时系统声音也按自动，作为后备）。
     static var preferredID: String? {
         let id = UserDefaults.standard.string(forKey: SpeechVoiceRanking.defaultsKey) ?? ""
-        return id.isEmpty ? nil : id
+        return id.isEmpty || id == NaturalVoiceProtocol.preferenceID ? nil : id
     }
 
-    private static let previewSynthesizer = AVSpeechSynthesizer()
+    private static let previewOutput = SpeechOutput()
 
     /// 在菜单里选了声音后试听一句（对话模式开启时不试听，免得被麦克风收进去）。
+    /// 自然语音还在加载时最多等 30 秒再读。
     static func preview() {
-        previewSynthesizer.stopSpeaking(at: .immediate)
-        let utterance = AVSpeechUtterance(string: L("voice.speech.sample"))
-        utterance.voice = current()
-        previewSynthesizer.speak(utterance)
+        previewOutput.speak(L("voice.speech.sample"), waitForNatural: 30)
     }
 
     /// 当前应使用的声音。
@@ -53,7 +52,7 @@ enum SpeechVoices {
 
     /// 缺少高质量声音、且还没提示过时返回 true（并记下已提示）。
     static func takeQualityHint() -> Bool {
-        guard !UserDefaults.standard.bool(forKey: qualityHintShownKey),
+        guard !NaturalVoice.isSelected, !UserDefaults.standard.bool(forKey: qualityHintShownKey),
               SpeechVoiceRanking.needsQualityHint(installed(), uiLanguage: Localization.currentLanguage) else { return false }
         UserDefaults.standard.set(true, forKey: qualityHintShownKey)
         return true

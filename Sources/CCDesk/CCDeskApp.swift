@@ -62,6 +62,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         model.conversation.turnOff()
+        NaturalSpeechEngine.shared.unload()
         model.stopControlServer()
     }
 
@@ -75,11 +76,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-/// 入口：`--mcp` 时作为助手的 stdio MCP 工具服务器运行（不启动界面，设计 §13），否则启动 App。
+/// 入口：`--mcp` 时作为助手的 stdio MCP 工具服务器运行（不启动界面，设计 §13）；`--tts-test` 时验证自然语音引擎后退出；
+/// 否则启动 App。
 @main
 enum CCDeskMain {
     static func main() {
         if CommandLine.arguments.dropFirst().contains("--mcp") { MCPMode.run() }
+        NaturalSpeechTest.runIfRequested()
         CCDeskApp.main()
     }
 }
@@ -169,7 +172,7 @@ struct CCDeskApp: App {
                 PersistentConversationMenuItem()
                 AutoStartConversationMenuItem()
                 Button(L("menu.resetAssistant")) { delegate.model.conversation.resetAssistant() }
-                SpeechVoiceMenu(conversation: delegate.model.conversation)
+                SpeechVoiceMenu(model: delegate.model, conversation: delegate.model.conversation)
                 Divider()
                 ForEach(1...9, id: \.self) { index in
                     Button(L("menu.switchTo", index)) { delegate.model.selectEmbedded(index: index - 1) }
@@ -220,13 +223,19 @@ private struct PersistentConversationMenuItem: View {
     }
 }
 
-/// 菜单「Session → 朗读声音」：自动（音质最好）或指定一个已安装的声音；可跳到系统设置下载更多声音。
+/// 菜单「Session → 朗读声音」：自然语音（本机 Qwen3-TTS，没装时先询问安装）、自动（音质最好的系统声音）
+/// 或指定一个已安装的系统声音；可跳到系统设置下载更多声音。
 private struct SpeechVoiceMenu: View {
+    let model: AppModel
     @ObservedObject var conversation: ConversationMode
+    @ObservedObject private var installer = NaturalVoiceInstaller.shared
     @AppStorage(SpeechVoiceRanking.defaultsKey) private var chosen = ""
 
     var body: some View {
         Menu(L("menu.speechVoice")) {
+            Toggle(installer.installing ? L("menu.speechVoice.naturalInstalling") : L("menu.speechVoice.natural"),
+                   isOn: naturalBinding)
+                .disabled(installer.installing)
             Toggle(L("menu.speechVoice.auto"), isOn: binding(""))
             Divider()
             ForEach(SpeechVoices.candidates(), id: \.identifier) { voice in
@@ -239,8 +248,25 @@ private struct SpeechVoiceMenu: View {
         }
     }
 
+    /// `chosen` 只用来让菜单随偏好刷新；是否选中自然语音以 NaturalVoice.isSelected 为准（装好且没选过 = 默认）。
+    private var naturalBinding: Binding<Bool> {
+        Binding(get: { _ = chosen; return NaturalVoice.isSelected }, set: { on in
+            guard on else { return }
+            guard NaturalVoice.isInstalled else {
+                NaturalVoiceInstaller.shared.confirmAndInstall(hint: { model.voice.showHint($0) }) { ok in
+                    guard ok else { return }
+                    chosen = NaturalVoiceProtocol.preferenceID
+                    if !conversation.isOn { SpeechVoices.preview() }
+                }
+                return
+            }
+            chosen = NaturalVoiceProtocol.preferenceID
+            if !conversation.isOn { SpeechVoices.preview() }
+        })
+    }
+
     private func binding(_ id: String) -> Binding<Bool> {
-        Binding(get: { chosen == id }, set: { on in
+        Binding(get: { chosen == id && !NaturalVoice.isSelected }, set: { on in
             guard on else { return }
             chosen = id
             if !conversation.isOn { SpeechVoices.preview() }
