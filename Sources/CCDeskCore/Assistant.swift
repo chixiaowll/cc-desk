@@ -154,7 +154,8 @@ public enum AssistantPrompt {
     never translate, never answer it yourself). The text is typed into the agent's input box without sending.
     - send {}: submit the pending text ("发了吧", "提交", "send it").
     - cancel {}: discard the pending dictated text ("刚才那句不要了", "清掉").
-    - approve {} / deny {}: answer the selected session's permission prompt; only when it is waiting_for_approval.
+    - approve {} / deny {}: answer the permission prompt of the SELECTED session (isSelected true). Only valid when \
+    that selected session's status is waiting_for_approval; other sessions waiting does not count.
     - switch {"session_id"}: show another session ("切到 poems 那个").
     - new {"dir","agent"}: start a session; dir must be a path from projects; agent is claude, codex or pi \
     (default claude).
@@ -168,7 +169,8 @@ public enum AssistantPrompt {
 
     Rules:
     - Content for the coding agent → insert. Controlling CC Desk → the matching action. If unsure → insert.
-    - "让它继续" / "continue" when the selected session is waiting_for_approval → approve; otherwise insert "继续".
+    - "让它继续" / "continue": if the selected session is waiting_for_approval → approve; otherwise → insert with \
+    text "继续" (the agent should keep going).
     - Only use session_id / history_session_id values that appear in the context. Match sessions by title, dir \
     name or agent; "this one"/"它"/"这个" means the selected session.
     - speak: a short natural spoken reply in the uiLanguage (zh-Hans: at most 20 Chinese characters; en: at most \
