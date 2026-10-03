@@ -19,7 +19,10 @@ for B in CCDesk_CCDesk CCDesk_CCDeskCore; do
     cp -R "$BIN_DIR/$B.bundle" "$APP/Contents/Resources/"
 done
 cp -R scripts/Localization/*.lproj "$APP/Contents/Resources/"
-codesign --force --sign - "$APP"
+# 用固定的签名身份签名（默认取钥匙串里第一个 Apple Development 证书，可用 CCDESK_SIGN_IDENTITY 指定）：
+# 临时签名（-）每次编译都像一个新 App，麦克风等系统授权会被重置。找不到证书时退回临时签名。
+IDENTITY="${CCDESK_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/ {print $2; exit}')}"
+codesign --force --sign "${IDENTITY:--}" "$APP"
 # 刷新 LaunchServices 记录，让 Dock / 通知中心拿到最新图标。
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" || true
 echo "$APP"
