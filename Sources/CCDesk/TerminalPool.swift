@@ -76,6 +76,11 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         }
     }
 
+    /// 直接发送按键字节（回车 "\r"、Esc "\u{1b}"、退格 "\u{7f}"…），不走 bracketed paste。
+    func sendKeys(_ keys: String) {
+        view.send(txt: keys)
+    }
+
     /// 挂断整个终端：交互式 shell 会忽略 SIGTERM，且前台作业（如 claude，独立进程组）不会收到
     /// SwiftTerm `view.terminate()` 发出的信号，导致 pty 主端关闭后子进程仍孤儿存活。
     /// 改为先向前台进程组、shell 自身进程组发送 SIGHUP，2 秒后若 shell 仍存活再升级为 SIGKILL。

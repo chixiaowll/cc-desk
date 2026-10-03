@@ -56,7 +56,7 @@ struct DetailView: View {
             }
             .background(Color(nsColor: theme.terminal.background))
             if row != nil {
-                VoiceBar(voice: model.voice, theme: theme)
+                VoiceBar(voice: model.voice, conversation: model.conversation, theme: theme)
             }
         }
         .background(theme.main.ignoresSafeArea())
@@ -74,8 +74,11 @@ struct DetailView: View {
             }
             ToolbarItem(placement: .automatic) {
                 if let row {
-                    StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
-                               unread: row.showsUnread, theme: theme)
+                    HStack(spacing: 6) {
+                        ConversationBadge(conversation: model.conversation, theme: theme)
+                        StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
+                                   unread: row.showsUnread, theme: theme)
+                    }
                 }
             }
         }

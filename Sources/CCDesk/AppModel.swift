@@ -7,7 +7,11 @@ final class AppModel: ObservableObject {
     @Published private(set) var groups: [SessionGroup] = []
     @Published private(set) var now = Date()
     @Published var selectedID: String? {
-        didSet { if let id = selectedID { clearUnread(id) } }
+        didSet {
+            if let id = selectedID { clearUnread(id) }
+            // 对话模式只作用于选中的内嵌 session；没有选中内嵌 session 时自动关闭。
+            if selectedTerminalID == nil { conversation.turnOff() }
+        }
     }
     @Published var showNewSession = false
     /// 由 ContentView 在 onAppear 时注入，用于在窗口已关闭时重新打开（App 设计上关闭窗口不退出）。
@@ -40,6 +44,11 @@ final class AppModel: ObservableObject {
         pool: pool,
         selectedTerminalID: { [weak self] in self?.selectedTerminalID },
         canListen: { [weak self] in self?.canListenForVoice ?? false })
+    /// 对话模式（免按键：唤醒词 + 持续监听，语音指令发送 / 清空 / 批准）。开启时忽略按住说话。
+    private(set) lazy var conversation = ConversationMode(
+        pool: pool, voice: voice,
+        selectedTerminalID: { [weak self] in self?.selectedTerminalID },
+        statusOf: { [weak self] tid in self?.status(ofTerminal: tid) })
     private let resolver = ProjectResolver(git: SystemProbe.git)
     private let queue = DispatchQueue(label: "cc-desk.poll")
     /// 只在 `queue` 上使用（非线程安全）。
@@ -127,7 +136,7 @@ final class AppModel: ObservableObject {
     private var canListenForVoice: Bool {
         guard NSApp.isActive, let window = NSApp.keyWindow, !(window is NSPanel),
               window.attachedSheet == nil else { return false }
-        return !showNewSession && !showHistoryPalette
+        return !showNewSession && !showHistoryPalette && !conversation.isOn
     }
 
     func poll() {
@@ -294,6 +303,8 @@ final class AppModel: ObservableObject {
         }
         if newlyUnread { rebuildGroups() }
         updateBadge()
+        conversation.observe(terminalID: selectedTerminalID,
+                             status: selectedTerminalID.flatMap { status(ofTerminal: $0) })
 
         tick += 1
         if tick % 600 == 1 { queue.async { HookStateReader.prune() } }
@@ -392,6 +403,11 @@ final class AppModel: ObservableObject {
     var selectedTerminalID: UUID? {
         guard let id = selectedID, id.hasPrefix("term:") else { return nil }
         return UUID(uuidString: String(id.dropFirst("term:".count)))
+    }
+
+    /// 某个内嵌终端对应行的当前状态。
+    func status(ofTerminal tid: UUID) -> AgentStatus? {
+        groups.lazy.flatMap(\.rows).first { $0.session.host == .embedded(terminalID: tid) }?.session.status
     }
 
     var selectedRow: SidebarRow? {

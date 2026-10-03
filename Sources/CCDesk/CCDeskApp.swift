@@ -59,6 +59,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return .terminateLater
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        model.conversation.turnOff()
+    }
+
     /// 关闭窗口不退出，内嵌 session 继续运行；点 Dock 图标重新打开窗口。
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
@@ -150,6 +154,7 @@ struct CCDeskApp: App {
                     delegate.model.openMainWindow?()
                     delegate.model.voice.predownload()
                 }
+                ConversationMenuItem(model: delegate.model, conversation: delegate.model.conversation)
                 Divider()
                 ForEach(1...9, id: \.self) { index in
                     Button(L("menu.switchTo", index)) { delegate.model.selectEmbedded(index: index - 1) }
@@ -157,5 +162,19 @@ struct CCDeskApp: App {
                 }
             }
         }
+    }
+}
+
+/// 菜单「Session → 对话模式」（⌥⌘V）；没有选中内嵌 session 时不可用。
+private struct ConversationMenuItem: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var conversation: ConversationMode
+
+    var body: some View {
+        Toggle(L("menu.conversationMode"), isOn: Binding(
+            get: { conversation.isOn },
+            set: { _ in conversation.toggle() }))
+            .keyboardShortcut("v", modifiers: [.command, .option])
+            .disabled(!conversation.isOn && model.selectedTerminalID == nil)
     }
 }

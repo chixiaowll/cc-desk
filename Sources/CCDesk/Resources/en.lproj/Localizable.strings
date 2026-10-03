@@ -163,3 +163,21 @@
 "action.restartNow" = "Restart Now";
 "action.later" = "Later";
 "alert.restartFailed.title" = "Couldn’t Restart CC Desk";
+
+/* Conversation mode */
+"menu.conversationMode" = "Conversation Mode";
+"conversation.toggle" = "Conversation";
+"conversation.toggle.help" = "Hands-free voice: say “%@” to wake, speak, then say “send” (⌥⌘V)";
+"conversation.status.standby" = "Standby · say “%@” to wake";
+"conversation.status.listening" = "Listening… say “send” to submit";
+"conversation.status.transcribing" = "Transcribing…";
+"conversation.status.speaking" = "Speaking…";
+"conversation.status.preparing" = "Preparing voice model…";
+"conversation.toast.sent" = "Sent";
+"conversation.toast.cleared" = "Cleared";
+"conversation.toast.approved" = "Approved";
+"conversation.toast.denied" = "Denied";
+"conversation.toast.stopped" = "Conversation mode off";
+"conversation.indicator" = "Conversation";
+"conversation.indicator.help" = "Conversation mode is on: the microphone is listening";
+"voice.hint.micUnavailable" = "No microphone input is available";

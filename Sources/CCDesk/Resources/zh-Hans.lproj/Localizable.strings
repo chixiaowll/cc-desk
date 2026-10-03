@@ -163,3 +163,21 @@
 "action.restartNow" = "立即重启";
 "action.later" = "稍后";
 "alert.restartFailed.title" = "无法重启 CC Desk";
+
+/* Conversation mode */
+"menu.conversationMode" = "对话模式";
+"conversation.toggle" = "对话模式";
+"conversation.toggle.help" = "免按键语音：说「%@」唤起，说完后说「发送」（⌥⌘V）";
+"conversation.status.standby" = "待命中 · 说「%@」唤起";
+"conversation.status.listening" = "正在聆听… 说「发送」提交";
+"conversation.status.transcribing" = "识别中…";
+"conversation.status.speaking" = "正在播报…";
+"conversation.status.preparing" = "正在准备语音模型…";
+"conversation.toast.sent" = "已发送";
+"conversation.toast.cleared" = "已清空";
+"conversation.toast.approved" = "已批准";
+"conversation.toast.denied" = "已拒绝";
+"conversation.toast.stopped" = "已退出对话模式";
+"conversation.indicator" = "对话模式";
+"conversation.indicator.help" = "对话模式已开启：麦克风正在聆听";
+"voice.hint.micUnavailable" = "没有可用的麦克风输入";
