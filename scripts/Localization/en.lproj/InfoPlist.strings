@@ -1,0 +1,2 @@
+"NSAppleEventsUsageDescription" = "CC Desk needs to control Terminal to jump to the tab running Claude Code.";
+"NSMicrophoneUsageDescription" = "CC Desk uses the microphone for voice input. Speech is recognized on this Mac.";

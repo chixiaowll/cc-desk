@@ -21,6 +21,11 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 if [ -e "$BIN_DIR/SwiftTerm_SwiftTerm.bundle" ]; then
     cp -R "$BIN_DIR/SwiftTerm_SwiftTerm.bundle" "$APP/Contents/Resources/"
 fi
+# 本地化文案所在的 SwiftPM 资源包（与架构无关），以及 Info.plist 的本地化（权限说明）。
+for B in CCDesk_CCDesk CCDesk_CCDeskCore; do
+    cp -R "$BIN_DIR/$B.bundle" "$APP/Contents/Resources/"
+done
+cp -R scripts/Localization/*.lproj "$APP/Contents/Resources/"
 codesign --force --deep --sign - "$APP"
 ln -s /Applications "$STAGE/应用程序"
 cat > "$STAGE/首次打开说明.txt" <<'TXT'

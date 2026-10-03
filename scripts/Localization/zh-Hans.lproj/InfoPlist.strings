@@ -1,0 +1,2 @@
+"NSAppleEventsUsageDescription" = "CC Desk 需要控制 Terminal，以便跳转到正在运行 Claude Code 的标签页。";
+"NSMicrophoneUsageDescription" = "CC Desk 使用麦克风进行语音输入，识别在本机完成。";
