@@ -16,3 +16,25 @@ final class LiveScreenProbeTests: XCTestCase {
         print("LIVE-PROBE agent=\(agent.rawValue) state=\(d.state.rawValue) rule=\(d.ruleID ?? "-") skip=\(d.skipStateUpdate)")
     }
 }
+
+/// 实测辅助：CCDESK_LIVE_INTEGRATION=install|uninstall|status 时对真实 HOME 执行 Codex / pi 集成操作；未设置时跳过。
+final class LiveIntegrationTests: XCTestCase {
+    func testLiveIntegrationAction() throws {
+        guard let action = ProcessInfo.processInfo.environment["CCDESK_LIVE_INTEGRATION"] else {
+            throw XCTSkip("CCDESK_LIVE_INTEGRATION 未设置")
+        }
+        let codex = CodexIntegration()
+        let pi = PiIntegration()
+        switch action {
+        case "install":
+            try codex.install()
+            try pi.install()
+        case "uninstall":
+            try codex.uninstall()
+            try pi.uninstall()
+        default:
+            break
+        }
+        print("LIVE-INTEGRATION codex=\(codex.status().label) pi=\(pi.status().label)")
+    }
+}

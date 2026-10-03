@@ -137,6 +137,18 @@ final class IntegrationsTests: XCTestCase {
         XCTAssertNil(read(".cc-desk/hooks/codex-state.sh"))
     }
 
+    func testConfigPermissionsArePreserved() throws {
+        try write(config, ".codex/config.toml")
+        let path = home.appendingPathComponent(".codex/config.toml").path
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+        let c = CodexIntegration(home: home)
+        try c.install()
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: path + ".cc-desk.bak")[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+        try c.uninstall()
+        XCTAssertEqual((try FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+
     func testCodexUninstallRemovesHooksFileItCreated() throws {
         try write(config, ".codex/config.toml")
         let c = CodexIntegration(home: home)

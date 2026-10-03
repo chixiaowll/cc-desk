@@ -54,12 +54,21 @@ struct IntegrationLedger: Codable, Equatable {
 }
 
 enum IntegrationFiles {
-    static func write(_ text: String, to url: URL, executable: Bool = false) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: url, options: .atomic)
+    /// 原子写入；已有文件时沿用其权限（如 config.toml 的 0600），不因重写而放宽。
+    static func write(_ data: Data, to url: URL, executable: Bool = false) throws {
+        let fm = FileManager.default
+        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let previous = (try? fm.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber
+        try data.write(to: url, options: .atomic)
         if executable {
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        } else if let previous {
+            try fm.setAttributes([.posixPermissions: previous], ofItemAtPath: url.path)
         }
+    }
+
+    static func write(_ text: String, to url: URL, executable: Bool = false) throws {
+        try write(Data(text.utf8), to: url, executable: executable)
     }
 
     /// 修改前备份为 `<文件>.cc-desk.bak`（覆盖旧备份）。文件不存在时不备份。
@@ -67,7 +76,7 @@ enum IntegrationFiles {
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         let bak = URL(fileURLWithPath: url.path + ".cc-desk.bak")
         try? FileManager.default.removeItem(at: bak)
-        try FileManager.default.copyItem(at: url, to: bak)
+        try FileManager.default.copyItem(at: url, to: bak)   // copyItem 保留原文件权限
     }
 }
 
@@ -279,8 +288,7 @@ public struct CodexIntegration {
 
     func writeHooks(_ root: [String: Any]) throws {
         let data = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-        try FileManager.default.createDirectory(at: codexDir, withIntermediateDirectories: true)
-        try (data + Data("\n".utf8)).write(to: hooksFile, options: .atomic)
+        try IntegrationFiles.write(data + Data("\n".utf8), to: hooksFile)
     }
 
     public func status() -> IntegrationStatus {
