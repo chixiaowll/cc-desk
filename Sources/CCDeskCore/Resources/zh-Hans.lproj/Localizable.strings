@@ -110,3 +110,8 @@
 "assistant.status.idle" = "空闲";
 "assistant.status.ended" = "已退出";
 "assistant.status.unknown" = "状态未知";
+
+/* Menu bar status item */
+"statusItem.waiting" = "%d 个等批准";
+"statusItem.unread" = "%d 个已完成未读";
+"statusItem.nothing" = "没有需要处理的会话";
