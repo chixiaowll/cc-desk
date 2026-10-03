@@ -349,6 +349,10 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             }
             perform(action, target: target)
         }
+        // 播报后的下一句话不是批准 / 拒绝（说了别的事）：不再把之后的「好的」「可以」当作对那条请求的回答。
+        if announced != nil, !actions.isEmpty, !actions.contains(.approve), !actions.contains(.deny) {
+            announcedApproval = nil
+        }
         state = session.state
     }
 
