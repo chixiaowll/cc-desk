@@ -5,19 +5,23 @@ public struct TranscriptMeta: Equatable, Sendable {
     public let customTitle: String?
     public let aiTitle: String?
     public let lastPrompt: String?
+    /// 第一条用户消息（Codex / pi 没有 AI 标题，用它作稳定标题；Claude 不填）。
+    public let firstPrompt: String?
 
-    public init(customTitle: String? = nil, aiTitle: String? = nil, lastPrompt: String? = nil) {
+    public init(customTitle: String? = nil, aiTitle: String? = nil, lastPrompt: String? = nil, firstPrompt: String? = nil) {
         self.customTitle = customTitle
         self.aiTitle = aiTitle
         self.lastPrompt = lastPrompt
+        self.firstPrompt = firstPrompt
     }
 
-    /// 标题规则：customTitle → aiTitle → lastPrompt 前 20 个字符（单行化）→ 非派生的 fallbackName → "新会话"。
+    /// 标题规则：customTitle → aiTitle → firstPrompt / lastPrompt 前 20 个字符（单行化）→ 非派生的 fallbackName → "新会话"。
     /// 所有候选都会先 trim 空白，空的候选会被跳过。
     public func displayTitle(fallbackName: String?, fallbackIsDerived: Bool) -> String {
         let candidates: [String?] = [
             customTitle,
             aiTitle,
+            firstPrompt.map(Self.truncatedPrompt),
             lastPrompt.map(Self.truncatedPrompt),
             fallbackIsDerived ? nil : fallbackName,
         ]
@@ -85,13 +89,13 @@ public enum TranscriptReader {
     }
 
     /// 按换行拆分字节，逐行独立解码为 UTF-8；块边界处可能出现无效 UTF-8 或残缺字节，解码失败的行直接跳过。
-    private static func lines(in data: Data) -> [String] {
+    static func lines(in data: Data) -> [String] {
         data.split(separator: UInt8(ascii: "\n")).compactMap { chunk in
             String(data: chunk, encoding: .utf8)
         }
     }
 
-    private static func jsonObject(_ line: String) -> [String: Any]? {
+    static func jsonObject(_ line: String) -> [String: Any]? {
         guard let obj = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return nil }
         return obj
     }
