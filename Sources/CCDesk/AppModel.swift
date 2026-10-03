@@ -35,6 +35,11 @@ final class AppModel: ObservableObject {
 
     let pool = TerminalPool()
     let notifier = Notifier()
+    /// 语音输入（按住右 ⌥ / 麦克风按钮，本机 Whisper 识别后插入选中的内嵌终端）。
+    private(set) lazy var voice = VoiceInput(
+        pool: pool,
+        selectedTerminalID: { [weak self] in self?.selectedTerminalID },
+        canListen: { [weak self] in self?.canListenForVoice ?? false })
     private let adapter = ClaudeAdapter()
     private let resolver = ProjectResolver(git: SystemProbe.git)
     private let queue = DispatchQueue(label: "cc-desk.poll")
@@ -98,6 +103,14 @@ final class AppModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.poll() }
         poll()
         refreshHistory()
+        voice.start()
+    }
+
+    /// 只在主窗口为 key、且没有弹出表单 / 历史面板 / 面板窗口时响应右 ⌥。
+    private var canListenForVoice: Bool {
+        guard NSApp.isActive, let window = NSApp.keyWindow, !(window is NSPanel),
+              window.attachedSheet == nil else { return false }
+        return !showNewSession && !showHistoryPalette
     }
 
     func poll() {

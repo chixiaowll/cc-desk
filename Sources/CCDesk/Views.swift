@@ -30,10 +30,10 @@ struct DetailView: View {
     /// 详情区宽度，用于限制标题宽度：长标题截断，不把右侧的状态胶囊挤走。
     @State private var width: CGFloat = 0
 
-    /// 给胶囊（约 90pt）和两侧留白预留空间；宽度未知时沿用 520。
+    /// 给胶囊（约 90pt）、麦克风按钮（约 34pt）和两侧留白预留空间；宽度未知时沿用 520。
     private var titleMaxWidth: CGFloat {
         guard width > 0 else { return 520 }
-        return min(520, max(120, width - 190))
+        return min(520, max(120, width - 224))
     }
 
     var body: some View {
@@ -49,6 +49,9 @@ struct DetailView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(theme.fg3)
                 }
+                VoiceOverlay(voice: model.voice, theme: theme)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 28)
             }
             .background(Color(nsColor: theme.terminal.background))
         }
@@ -67,8 +70,11 @@ struct DetailView: View {
             }
             ToolbarItem(placement: .automatic) {
                 if let row {
-                    StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
-                               unread: row.showsUnread, theme: theme)
+                    HStack(spacing: 8) {
+                        MicButton(voice: model.voice, theme: theme)
+                        StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
+                                   unread: row.showsUnread, theme: theme)
+                    }
                 }
             }
         }

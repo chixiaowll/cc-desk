@@ -110,6 +110,10 @@ struct CCDeskApp: App {
             }
             CommandMenu("Session") {
                 Button("测试通知与角标") { delegate.model.testNotificationAndBadge() }
+                Button("预先下载语音模型") {
+                    delegate.model.openMainWindow?()
+                    delegate.model.voice.predownload()
+                }
                 Divider()
                 ForEach(1...9, id: \.self) { index in
                     Button("切换到第 \(index) 个") { delegate.model.selectEmbedded(index: index - 1) }
