@@ -238,9 +238,9 @@ final class AppModel: ObservableObject {
     }
 
     /// 在后台读取 ~/.claude.json 的用量缓存（最多每 30 秒一次，mtime 未变时不解析）；跨过 90% 时每个重置周期提醒一次。
-    /// 打开用量详情时：缓存超过 20 秒就让 Claude Code 立即重新拉取。
+    /// 打开用量详情时：缓存超过 20 秒就让 Claude Code 立即重新拉取（定时 5 分钟、任务完成 30 秒见 UsageRefresher）。
     func refreshUsageNow() {
-        usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, manual: true) { [weak self] in self?.refreshUsage() }
+        usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, reason: .opened) { [weak self] in self?.refreshUsage() }
     }
 
     func refreshUsage() {
@@ -316,6 +316,9 @@ final class AppModel: ObservableObject {
             if event.kind == .finished, unreadKeys.insert(event.sessionKey).inserted { newlyUnread = true }
         }
         if newlyUnread { rebuildGroups() }
+        if events.contains(where: { $0.kind == .finished }) {
+            usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, reason: .taskFinished) { [weak self] in self?.refreshUsage() }
+        }
         updateBadge()
         conversation.observe(terminalID: selectedTerminalID,
                              status: selectedTerminalID.flatMap { status(ofTerminal: $0) })
@@ -326,7 +329,7 @@ final class AppModel: ObservableObject {
             saveWorkspace()
             refreshHistory()
             refreshUsage()
-            usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, manual: false) { [weak self] in self?.refreshUsage() }
+            usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, reason: .periodic) { [weak self] in self?.refreshUsage() }
         } else if !previousLive.subtracting(liveSessionIDs).isEmpty {
             // 有会话从侧栏消失（如关闭了已结束的终端）：立即刷新，让它回到历史列表。
             refreshHistory()
