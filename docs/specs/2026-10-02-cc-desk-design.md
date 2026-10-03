@@ -342,3 +342,49 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 **声音**：自动选择系统中音质最好的中文声音（Premium > Enhanced > 默认），设置里可换；缺少高质量声音时提示到「系统设置 → 辅助功能 → 朗读内容」下载。
 
 **额度**：意图解析 / 问答 / 摘要都通过本机 `claude` 调用，占用 Claude 订阅额度（5 小时 / 7 天窗口），不额外计费；每次约 3.4k 输入 token（摘要 / 问答约 5.5k）、几十个输出 token。可在菜单关闭「回复摘要」减少占用。
+
+**v1.2.1 调整（已实现）**：助手改为**常驻会话**——一个长期运行的 `claude -p --input-format stream-json --output-format stream-json` haiku 进程，会话 id 存 `~/.cc-desk/assistant/session.json`，下次启动 `--resume` 接回，有上下文（「刚才那句」「搞错了」）。后续每句约 1 秒。本地已执行的操作作为 Events 告诉它；侧栏上下文只在变化时重发。上下文超过 60k token 自动换新会话，菜单可「重置助手对话」。对话模式默认常驻（说「休息一下」回待命）、启动即开；切到 Terminal 里的会话时语音确认后接管；「问他一下 X / 跟它说 X / 在终端里输入 X」本地直接填入 X。助手自己的 claude 进程与会话记录不出现在侧栏和历史。
+
+## 13. 助手工具化（v1.3，已确认）
+
+**目标**：助手从「从 12 个固定动作里选一个」变成「会用工具的 agent」——一句话可做多件事，能操作任意会话（不必先切过去），能看终端屏幕。
+
+**结构**
+- **控制接口**：CC Desk 在 `~/.cc-desk/control.sock`（Unix socket，权限 0600，目录 0700）提供 JSON 行协议，只接受本用户连接。请求 `{"id","method","params"}` → 响应 `{"id","result"|"error"}`。所有方法在主线程执行，复用 AppModel 现有动作。
+- **工具服务**：同一可执行文件加 `--mcp` 模式（`CCDesk.app/Contents/MacOS/CCDesk --mcp`），作为 stdio MCP 服务器（JSON-RPC 2.0：initialize / tools/list / tools/call），把工具调用转发到 control.sock。不启动界面。
+- **助手会话**：常驻 haiku 会话加 `--mcp-config <ccdesk.json> --strict-mcp-config --tools "" --allowedTools "mcp__ccdesk__*"`（内置工具全部关闭，只能用 CC Desk 的工具，MCP 工具调用不弹权限）。模型最后的文字回复即播报内容，不再解析 JSON 动作。
+- **本地快速规则保留**：发送 / 取消 / 休息 / 退出 / 「有哪些会话」「哪些在等我」/ 转述填入，不调用模型。
+
+**工具**（会话用短 id 或标题/目录指代；工具内部解析，歧义时返回候选让模型追问）
+
+| 工具 | 作用 | 确认 |
+|---|---|---|
+| `list_sessions` | 侧栏会话：id、标题、目录、agent、状态、等批准原因、是否选中、是否在 CC Desk 内 | — |
+| `read_screen(session, lines?)` | 读内嵌终端当前屏幕（底部 N 行，默认 40）的纯文本 | — |
+| `read_transcript(session, turns?)` | 会话记录尾部摘录（复用 TurnDigest） | — |
+| `list_history(query?)` / `list_projects` | 历史会话 / 可新建的项目目录 | — |
+| `git_status(project)` | 项目的分支、改动文件、最近 5 条提交（只读 git 命令，超时 5 秒） | — |
+| `switch_to(session)` | 切到该会话（外部会话 → 走接管确认） | 外部需确认 |
+| `type_text(session, text, submit?)` | 往任意内嵌会话的输入框打字，可选回车 | — |
+| `press_key(session, key)` | enter / escape / ctrl-c / up / down / tab | ctrl-c 需确认 |
+| `respond_approval(session, approve)` | 回应等批准（仅该会话确在等批准时） | — |
+| `new_session(project, agent, prompt?)` | 新建会话，可带第一句话（自动发送） | — |
+| `resume_session(history_id)` | 恢复历史会话 | — |
+| `close_session(session)` / `take_over(session)` | 关闭 / 接管 | 需确认 |
+
+- **需确认的工具**：调用时 CC Desk 播报确认问题并显示提示条，阻塞等待最多 15 秒的语音「确认」，再把结果（done / cancelled）返回给模型。
+- **反馈**：VoiceBar 显示「听到：…」和正在执行的工具（「→ 往 poems 输入：跑一下测试」）。
+- **撤销**：说「撤销」撤回上一个可撤销动作（新建 → 关闭它；打字未发送 → 清除；切换 → 切回）。
+- **安全**：控制接口只在本机、只限本用户；type_text / press_key 只作用于 CC Desk 内嵌终端；外部终端只能读状态、接管。
+
+## 14. 顾问、派活与专业 agent（v1.4，已确认）
+
+**三层**：前台接线员（haiku 常驻，快）→ 顾问（更强模型，只读，异步）→ 干活的会话（侧栏里可见的真实 agent 会话）。原则：**改代码的事放在你看得见的会话里做，后台只做只读的思考和查看**。
+
+- **顾问 `consult(question, level, project?)`**：后台 `claude -p --model sonnet|opus`，只给 Read / Grep / Glob 和只读 git（`--allowedTools` 限定），工作目录为相关项目，`--no-session-persistence`。默认 Sonnet；用户明确说「用 Opus」才用 Opus。异步：接线员先说「我让高级助手看一下」，完成后播报 1–2 句结论，完整回答显示在「助手结果」面板（可复制）。超时 5 分钟。
+- **派活 `delegate(project, task, agent?, profile?)`**：在项目里新开会话（Claude Code / Codex / pi，或某个专业 agent 配置），任务作为第一句话发送，出现在侧栏；接线员记住这是它派出的任务。
+- **主动提醒**：派出的任务（以及对话模式开启时任意会话）转为等批准 / 一轮完成时，作为事件发给接线员；接线员决定是否播报（例如「poems 想执行 rm -rf build，要批准吗？」），用户说「批准」即回应该会话，不必切过去。为免打扰，非选中会话的「完成」只在派出的任务上播报。
+- **专业 agent 配置**：`~/.cc-desk/agents/*.md`，格式同 Claude Code subagent（frontmatter：name / description / model / tools；正文为提示词）。delegate 用 `claude --agents <json>` / `--agent <name>` 启动；consult 也可指定只读的配置。内置两个：**审查员**（opus，只读，审查某项目未提交改动或最近提交）、**测试员**（sonnet，跑测试并汇报失败原因，作为可见会话运行）。用户可自行添加；`list_agents` 工具让接线员知道有哪些。
+- **额度**：顾问与专业 agent 走同一订阅，Sonnet / Opus 占用明显更多；结果面板显示本次 token 数。
+
+**实现顺序**：§13（工具化 + 读屏 + 确认 + 撤销）→ §14 顾问 + 派活 + 主动提醒 → 专业 agent 配置。
