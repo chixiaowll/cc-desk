@@ -10,8 +10,8 @@ final class CodexConfigEditTests: XCTestCase {
     hooks = false
     """ + "\n"
 
-    func testAppendsFeaturesTableWhenMissingAndRestoresExactly() {
-        let e = CodexConfigEdit.enableHooks(sample)
+    func testAppendsFeaturesTableWhenMissingAndRestoresExactly() throws {
+        let e = try CodexConfigEdit.enableHooks(sample)
         XCTAssertTrue(e.changed)
         XCTAssertTrue(e.createdFeaturesTable)
         XCTAssertNil(e.previousHooksLine)
@@ -23,47 +23,78 @@ final class CodexConfigEditTests: XCTestCase {
         XCTAssertEqual(r, sample)
     }
 
-    func testInsertsIntoExistingFeaturesTable() {
+    func testInsertsIntoExistingFeaturesTable() throws {
         let text = "[features]\nother = 1\n\n[x]\ny = 2\n"
-        let e = CodexConfigEdit.enableHooks(text)
+        let e = try CodexConfigEdit.enableHooks(text)
         XCTAssertEqual(e.content, "[features]\nhooks = true\nother = 1\n\n[x]\ny = 2\n")
         XCTAssertFalse(e.createdFeaturesTable)
         XCTAssertEqual(CodexConfigEdit.restoreHooks(e.content, previousHooksLine: nil, createdFeaturesTable: false), text)
     }
 
-    func testFlipsFalseAndRestoresPreviousLine() {
+    func testFlipsFalseAndRestoresPreviousLine() throws {
         let text = "[features]\nhooks = false # off\n"
-        let e = CodexConfigEdit.enableHooks(text)
+        let e = try CodexConfigEdit.enableHooks(text)
         XCTAssertEqual(e.content, "[features]\nhooks = true\n")
         XCTAssertEqual(e.previousHooksLine, "hooks = false # off")
         XCTAssertEqual(CodexConfigEdit.restoreHooks(e.content, previousHooksLine: e.previousHooksLine, createdFeaturesTable: false), text)
     }
 
-    func testAlreadyEnabledIsUnchanged() {
+    func testAlreadyEnabledIsUnchanged() throws {
         let text = "[features]\nhooks = true\n"
-        let e = CodexConfigEdit.enableHooks(text)
+        let e = try CodexConfigEdit.enableHooks(text)
         XCTAssertFalse(e.changed)
         XCTAssertEqual(e.content, text)
     }
 
-    func testRestoreLeavesUserChangedValueAlone() {
+    func testRestoreLeavesUserChangedValueAlone() throws {
         let text = "[features]\nhooks = false\n"
         XCTAssertEqual(CodexConfigEdit.restoreHooks(text, previousHooksLine: nil, createdFeaturesTable: true), text)
     }
 
-    func testRestoreKeepsTableWhenUserAddedKeys() {
+    func testRestoreKeepsTableWhenUserAddedKeys() throws {
         let text = "a = 1\n\n[features]\nhooks = true\nmine = 2\n"
         XCTAssertEqual(CodexConfigEdit.restoreHooks(text, previousHooksLine: nil, createdFeaturesTable: true),
                        "a = 1\n\n[features]\nmine = 2\n")
     }
 
-    func testEmptyConfig() {
-        let e = CodexConfigEdit.enableHooks("")
+    func testEmptyConfig() throws {
+        let e = try CodexConfigEdit.enableHooks("")
         XCTAssertEqual(e.content, "[features]\nhooks = true\n")
         XCTAssertEqual(CodexConfigEdit.restoreHooks(e.content, previousHooksLine: nil, createdFeaturesTable: true), "")
     }
-}
 
+    // MARK: 点号键 / 行内表
+
+    func testDottedFeaturesKeysGetADottedHooksKey() throws {
+        let text = "model = \"x\"\nfeatures.web_search = true\n\n[profiles.a]\nfeatures = 1\n"
+        let e = try CodexConfigEdit.enableHooks(text)
+        XCTAssertEqual(e.content, "model = \"x\"\nfeatures.web_search = true\nfeatures.hooks = true\n\n[profiles.a]\nfeatures = 1\n")
+        XCTAssertFalse(e.content.contains("[features]"), "a [features] header after dotted keys redefines the table")
+        XCTAssertFalse(e.createdFeaturesTable)
+        XCTAssertFalse(try CodexConfigEdit.enableHooks(e.content).changed, "idempotent")
+        XCTAssertEqual(CodexConfigEdit.restoreHooks(e.content, previousHooksLine: nil, createdFeaturesTable: false), text)
+    }
+
+    func testDottedHooksFalseIsFlippedInPlace() throws {
+        let text = "\"features\" . hooks = false\n[x]\ny = 1\n"
+        let e = try CodexConfigEdit.enableHooks(text)
+        XCTAssertEqual(e.content, "features.hooks = true\n[x]\ny = 1\n")
+        XCTAssertEqual(e.previousHooksLine, "\"features\" . hooks = false")
+        XCTAssertEqual(CodexConfigEdit.restoreHooks(e.content, previousHooksLine: e.previousHooksLine, createdFeaturesTable: false), text)
+    }
+
+    func testInlineFeaturesTableIsNotRewritten() throws {
+        XCTAssertThrowsError(try CodexConfigEdit.enableHooks("features = { web_search = true }\n"))
+        XCTAssertFalse(try CodexConfigEdit.enableHooks("features = { web_search = true, hooks = true }\n").changed)
+    }
+
+    func testDottedKeysInsideOtherTablesAreIgnored() throws {
+        let text = "[profiles.a]\nfeatures.hooks = false\n"
+        let e = try CodexConfigEdit.enableHooks(text)
+        XCTAssertEqual(e.content, text + "\n[features]\nhooks = true\n")
+        XCTAssertTrue(e.createdFeaturesTable)
+    }
+}
 final class IntegrationsTests: ZhHansTestCase {
     private var home: URL!
 
@@ -239,5 +270,45 @@ final class IntegrationsTests: ZhHansTestCase {
             XCTAssertEqual(p.terminationStatus, 0)
             XCTAssertEqual(out.fileHandleForReading.readDataToEndOfFile(), Data(), "hook must be silent")
         }
+    }
+
+    // MARK: 读不出的配置 / 备份
+
+    func testUnreadableConfigAbortsWithoutOverwriting() throws {
+        let bytes = Data([0x6d, 0x6f, 0x64, 0x65, 0x6c, 0x20, 0x3d, 0x20, 0xff, 0xfe, 0x0a]) // 非 UTF-8
+        try FileManager.default.createDirectory(at: home.appendingPathComponent(".codex"), withIntermediateDirectories: true)
+        let url = home.appendingPathComponent(".codex/config.toml")
+        try bytes.write(to: url)
+        let c = CodexIntegration(home: home)
+        XCTAssertThrowsError(try c.install()) { error in
+            XCTAssertTrue((error as? IntegrationError)?.message.contains("config.toml") ?? false)
+        }
+        XCTAssertEqual(try Data(contentsOf: url), bytes, "the unreadable file is left exactly as it was")
+        XCTAssertNil(read(".codex/config.toml.cc-desk.bak"))
+    }
+
+    func testInlineFeaturesAbortsInstall() throws {
+        let text = "features = { web_search = true }\n"
+        try write(text, ".codex/config.toml")
+        XCTAssertThrowsError(try CodexIntegration(home: home).install())
+        XCTAssertEqual(read(".codex/config.toml"), text)
+    }
+
+    func testBackupsNeverClobberEachOther() throws {
+        try write("v1\n", ".codex/config.toml")
+        let url = home.appendingPathComponent(".codex/config.toml")
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let first = try XCTUnwrap(try IntegrationFiles.backup(url, now: now))
+        XCTAssertEqual(first.lastPathComponent, "config.toml.cc-desk.bak")
+        try write("v2\n", ".codex/config.toml")
+        let second = try XCTUnwrap(try IntegrationFiles.backup(url, now: now))
+        try write("v3\n", ".codex/config.toml")
+        let third = try XCTUnwrap(try IntegrationFiles.backup(url, now: now))
+        XCTAssertEqual(Set([first, second, third].map(\.path)).count, 3)
+        XCTAssertTrue(second.lastPathComponent.hasPrefix("config.toml.cc-desk.2"))
+        XCTAssertTrue(third.lastPathComponent.hasSuffix("-1.bak"))
+        XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "v1\n", "the first backup keeps the original")
+        XCTAssertEqual(try String(contentsOf: second, encoding: .utf8), "v2\n")
+        XCTAssertEqual(try String(contentsOf: third, encoding: .utf8), "v3\n")
     }
 }

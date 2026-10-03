@@ -71,16 +71,43 @@ enum IntegrationFiles {
         try write(Data(text.utf8), to: url, executable: executable)
     }
 
-    /// 修改前备份为 `<文件>.cc-desk.bak`（覆盖旧备份）。文件不存在时不备份。
-    static func backup(_ url: URL) throws {
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
-        let bak = URL(fileURLWithPath: url.path + ".cc-desk.bak")
-        try? FileManager.default.removeItem(at: bak)
-        try FileManager.default.copyItem(at: url, to: bak)   // copyItem 保留原文件权限
+    /// 修改前备份，从不覆盖已有备份：第一次为 `<文件>.cc-desk.bak`（保留最初的原样），之后为
+    /// `<文件>.cc-desk.<时间>.bak`（同一秒内重复时再加序号）。文件不存在时不备份。返回备份路径。
+    @discardableResult
+    static func backup(_ url: URL, now: Date = Date()) throws -> URL? {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return nil }
+        var bak = URL(fileURLWithPath: url.path + ".cc-desk.bak")
+        if fm.fileExists(atPath: bak.path) {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            let stamp = formatter.string(from: now)
+            bak = URL(fileURLWithPath: url.path + ".cc-desk.\(stamp).bak")
+            var n = 1
+            while fm.fileExists(atPath: bak.path) {
+                bak = URL(fileURLWithPath: url.path + ".cc-desk.\(stamp)-\(n).bak")
+                n += 1
+            }
+        }
+        try fm.copyItem(at: url, to: bak)   // copyItem 保留原文件权限
+        return bak
+    }
+
+    /// 读文本文件：不存在时为 nil；存在但读不出 / 不是 UTF-8 时抛错——绝不能把它当成空文件再整个覆盖掉。
+    static func readText(_ url: URL) throws -> String? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else {
+            throw IntegrationError(L("integration.error.unreadable", url.path))
+        }
+        return text
     }
 }
 
-/// `~/.codex/config.toml` 的最小改动：只读写顶层 `[features]` 表里的 `hooks` 键，其余内容逐字保留。
+/// `~/.codex/config.toml` 的最小改动：只读写 features 表里的 `hooks` 键，其余内容逐字保留。
+/// features 表可能写成 `[features]` 表头，也可能写成根上的点号键（`features.hooks = …`）：
+/// 后者存在时不能再追加 `[features]` 表头（会重复定义表，Codex 无法解析），改为同样用点号键。
+/// 写成行内表（`features = { … }`）时不改动，提示用户手动开启。
 public enum CodexConfigEdit {
     public struct Enabled: Equatable {
         public let content: String
@@ -101,9 +128,44 @@ public enum CodexConfigEdit {
     }
 
     static func isKey(_ line: String, _ key: String) -> Bool {
+        keyPath(line) == key
+    }
+
+    /// 键值行的键（去掉空白与引号，如 `"features" . hooks = 1` -> `features.hooks`）；不是键值行时为 nil。
+    static func keyPath(_ line: String) -> String? {
         let t = line.trimmingCharacters(in: .whitespaces)
-        guard !t.hasPrefix("#"), t.hasPrefix(key) else { return false }
-        return t.dropFirst(key.count).trimmingCharacters(in: .whitespaces).hasPrefix("=")
+        guard !t.isEmpty, !t.hasPrefix("#"), !t.hasPrefix("["), let eq = t.firstIndex(of: "=") else { return nil }
+        let key = t[..<eq].filter { !$0.isWhitespace && $0 != "\"" && $0 != "'" }
+        return key.isEmpty ? nil : String(key)
+    }
+
+    static func value(_ line: String) -> String {
+        guard let eq = line.firstIndex(of: "=") else { return "" }
+        return line[line.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+    }
+
+    /// 根上（第一个表头之前）的 features 写法。
+    enum RootFeatures: Equatable {
+        case none
+        /// `features.xxx = …` 点号键；hooks：`features.hooks` 所在行，last：最后一个 `features.` 行。
+        case dotted(hooks: Int?, last: Int)
+        /// `features = { … }` 行内表。
+        case inline(line: Int)
+    }
+
+    static func rootFeatures(_ lines: [String]) -> RootFeatures {
+        var hooks: Int?
+        var last: Int?
+        for (i, line) in lines.enumerated() {
+            if tableHeader(line) != nil { break }
+            guard let key = keyPath(line) else { continue }
+            if key == "features" { return .inline(line: i) }
+            if key.hasPrefix("features.") {
+                last = i
+                if key == "features.hooks", hooks == nil { hooks = i }
+            }
+        }
+        return last.map { .dotted(hooks: hooks, last: $0) } ?? .none
     }
 
     static func isTrue(_ line: String) -> Bool {
@@ -112,14 +174,15 @@ public enum CodexConfigEdit {
         return v == "true"
     }
 
-    /// 定位 `[features]` 表头与其中的 hooks 键所在行。
+    /// 定位 `[features]` 表头与 hooks 键所在行（表里的 `hooks`，或根上的 `features.hooks`）。
     static func locate(_ lines: [String]) -> (header: Int?, hooks: Int?) {
         var inFeatures = false
         var header: Int?
         var hooks: Int?
+        if case .dotted(let dottedHooks, _) = rootFeatures(lines) { hooks = dottedHooks }
         for (i, line) in lines.enumerated() {
             if let h = tableHeader(line) {
-                inFeatures = h == "[features]"
+                inFeatures = h.filter { !$0.isWhitespace && $0 != "\"" } == "[features]"
                 if inFeatures, header == nil { header = i }
                 continue
             }
@@ -140,17 +203,35 @@ public enum CodexConfigEdit {
         lines.joined(separator: "\n") + (trailingNewline && !lines.isEmpty ? "\n" : "")
     }
 
-    public static func enableHooks(_ content: String) -> Enabled {
+    /// 行内表里有没有 `hooks = true`（只做粗略判断，用于状态显示 / 不需要改动的情况）。
+    static func inlineHasHooksTrue(_ line: String) -> Bool {
+        let compact = value(line).filter { !$0.isWhitespace && $0 != "\"" }
+        return compact.contains("{hooks=true") || compact.contains(",hooks=true")
+    }
+
+    public static func enableHooks(_ content: String) throws -> Enabled {
         var (lines, trailing) = split(content)
+        let root = rootFeatures(lines)
+        if case .inline(let line) = root {
+            if inlineHasHooksTrue(lines[line]) {
+                return Enabled(content: content, changed: false, previousHooksLine: nil, createdFeaturesTable: false)
+            }
+            throw IntegrationError(L("integration.error.inlineFeatures"))
+        }
         let (header, hooks) = locate(lines)
         if let hooks {
             if isTrue(lines[hooks]) {
                 return Enabled(content: content, changed: false, previousHooksLine: lines[hooks], createdFeaturesTable: false)
             }
             let previous = lines[hooks]
-            lines[hooks] = "hooks = true"
+            lines[hooks] = keyPath(previous) == "features.hooks" ? "features.hooks = true" : "hooks = true"
             return Enabled(content: join(lines, trailingNewline: trailing), changed: true,
                            previousHooksLine: previous, createdFeaturesTable: false)
+        }
+        if case .dotted(_, let last) = root {
+            lines.insert("features.hooks = true", at: last + 1)
+            return Enabled(content: join(lines, trailingNewline: trailing), changed: true,
+                           previousHooksLine: nil, createdFeaturesTable: false)
         }
         if let header {
             lines.insert("hooks = true", at: header + 1)
@@ -297,7 +378,8 @@ public struct CodexIntegration {
         let hooks = (try? readHooks()) ?? nil
         let entries = hooks.map { CodexHooksEdit.isInstalled($0, scriptPath: scriptFile.path) } ?? false
         let script = (try? String(contentsOf: scriptFile, encoding: .utf8)) == IntegrationAssets.codexHookScript
-        let config = (try? String(contentsOf: configFile, encoding: .utf8)).map { !CodexConfigEdit.enableHooks($0).changed } ?? false
+        let config = (try? String(contentsOf: configFile, encoding: .utf8))
+            .map { ((try? CodexConfigEdit.enableHooks($0))?.changed).map { !$0 } ?? false } ?? false
         if entries && script && config { return .installed }
         let anyOurs = hooks.map { root -> Bool in
             let stripped = (try? CodexHooksEdit.uninstall(root, scriptPath: scriptFile.path)) ?? root
@@ -320,8 +402,9 @@ public struct CodexIntegration {
         let existing = try readHooks()
         let merged = try CodexHooksEdit.install(existing ?? [:], scriptPath: scriptFile.path)
 
-        let configText = (try? String(contentsOf: configFile, encoding: .utf8)) ?? ""
-        let enabled = CodexConfigEdit.enableHooks(configText)
+        // 文件存在却读不出（权限 / 非 UTF-8）时中止：当成空文件会把用户的整个配置覆盖掉。
+        let configText = try IntegrationFiles.readText(configFile) ?? ""
+        let enabled = try CodexConfigEdit.enableHooks(configText)
 
         try IntegrationFiles.write(IntegrationAssets.codexHookScript, to: scriptFile, executable: true)
         try FileManager.default.createDirectory(at: home.appendingPathComponent(".cc-desk/state", isDirectory: true),
@@ -360,8 +443,7 @@ public struct CodexIntegration {
                 }
             }
         }
-        if let record = ledger.codex, record.changedConfig,
-           let text = try? String(contentsOf: configFile, encoding: .utf8) {
+        if let record = ledger.codex, record.changedConfig, let text = try IntegrationFiles.readText(configFile) {
             let restored = CodexConfigEdit.restoreHooks(text, previousHooksLine: record.previousHooksLine,
                                                         createdFeaturesTable: record.createdFeaturesTable)
             if restored != text {
