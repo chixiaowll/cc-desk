@@ -51,6 +51,13 @@ public final class TranscriptIndex {
         return entry(for: url)?.meta
     }
 
+    /// 某个 sessionId 对应的 transcript 文件。
+    public func path(forSession id: String) -> URL? {
+        if let url = locate(sessionID: id), fileManager.fileExists(atPath: url.path) { return url }
+        sessionPaths[id] = nil
+        return locate(sessionID: id)
+    }
+
     /// 所有 transcript 按 mtime 倒序排列，排除 live 会话与无 cwd 的文件。
     public func history(excluding live: Set<String>, limit: Int = 300) -> [HistoryItem] {
         var items: [HistoryItem] = []
