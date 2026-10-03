@@ -85,6 +85,8 @@
 "alert.notificationsOff.title" = "Notifications Are Turned Off";
 "alert.notificationsOff.message" = "Allow notifications in System Settings → Notifications → CC Desk to be alerted when a session needs approval.";
 "alert.cannotJump.title" = "Can’t Jump to Session";
+"alert.tmuxUnavailable.title" = "Sessions Won’t Survive Restarts";
+"alert.tmuxUnavailable.message" = "tmux was not found, so embedded sessions run directly in CC Desk and stop when it quits. Install tmux (for example “brew install tmux”) and restart CC Desk to keep sessions running across restarts. Release builds include their own tmux.";
 "alert.cannotJump.message" = "This session is running in a terminal that can’t be targeted. Right-click it and choose “Take Over Here”.";
 "alert.cannotCreate.title" = "Can’t Create Session";
 "alert.cannotCreate.message" = "A plain terminal has no agent to launch.";

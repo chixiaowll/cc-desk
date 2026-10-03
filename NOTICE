@@ -5,3 +5,8 @@ Screen detection rules (Sources/CCDeskCore/BundledManifests.swift: codex.toml, p
 event mapping of the Codex hook / pi extension are derived from herdr (https://github.com/herdrdev/herdr),
 licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
 The manifests are included unmodified; the hook script and extension were rewritten for CC Desk.
+
+Release builds embed tmux (ISC License, https://github.com/tmux/tmux) at Contents/Helpers/tmux, statically
+linked with libevent (3-clause BSD License, https://libevent.org) and utf8proc (MIT License,
+https://github.com/JuliaStrings/utf8proc). Their full license texts are in
+Contents/Resources/ThirdPartyNotices/tmux.txt.

@@ -144,14 +144,16 @@ public enum LaunchSpec {
         }
     }
 
-    public static func environment(base: [String: String], shell: String, terminalID: UUID,
+    /// `terminalID` 为 nil 时不写 CC_DESK_TERMINAL_ID：tmux 客户端的环境会成为整个 tmux 服务器的全局环境，
+    /// 终端 id 改为用 `new-session -e` 只写进对应会话。
+    public static func environment(base: [String: String], shell: String, terminalID: UUID?,
                                     defaultLocale: String = LaunchSpec.defaultUTF8Locale()) -> [String] {
         var env = sanitizedEnvironment(base: base)
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
         env["SHELL"] = shell
         env["CC_DESK"] = "1"
-        env["CC_DESK_TERMINAL_ID"] = terminalID.uuidString
+        if let terminalID { env["CC_DESK_TERMINAL_ID"] = terminalID.uuidString }
         env["TERM_PROGRAM"] = "CCDesk"
         if env["LANG"] == nil && env["LC_ALL"] == nil && env["LC_CTYPE"] == nil {
             env["LANG"] = defaultLocale

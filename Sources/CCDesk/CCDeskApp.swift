@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// 入口：`--mcp` 时作为助手的 stdio MCP 工具服务器运行（不启动界面，设计 §13）；`--tts-test` 时验证自然语音引擎后退出；
+/// `--tmux-selftest` 时在隔离的 tmux 服务器上自检会话托管层后退出（设计 §4.9）；
 /// 否则启动 App。
 @main
 enum CCDeskMain {
@@ -86,6 +87,7 @@ enum CCDeskMain {
         signal(SIGPIPE, SIG_IGN)
         if CommandLine.arguments.dropFirst().contains("--mcp") { MCPMode.run() }
         NaturalSpeechTest.runIfRequested()
+        TmuxSelfTest.runIfRequested()
         CCDeskApp.main()
     }
 }

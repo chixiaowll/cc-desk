@@ -140,7 +140,9 @@ final class AppModel: ObservableObject {
             self?.respondFromNotification(key, expectedReason: reason, approve: approve)
         }
         notifier.setup()
+        pool.tmux = TmuxHost.shared
         restore()
+        if pool.tmux == nil { TerminalRestore.showUnavailableHintOnce() }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.poll() }
         poll()
         refreshHistory()
@@ -165,7 +167,7 @@ final class AppModel: ObservableObject {
         var expected: [Int32: (kind: AgentKind, sessionID: String)] = [:]
         for terminal in pool.terminals {
             if let kind = knownKinds[terminal.id], kind != .claude, let sid = knownSessionIDs[terminal.id] {
-                expected[terminal.shellPID] = (kind, sid)
+                expected[terminal.ttyPID] = (kind, sid)
             }
         }
         let resolver = self.resolver
@@ -824,7 +826,11 @@ final class AppModel: ObservableObject {
 
     /// 返回 true 表示可以退出。
     func confirmQuit() -> Bool {
-        let active = sessions.filter { $0.host.isEmbedded && $0.status.isActive }
+        // tmux 托管的会话在退出后继续运行（只是断开），不必确认；只有直连 PTY 的会话会被中断。
+        let active = sessions.filter { s in
+            guard s.status.isActive, let tid = s.host.terminalID, let terminal = pool.terminal(tid) else { return false }
+            return !terminal.isPersistent
+        }
         if !active.isEmpty {
             let names = active.map { $0.name.isEmpty ? $0.cwd : $0.name }.joined(separator: L("list.separator"))
             guard confirm(LN("confirm.quit.title", active.count), L("confirm.quit.message", names)) else {
@@ -848,20 +854,23 @@ final class AppModel: ObservableObject {
     }
 
     private func restore() {
-        guard let file = WorkspaceStore.load() else { return }
-        for rawEntry in file.entries {
-            var entry = rawEntry
-            entry.cwd = ProjectResolver.canonical(entry.cwd)
-            var isDir: ObjCBool = false
-            if FileManager.default.fileExists(atPath: entry.cwd, isDirectory: &isDir), isDir.boolValue {
-                // 有 sessionId：按其 agent 恢复（旧文件没有 kind 时为 Claude）；只有 kind 没有 sessionId
-                //（如 Codex 还没发过第一条消息）：重新启动该 agent；都没有：普通 shell。
-                let kind = entry.kind.flatMap { $0.isAgent ? $0 : nil } ?? (entry.sessionID != nil ? .claude : nil)
-                let adapter = kind.flatMap(AgentAdapters.adapter(for:))
-                let command = entry.sessionID.map { sid in adapter?.resumeCommand(sessionID: sid) } ?? adapter?.launchCommand()
+        let restore = TerminalRestore.prepare(tmux: pool.tmux)
+        for item in restore.plan.items {
+            let entry = item.entry
+            let kind = TerminalRestorePlanner.kind(for: entry)
+            switch item.decision {
+            case .attach:
+                // 会话还在运行：直接附着，不发恢复命令。记下 agent，若它在 App 关闭期间已退出，首轮即显示为「已结束」。
+                guard let pane = restore.panes[entry.terminalID] else { continue }
+                makeTerminal(id: entry.terminalID, cwd: entry.cwd, launch: .attach(pane))
+                if let kind {
+                    remember(entry.terminalID, sessionID: entry.sessionID, kind: kind)
+                    if entry.sessionID != nil { observedAgent.insert(entry.terminalID) }
+                }
+            case .create(let command):
                 makeTerminal(id: entry.terminalID, cwd: entry.cwd, command: command)
                 if let kind { remember(entry.terminalID, sessionID: entry.sessionID, kind: kind) }
-            } else {
+            case .missing:
                 missing.append(entry)
             }
         }
@@ -884,8 +893,13 @@ final class AppModel: ObservableObject {
 
     @discardableResult
     private func makeTerminal(id: UUID, cwd: String, command: String?) -> EmbeddedTerminal {
+        makeTerminal(id: id, cwd: cwd, launch: .run(command: command))
+    }
+
+    @discardableResult
+    private func makeTerminal(id: UUID, cwd: String, launch: TerminalLaunch) -> EmbeddedTerminal {
         let title = URL(fileURLWithPath: cwd).lastPathComponent
-        let terminal = pool.create(id: id, cwd: cwd, title: title, command: command)
+        let terminal = pool.create(id: id, cwd: cwd, title: title, launch: launch)
         terminal.onTerminated = { [weak self] tid in self?.removeTerminal(tid) }
         return terminal
     }

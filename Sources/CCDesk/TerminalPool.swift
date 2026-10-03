@@ -12,6 +12,22 @@ final class DetectingTerminalView: LocalProcessTerminalView {
     }
 }
 
+/// 新建内嵌终端的方式。
+enum TerminalLaunch {
+    /// 运行命令（nil 为普通 shell）；tmux 可用时放进新的 tmux 会话，否则直连 SwiftTerm 的 PTY。
+    case run(command: String?)
+    /// 附着到已在运行的 tmux 会话（App 重启后恢复，不再发命令）。
+    case attach(TmuxPane)
+}
+
+/// 终端里的进程挂在哪里。
+enum TerminalBackend {
+    /// shell / agent 直接运行在 SwiftTerm 的 PTY 上（没有 tmux 时；App 退出即结束）。
+    case direct
+    /// shell / agent 运行在 tmux 会话里，SwiftTerm 只运行 `tmux attach` 客户端；panePID 为窗格 shell 的 pid。
+    case tmux(TmuxHost, panePID: Int32)
+}
+
 final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     let id: UUID
     let cwd: String
@@ -19,6 +35,13 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     let createdAt = Date()
     let view: DetectingTerminalView
     var onTerminated: ((UUID) -> Void)?
+    private(set) var backend: TerminalBackend = .direct
+    /// 正在由 App 关闭（不再自动重新附着）。
+    var closing = false
+    /// tmux 客户端意外退出、会话仍在时重新附着的次数。
+    var reattachCount = 0
+    /// 可能处于 tmux 复制模式（用户向上滚过）：输入前先退出复制模式，屏幕检测先确认。
+    var mayBeInCopyMode = false
 
     /// 终端里当前运行的、需要屏幕检测的 agent（Codex / pi）；由 AppModel 每次轮询后设置，nil 时不检测。
     var detectionKind: AgentKind? {
@@ -38,7 +61,7 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     private static let detectionInterval: TimeInterval = 0.5
     private static let detectionQueue = DispatchQueue(label: "cc-desk.screen-detect", qos: .utility)
 
-    init(id: UUID, cwd: String, title: String, command: String?, theme: TerminalTheme) {
+    init(id: UUID, cwd: String, title: String, launch: TerminalLaunch, host: TmuxHost?, theme: TerminalTheme) {
         self.id = id
         self.cwd = cwd
         self.title = title
@@ -49,14 +72,42 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         apply(theme)
         view.processDelegate = self
         let shell = Self.userShell()
-        view.startProcess(
-            executable: shell,
-            args: LaunchSpec.shellArgs(command: command),
-            environment: LaunchSpec.environment(base: ProcessInfo.processInfo.environment, shell: shell, terminalID: id),
-            currentDirectory: cwd)
+        switch launch {
+        case .attach(let pane) where host != nil:
+            if let host { backend = .tmux(host, panePID: pane.panePID) }
+        case .attach:
+            view.startProcess(executable: shell, args: LaunchSpec.shellArgs(command: nil),
+                              environment: LaunchSpec.environment(base: ProcessInfo.processInfo.environment, shell: shell, terminalID: id),
+                              currentDirectory: cwd)
+            return
+        case .run(let command):
+            let terminal = view.getTerminal()
+            if let host, let pane = host.createSession(terminalID: id, cwd: cwd, cols: terminal.cols, rows: terminal.rows,
+                                                       shell: shell, command: command) {
+                backend = .tmux(host, panePID: pane.panePID)
+            } else {
+                view.startProcess(
+                    executable: shell,
+                    args: LaunchSpec.shellArgs(command: command),
+                    environment: LaunchSpec.environment(base: ProcessInfo.processInfo.environment, shell: shell, terminalID: id),
+                    currentDirectory: cwd)
+                return
+            }
+        }
+        attachTmuxClient()
     }
 
-    var shellPID: Int32 { view.process.shellPid }
+    /// 用来查 tty 的 pid：tmux 托管时为窗格 shell（agent 的 tty 是窗格的 tty），否则为 SwiftTerm 直接启动的 shell。
+    var ttyPID: Int32 {
+        if case .tmux(_, let panePID) = backend { return panePID }
+        return view.process.shellPid
+    }
+
+    /// App 退出 / 崩溃后会话仍在运行（tmux 托管）。
+    var isPersistent: Bool {
+        if case .tmux = backend { return true }
+        return false
+    }
 
     /// 跟随系统外观切换终端底色 / 前景色 / 光标色，并重绘已有内容。
     func apply(_ theme: TerminalTheme) {
@@ -69,6 +120,7 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
 
     /// 写入文本（遵循 bracketed paste 模式），submit 时稍后补回车。为语音输入等后续功能预留。
     func send(text: String, submit: Bool) {
+        leaveCopyModeIfNeeded()
         let bracketed = view.getTerminal().bracketedPasteMode
         view.send(txt: LaunchSpec.inputPayload(text: text, bracketed: bracketed))
         if submit {
@@ -78,6 +130,7 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
 
     /// 直接发送按键字节（回车 "\r"、Esc "\u{1b}"、退格 "\u{7f}"…），不走 bracketed paste。
     func sendKeys(_ keys: String) {
+        leaveCopyModeIfNeeded()
         view.send(txt: keys)
     }
 
@@ -90,6 +143,11 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     /// SwiftTerm `view.terminate()` 发出的信号，导致 pty 主端关闭后子进程仍孤儿存活。
     /// 改为先向前台进程组、shell 自身进程组发送 SIGHUP，2 秒后若 shell 仍存活再升级为 SIGKILL。
     func terminate() {
+        closing = true
+        if case .tmux(let host, let panePID) = backend {
+            terminateTmuxSession(host: host, panePID: panePID)
+            return
+        }
         let pid = view.process.shellPid
         if pid > 0 {
             let fg = tcgetpgrp(view.process.childfd)
@@ -127,6 +185,20 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     private func runDetection() {
         detectionScheduled = false
         guard let kind = detectionKind, let manifest = BundledManifests.manifest(for: kind) else { return }
+        // 复制模式里屏幕上是历史内容，不能用来判断当前状态：先确认已回到底部。
+        if mayBeInCopyMode, case .tmux(let host, _) = backend {
+            let id = self.id
+            lastDetectionAt = Date()
+            Self.detectionQueue.async { [weak self] in
+                let inMode = host.isInCopyMode(terminalID: id)
+                DispatchQueue.main.async {
+                    guard let self, !inMode else { return }
+                    self.mayBeInCopyMode = false
+                    self.scheduleDetection()
+                }
+            }
+            return
+        }
         lastDetectionAt = Date()
         let screen = bottomScreenText()
         let title = oscTitle
@@ -149,7 +221,9 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
 
     /// 助手的 read_screen：底部 `lines` 行纯文本（可超过一屏，含回滚区）。必须在主线程调用。
     func screenText(lines: Int) -> String {
-        Self.bottomText(of: view.getTerminal(), lines: lines)
+        // tmux 托管时 SwiftTerm 里只有一屏（tmux 客户端用备用屏幕），更多行从 tmux 的历史里取。
+        if lines > view.getTerminal().rows, let text = tmuxScreenText(lines: lines) { return text }
+        return Self.bottomText(of: view.getTerminal(), lines: lines)
     }
 
     /// 应用光标模式（方向键发 ESC O A 而不是 ESC [ A）。
@@ -189,6 +263,8 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
+            // tmux 客户端被意外断开（会话还在）：重新附着，而不是当作终端已关闭。
+            if self.reattachIfSessionAlive() { return }
             self.onTerminated?(self.id)
         }
     }
@@ -206,10 +282,38 @@ final class TerminalPool {
         for terminal in terminals { terminal.apply(theme) }
     }
 
+    /// tmux 托管层；nil 时所有终端直连 PTY。
+    var tmux: TmuxHost? {
+        didSet { if tmux != nil { installEventMonitor() } }
+    }
+    private var eventMonitor: Any?
+
+    /// SwiftTerm 的 keyDown / scrollWheel 不可覆盖（非 open），改用 App 内事件监视：
+    /// 按键交给拥有焦点的终端（Shift+Enter、退出复制模式），滚轮记下「可能进入了复制模式」。
+    private func installEventMonitor() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .scrollWheel]) { [weak self] event in
+            guard let self, let window = event.window else { return event }
+            switch event.type {
+            case .keyDown:
+                guard let view = window.firstResponder as? DetectingTerminalView,
+                      let terminal = self.terminals.first(where: { $0.view === view }) else { return event }
+                return terminal.handleTmuxKey(event) ? nil : event
+            case .scrollWheel:
+                guard let hit = window.contentView?.hitTest(event.locationInWindow),
+                      let terminal = self.terminals.first(where: { hit.isDescendant(of: $0.view) }) else { return event }
+                terminal.noteScroll(event)
+                return event
+            default:
+                return event
+            }
+        }
+    }
+
     @discardableResult
-    func create(id: UUID = UUID(), cwd: String, title: String, command: String?) -> EmbeddedTerminal {
+    func create(id: UUID = UUID(), cwd: String, title: String, launch: TerminalLaunch) -> EmbeddedTerminal {
         let theme = self.theme ?? TerminalTheme.of(NSApp.effectiveAppearance)
-        let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, command: command, theme: theme)
+        let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, launch: launch, host: tmux, theme: theme)
         terminals.append(terminal)
         return terminal
     }
@@ -225,7 +329,7 @@ final class TerminalPool {
     /// ended：agent 已退出的终端 -> 最近的 sessionId、agent 种类与退出时间。
     func infos(processes: ProcessTable, ended: [UUID: EndedSession] = [:]) -> [EmbeddedTerminalInfo] {
         terminals.map {
-            EmbeddedTerminalInfo(id: $0.id, cwd: $0.cwd, tty: processes.tty(of: $0.shellPID),
+            EmbeddedTerminalInfo(id: $0.id, cwd: $0.cwd, tty: processes.tty(of: $0.ttyPID),
                                  title: $0.title, createdAt: $0.createdAt,
                                  lastSessionID: ended[$0.id]?.id, lastKind: ended[$0.id]?.kind ?? .claude,
                                  endedAt: ended[$0.id]?.at)
@@ -234,7 +338,7 @@ final class TerminalPool {
 
     /// tty -> 终端。
     func terminal(tty: String, processes: ProcessTable) -> EmbeddedTerminal? {
-        terminals.first { processes.tty(of: $0.shellPID) == tty }
+        terminals.first { processes.tty(of: $0.ttyPID) == tty }
     }
 }
 
