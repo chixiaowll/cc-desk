@@ -461,3 +461,19 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - **额度**：顾问与专业 agent 走同一订阅，Sonnet / Opus 占用明显更多；结果面板显示本次 token 数。
 
 **实现顺序**：§13（工具化 + 读屏 + 确认 + 撤销）→ §14 顾问 + 派活 + 主动提醒 → 专业 agent 配置。
+
+## 15. 常驻桌面：菜单栏、登录启动、全局快捷键（v1.5）
+
+内嵌会话托管在 tmux 里（§4.9），App 退出后仍在运行，但没人看着就会错过等批准。这一节让 CC Desk 一直在场又不打扰。
+
+- **菜单栏状态项**（`StatusBarController`，NSStatusItem）：单色模板图标 `apple.terminal`（`>_`，与 App 图标一致；有等批准时换成实心）+ 计数。计数与 Dock 角标一致（等批准 + 已完成·未读），等批准数粗体突出，未读数常规字重跟在后面（「2 · 1」；只有未读时就是「1」），为 0 时只显示图标；悬停提示写明各是多少。按钮只在计数变化时更新（`groups` 去重 + 250ms 去抖），菜单内容在每次打开时（`menuNeedsUpdate`）才生成，平时没有额外开销。
+- **菜单内容**：按项目分组（组标题 + worktree 分支）的会话，每行状态点（Theme 状态色：等批准陶土橙、处理中雾蓝、已完成·未读鼠尾草绿、空闲灰、已结束 / 终端空心灰）+ 标题 + 「状态 · agent」。**只有菜单按紧急程度排序**（组按组内最紧急的一行、组内按行的紧急程度，同级保持侧栏相对顺序；`StatusMenu.sections`），侧栏仍是固定顺序。选中内嵌 / 目录缺失的会话：显示主窗口、展开所在组并选中它；外部会话与点侧栏一样直接跳到所在 App。之后是：显示 CC Desk 主窗口、新建会话…、对话模式（勾选态）、登录时启动、启用全局快捷键（被占用的组合列在下面）、在菜单栏显示图标（点击即隐藏，可在应用菜单里重新打开）、退出 CC Desk。
+- **登录时启动**（`LoginItemController`）：`SMAppService.mainApp` register / unregister，默认关，不主动询问；应用菜单与菜单栏菜单里都有开关，勾选状态始终读系统实际状态（回到 App / 打开菜单时刷新）。`.requiresApproval` 显示为「登录时启动（待在系统设置中允许）」并提示打开「系统设置 › 通用 › 登录项」；注册失败（如不在「应用程序」里运行）弹窗说明。
+- **登录启动不抢焦点**：`LoginLaunch.isLoginLaunch`（Core）综合三个信号：启动参数 `--launched-at-login`；启动 Apple 事件带 `keyAELaunchedAsLogInItem`；兜底——登录项已启用且本用户会话（loginwindow 进程启动时间，sysctl）开始后 120 秒内启动（SMAppService 启动的 App 不一定带 Apple 事件标记）。判定为登录启动时不调用 `NSApp.activate`，`Window` scene 创建的主窗口一变为可见就 `orderOut`（不销毁，openMainWindow 仍可用），持续 5 秒或直到用户主动打开；点 Dock 图标、菜单栏「显示主窗口」或全局快捷键时正常显示。
+- **全局快捷键**（`GlobalHotkeyCenter`，Carbon `RegisterEventHotKey`，不需要辅助功能权限，无新依赖）：组合集中定义在 Core 的 `GlobalHotkey.defaults`，以后做成可配置只改这一处。
+  - **⌃⌥C**：显示 CC Desk 主窗口；已在最前且主窗口可见时隐藏 App。
+  - **⌃⌥V**：开关对话模式（对应 App 内的 ⌥⌘V），任何 App 在前台都可用。
+  - 不用 Space 组合：⌃Space / ⌃⌥Space 是系统切换输入源，⌘Space 是 Spotlight，⌃⌘Space 是表情与符号，⌥Space 是 Claude 桌面版等常见 App 的快捷输入。
+  - 菜单栏菜单里对应项显示快捷键；应用菜单「启用全局快捷键（⌃⌥C 主窗口 · ⌃⌥V 对话模式）」可整体关闭。注册失败（被系统或其他 App 占用）时记录并在菜单里列出「⌃⌥C 已被其他 App 占用」；用户主动开启时失败会弹窗说明。
+  - 「按住右 ⌥ 说话」在 App 外需要 CGEventTap（辅助功能 / 输入监控权限），不做；App 外用 ⌃⌥V 开关对话模式。
+- **设置**（UserDefaults `dev.local.ccdesk`，键在 `DesktopSettings`）：`menuBarIconShown`（默认 true）、`globalHotkeysEnabled`（默认 true）。登录时启动不存设置，以 SMAppService 为准。
