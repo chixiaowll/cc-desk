@@ -95,3 +95,11 @@
 "speech.needsApproval" = "需要批准";
 "speech.needsApprovalReason" = "需要批准：%@";
 "speech.done" = "已完成";
+
+/* Voice assistant */
+"assistant.fallback" = "没听懂，已填入";
+"assistant.resume.notFound" = "没找到匹配的历史会话";
+"assistant.waiting.none" = "没有会话在等你";
+"assistant.waiting.one" = "%@在等你";
+"assistant.waiting.many" = "%1$d 个在等你：%2$@";
+"assistant.list.separator" = "、";

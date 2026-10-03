@@ -95,3 +95,11 @@
 "speech.needsApproval" = "Needs approval";
 "speech.needsApprovalReason" = "Needs approval: %@";
 "speech.done" = "Done";
+
+/* Voice assistant */
+"assistant.fallback" = "Didn’t catch that, typed it in";
+"assistant.resume.notFound" = "No matching past session";
+"assistant.waiting.none" = "Nothing is waiting for you";
+"assistant.waiting.one" = "%@ is waiting for you";
+"assistant.waiting.many" = "%1$d are waiting: %2$@";
+"assistant.list.separator" = ", ";

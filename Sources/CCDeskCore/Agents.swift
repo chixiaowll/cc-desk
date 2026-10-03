@@ -124,13 +124,18 @@ public enum LaunchSpec {
         return "en_US.UTF-8"
     }
 
-    public static func environment(base: [String: String], shell: String, terminalID: UUID,
-                                    defaultLocale: String = LaunchSpec.defaultUTF8Locale()) -> [String] {
-        var env = base.filter { key, _ in
+    /// 去掉会话级 Claude Code / Codex 变量与宿主终端身份变量（子进程不应以为自己嵌套在某个 agent / 终端里）。
+    public static func sanitizedEnvironment(base: [String: String]) -> [String: String] {
+        base.filter { key, _ in
             !sessionScopedDenylist.contains(key)
                 && !hostTerminalIdentityDenylist.contains(key)
                 && !hostTerminalIdentityPrefixes.contains { key.hasPrefix($0) }
         }
+    }
+
+    public static func environment(base: [String: String], shell: String, terminalID: UUID,
+                                    defaultLocale: String = LaunchSpec.defaultUTF8Locale()) -> [String] {
+        var env = sanitizedEnvironment(base: base)
         env["TERM"] = "xterm-256color"
         env["COLORTERM"] = "truecolor"
         env["SHELL"] = shell
