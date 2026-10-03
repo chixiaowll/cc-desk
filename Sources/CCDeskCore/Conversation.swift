@@ -494,7 +494,7 @@ public enum SpokenStatus {
         return nil
     }
 
-    static func shorten(_ reason: String?) -> String? {
+    public static func shorten(_ reason: String?) -> String? {
         guard let line = reason?.components(separatedBy: .newlines).first?
             .trimmingCharacters(in: .whitespaces), !line.isEmpty else { return nil }
         return line.count > reasonLimit ? String(line.prefix(reasonLimit - 1)) + "…" : line

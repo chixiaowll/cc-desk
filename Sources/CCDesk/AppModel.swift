@@ -59,6 +59,8 @@ final class AppModel: ObservableObject {
     let inputs = AssistantInputs()
     /// 助手工具的执行者（控制接口 `~/.cc-desk/control.sock` 的方法，设计 §13）。
     private(set) lazy var toolbox = AssistantToolbox(model: self)
+    /// 顾问、派活、专业 agent 与主动提醒（设计 §14）。
+    private(set) lazy var work = AssistantWork(model: self)
     private var controlServer: ControlServer?
     private let resolver = ProjectResolver(git: SystemProbe.git)
     private let queue = DispatchQueue(label: "cc-desk.poll")
@@ -134,6 +136,7 @@ final class AppModel: ObservableObject {
 
     func start() {
         conversation.host = self
+        work.start()
         startControlServer()
         notifier.onOpen = { [weak self] key in self?.openFromNotification(key) }
         notifier.onApproval = { [weak self] key, reason, approve in
@@ -328,6 +331,7 @@ final class AppModel: ObservableObject {
         }
         push.handle(notifiable, rows: rows)
         if newlyUnread { rebuildGroups() }
+        work.observe(events: events, rows: rows)
         if events.contains(where: { $0.kind == .finished }) {
             usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, reason: .taskFinished) { [weak self] in self?.refreshUsage() }
         }
@@ -564,32 +568,37 @@ final class AppModel: ObservableObject {
     }
 
     /// 用 `kind`（默认上次使用的 agent）在目录中新建内嵌会话；prompt 作为第一句话（助手工具用）。
-    func newSession(cwd rawCwd: String, kind: AgentKind? = nil, prompt: String? = nil) {
+    /// command：自定义启动命令（派活带专业 agent 配置时，设计 §14）；select = false 时不切换选中（后台派活）。
+    /// 返回新终端的 id；没能新建时 nil。
+    @discardableResult
+    func newSession(cwd rawCwd: String, kind: AgentKind? = nil, prompt: String? = nil, command: String? = nil,
+                    select: Bool = true) -> UUID? {
         let kind = kind ?? lastAgent
         guard let launcher = AgentAdapters.adapter(for: kind) else {
             alert(L("alert.cannotCreate.title"), L("alert.cannotCreate.message"))
-            return
+            return nil
         }
         let cwd = ProjectResolver.canonical(rawCwd)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
             alert(L("alert.directoryMissing.title"), cwd)
-            return
+            return nil
         }
         if availability(of: kind) == .notInstalled {
             alert(L("alert.agentNotFound.title", kind.displayName), L("alert.agentNotFound.message", launcher.launchCommand()))
-            return
+            return nil
         }
-        if lastAgent != kind {
+        if select, lastAgent != kind {
             lastAgent = kind
             UserDefaults.standard.set(kind.rawValue, forKey: "lastAgent")
         }
-        let terminal = makeTerminal(id: UUID(), cwd: cwd, command: launcher.launchCommand(prompt: prompt))
+        let terminal = makeTerminal(id: UUID(), cwd: cwd, command: command ?? launcher.launchCommand(prompt: prompt))
         knownKinds[terminal.id] = kind
-        selectedID = "term:\(terminal.id.uuidString)"
+        if select { selectedID = "term:\(terminal.id.uuidString)" }
         rememberRecent(cwd)
         saveWorkspace()
         poll()
+        return terminal.id
     }
 
     /// 已结束的内嵌会话：在同一个终端里执行对应 agent 的恢复命令（如 `codex resume <id>`）并选中。

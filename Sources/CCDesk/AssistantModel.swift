@@ -88,6 +88,12 @@ final class AssistantClient: @unchecked Sendable {
         chmod(url.path, 0o700)
     }
 
+    /// 已解析过的 claude 路径；还没解析时 nil（不阻塞，不走登录 shell）。
+    func resolvedClaudeIfKnown() -> (path: String, searchPath: String?)? {
+        lock.lock(); defer { lock.unlock() }
+        return executable.map { ($0.path, $0.searchPath) }
+    }
+
     /// 已解析到 claude（nil = 尚未解析）。
     var isAvailable: Bool? {
         lock.lock(); defer { lock.unlock() }

@@ -467,6 +467,25 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 
 **实现顺序**：§13（工具化 + 读屏 + 确认 + 撤销）→ §14 顾问 + 派活 + 主动提醒 → 专业 agent 配置。
 
+**v1.4 实现记录（已实现）**
+- **结构**：Core 里是纯逻辑（`Consult.swift` 命令行 / 结果解析 / 任务簿，`Delegations.swift`，`AgentProfiles.swift`，`Proactive.swift` 策略与播报闸门，均有单测）；App 里 `AssistantWork` 统筹（顾问进程、派活记录、主动提醒），`ConsultProcess` 跑一次顾问，`AssistantToolbox+Work` 是工具，`AssistantResultsView` 是结果面板。常驻助手提示词版本升到 3（存下的会话换新一次）。
+- **顾问的命令行（claude 2.1.280 实测）**：`claude -p --model sonnet|opus --no-session-persistence --output-format stream-json --verbose --restricted --strict-mcp-config --permission-prompts none --tools Read,Grep,Glob,Bash --allowedTools "Read,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" --disallowedTools "Bash(*--output*),Bash(*--ext-diff*)" --append-system-prompt <顾问提示词>`，问题经 stdin 传入（`--allowedTools` 等是可变参数，位置参数会被吞掉），工作目录为项目目录，环境同助手（去掉会话级变量与控制接口口令，不设 `MAX_THINKING_TOKENS`）。
+  - init 事件里的工具恰好是 `Bash / Glob / Grep / Read`；`touch`、`printf > 文件`、`| tee`、`git status && touch`、`git diff > 文件` 都被自动拒绝（出现在 `permission_denials`），不会卡在权限提示上。
+  - **只放行 `Bash(git diff:*)` 不够**：`git diff --output=out.txt` 实测真的写出了文件，所以加 `--disallowedTools "Bash(*--output*)"`（加上后 `--output` 的各种写法都被拒绝）；`--ext-diff` 会执行外部程序，一并禁止。
+  - `--restricted` 而不是 `--setting-sources`：不读用户 / 项目 / 本地 settings——用户的 SessionStart hook 不再运行（实测 hook 事件 2 → 0），用户 settings 里的 allow 规则也放不开写操作；文件工具限定在工作目录内。`--strict-mcp-config` 且不给 `--mcp-config`：没有任何 MCP 服务器。`--no-session-persistence` 不写会话记录（claude 仍会为目录建一个空的项目文件夹）。
+  - 结果首行要求是「结论：……」（一两句、可朗读），之后是 markdown 详情；结论交给常驻助手（`[CONSULT_RESULT]` 消息，助手记住全文以便追问）说一两句，助手失败时直接读结论行。对话模式关闭时改发通知。
+  - 任务 id 为 c1、c2…（重启后不复用）；最多 2 个同时、5 分钟超时、可取消（SIGTERM，3 秒后 SIGKILL）。最近 20 条存在 `~/.cc-desk/assistant/consults.json`（0600），退出时还在运行的标为失败。
+- **结果面板**：「助手结果」表单（侧栏工具栏 ✨ 按钮、菜单 Session → 助手结果 ⇧⌘R）：每条显示问题、模型、项目、用时、输入 / 输出 token、状态；运行中显示已查看几处并可取消；完成的显示结论，展开看完整回答（可选中），一键复制。
+- **派活**：`delegate(project, task, agent?, profile?)` 新开内嵌会话、**不切换选中**（侧栏里出现，用户手上的会话不被打断）。claude 用 `claude --session-id <uuid> [--agents "$(cat ~/.cc-desk/agents/.launch/<name>.json)" --agent <name>] '<task>'`：预先指定会话 id；配置 JSON 写在 0600 文件里由 shell 读出，tmux 命令不会因提示词太长超限。codex / pi 用原有的 `launchCommand(prompt:)`。记录在 `~/.cc-desk/assistant/delegations.json`（行 id、终端 id、会话 id、项目、任务、agent、配置、开始时间、状态 working / waiting / idle / ended / closed；最多 30 条，关闭 3 天后删除），`list_sessions` / 上下文里派出的会话带 `delegatedTask`。
+- **专业 agent**：内置的「审查员」（reviewer，opus，Read / Grep / Glob + 只读 git）与「测试员」（tester，sonnet，Read / Grep / Glob / Bash，不能改文件）。交互式 `--agents` + `--agent` 实测可用：界面显示 `@tester`、模型 Sonnet，第一句话照常自动发送。`list_agents` 返回 name / title / description / model / readOnly；consult 只接受只读配置（配置的提示词追加到顾问提示词，工具取交集，没给 level 时用配置的模型——所以「审查一下」走 Opus）。
+- **主动提醒**：每次轮询的状态变化（TransitionDetector）经 `ProactivePolicy`：对话模式关闭 → 只发普通通知；选中的会话 → 仍由原来的选中会话播报 / 回复摘要处理；其他会话等批准 → 告诉助手；其他会话一轮完成 → 只对派出的任务（附会话记录尾部）。消息为 `[EVENT]`，助手回一句话或 `SILENT`；回复进 `ProactiveSpeechGate` 排队：用户在说话 / 识别中 / 等助手 / 正在播报 / 等确认时不播；两次主动播报至少隔 8 秒，同一会话至少隔 30 秒（顾问结果不受同会话限制），排队超过 120 秒丢弃；播之前复核会话仍在等**同一个**请求（或仍不在处理中），否则不播。助手没回复时用本地文案（「poems 想要 Bash rm -rf build，要批准吗？」）。
+- **「批准」作用于播报的会话**：播报过的等批准记为 `AnnouncedApproval`（120 秒内有效；播报后的下一句话说了别的事就失效，免得之后随口的「好的」「可以」被当成批准）。之后说「批准 / 拒绝」（选中的会话没在等批准时；待命时也接受）由本地规则直接回应**那个**会话，发键前用 `ApprovalNotification.decide` 复核仍在等同一个请求，请求变了 / 已处理 / 会话没了就不发键并说明。说法复杂时由助手调 `respond_approval(session)`，它同样按播报时的原因复核，请求变了时让助手告诉用户新的请求再问。
+- **实测（haiku 常驻 + 假控制接口 + 真实 `CCDesk --mcp`，v3 提示词）**：「让高级助手看看 poems 的测试为什么失败」→ `consult(project=poems)`，回复「高级助手正在查看」；「用 Opus 想一下…」→ `level=opus`；「让测试员在 herdr 跑一下测试」→ `delegate(profile=tester)`；「派个 codex 去 poems 改 README 错别字」→ `delegate(agent=codex)`；「帮我把这个函数改成异步的」仍 → `type_text`（选中会话）；「审查一下 poems 的改动」→ `consult(profile=reviewer)`；等批准事件 →「herdr 的整理构建脚本任务要执行 rm -rf build，要批准吗？」，随后「批准吧」→ `respond_approval(s2)`；顾问结果 → 一两句结论，追问「刚才那个结论里说要怎么改」能答。每轮 2.2–2.8 秒（首句含启动 4.8 秒），事件 / 结论 1.2–1.4 秒（约 9k 输入 token，大部分命中缓存）。
+- **实测顾问（`CCDesk --consult-test`，临时 git 仓库）**：Sonnet 读文件并找出 bug 用时 10.5–13.1 秒（6 轮，输入 2.7–4.0 万 token、几乎全部是缓存，输出约 800）；Opus 14.1 秒（3 轮，1.3 万输入，800 输出）；要求它写文件 / touch / `git diff --output` 时这些调用被拒绝、仓库里没有多出文件；同时第三个被拒绝；取消后约 2 秒结束。
+- **额度**：Sonnet / Opus 的顾问与专业 agent 走同一订阅，占用明显多于 haiku（一次简单的顾问约是助手一句话的 2–3 倍输入、几倍输出，且价格更高）；结果面板显示每次的 token。主动提醒每个事件也是一次 haiku 调用（约 9k 输入）。
+- **偏离上面的描述**：内置配置以字符串编进程序（`AgentProfileDefaults`），首次运行写进 `~/.cc-desk/agents/`，不放在资源目录；已存在的从不覆盖，用户删掉的也不再装回（`.installed-defaults` 记录装过的文件名）。frontmatter 额外支持 `title`（显示名，如「审查员」），name 须为小写字母 / 数字 / 连字符。多了 `list_consults` / `cancel_consult` 两个工具。派活不切换选中。
+- **限制**：恢复派出的专业 agent 会话时（没有 tmux、只能 `claude --resume`）不再带 `--agent` 配置；`$(cat …)` 需要 POSIX 风格的 shell（zsh / bash，fish 3.4+）；顾问只能读项目目录内的文件（`--restricted`）；事件和用户的话在同一个常驻会话里排队，事件正在处理时用户下一句会晚 1 秒左右；选中会话的「批准」沿用原逻辑，不复核等待原因。
+
 ## 15. 常驻桌面：菜单栏、登录启动、全局快捷键（v1.5）
 
 内嵌会话托管在 tmux 里（§4.9），App 退出后仍在运行，但没人看着就会错过等批准。这一节让 CC Desk 一直在场又不打扰。

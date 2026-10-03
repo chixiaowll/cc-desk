@@ -188,6 +188,26 @@ extension AssistantToolbox {
                 return done(Self.failure("\(target.info.shortID) is not waiting for approval " +
                                          "(status \(AssistantContext.statusCode(target.row.session.status)))"))
             }
+            // 刚主动播报过这个会话的等批准（设计 §14）：只批准用户听到的那个请求，请求已变就不执行。
+            if let model, let announced = model.work.announcement(rowID: target.row.id) {
+                let decision = model.assistantRespondApproval(rowID: target.row.id, expectedReason: announced.reason,
+                                                              approve: approve)
+                switch decision {
+                case .apply: break
+                case .reasonChanged:
+                    var current = ""
+                    if case .waiting(let reason?) = model.sidebarRow(target.row.id)?.session.status { current = reason }
+                    return done(Self.failure("\(target.info.shortID): the permission request changed since it was " +
+                                             "announced (now it wants: \(AssistantContext.clip(current, 120))); tell the " +
+                                             "user what it wants now and ask again"))
+                case .notWaiting:
+                    return done(Self.failure("\(target.info.shortID) is no longer waiting for approval"))
+                case .gone, .notEmbedded:
+                    return done(Self.failure("\(target.info.shortID) is gone"))
+                }
+                show(approve ? L("assistant.activity.approve", target.name) : L("assistant.activity.deny", target.name))
+                return done(Self.text(approve ? "approved in \(target.info.shortID)" : "denied in \(target.info.shortID)"))
+            }
             show(approve ? L("assistant.activity.approve", target.name) : L("assistant.activity.deny", target.name))
             terminal.respondToPermission(approve: approve)
             done(Self.text(approve ? "approved in \(target.info.shortID)" : "denied in \(target.info.shortID)"))
@@ -215,10 +235,8 @@ extension AssistantToolbox {
         }
         let name = URL(fileURLWithPath: cwd).lastPathComponent
         show(L("assistant.activity.new", name, agent.displayName))
-        let before = model.selectedTerminalID
         let prompt = args.text("prompt").flatMap { ConversationText.isMeaningful($0) ? $0 : nil }
-        model.newSession(cwd: cwd, kind: agent, prompt: prompt)
-        guard let tid = model.selectedTerminalID, tid != before else {
+        guard let tid = model.newSession(cwd: cwd, kind: agent, prompt: prompt) else {
             return done(Self.failure("could not start \(agent.displayName) in \(name)"))
         }
         let rowID = "term:\(tid.uuidString)"
@@ -304,7 +322,7 @@ extension AssistantToolbox {
     }
 
     /// 项目名 / 路径；不在列表里但目录存在的绝对路径（或 ~ 开头）也接受。
-    private func project(_ ref: String?) -> Result<AssistantProject, ControlError> {
+    func project(_ ref: String?) -> Result<AssistantProject, ControlError> {
         guard let model else { return .failure(ControlError(.unavailable, "CC Desk is shutting down")) }
         let projects = model.assistantProjects()
         switch AssistantReferences.project(ref, in: projects) {

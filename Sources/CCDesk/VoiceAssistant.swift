@@ -17,6 +17,8 @@ protocol AssistantHost: AnyObject {
     func assistantSwitch(to rowID: String)
     /// 关闭内嵌会话（不再弹确认框）。
     func assistantClose(_ rowID: String)
+    /// 回应某个会话的等批准：仍是内嵌终端、仍在等批准且等待原因与 expectedReason 相同时才发键（设计 §14）。
+    func assistantRespondApproval(rowID: String, expectedReason: String?, approve: Bool) -> ApprovalNotification.Decision
     /// 读会话记录尾部（后台），completion 在主线程。rowID 为 nil 时取选中的会话；turns > 0 时只取最近几轮。
     func assistantDigest(rowID: String?, turns: Int, completion: @escaping (AssistantDigest?) -> Void)
 }
@@ -82,6 +84,45 @@ final class VoiceAssistant {
                 AssistantDiag.log("reply failed: \(error)")
             }
             completion(result)
+        }
+    }
+
+    /// 主动提醒（设计 §14）：后台会话的状态变化，助手回复要播报的一句话或 SILENT；失败 / 超时返回 nil。
+    func event(_ description: String, context: AssistantContext, completion: @escaping (String?) -> Void) {
+        let json = context.json()
+        let unchanged = json == lastContextJSON && session.generation == lastGeneration
+        let message = AssistantPrompt.residentEvent(description, language: context.language,
+                                                    contextJSON: unchanged ? nil : json)
+        AssistantDiag.log("event \(AssistantContext.clip(description, 200)) context=\(unchanged ? "unchanged" : "full")")
+        session.ask(message, timeout: AssistantClient.timeout) { [weak self] result in
+            switch result {
+            case .success(let reply):
+                self?.lastContextJSON = json
+                self?.lastGeneration = self?.session.generation ?? -1
+                AssistantDiag.log(String(format: "event reply %.2fs in=%d out=%d: %@", reply.latency, reply.inputTokens,
+                                         reply.outputTokens, reply.text))
+                completion(reply.text)
+            case .failure(let error):
+                self?.lastContextJSON = nil
+                AssistantDiag.log("event reply failed: \(error)")
+                completion(nil)
+            }
+        }
+    }
+
+    /// 顾问的回答交给助手（它记住全文，便于追问），回复一两句结论；失败 / 超时返回 nil。
+    func consultResult(job: ConsultJob, answer: String, language: String, completion: @escaping (String?) -> Void) {
+        let message = AssistantPrompt.residentConsultResult(job: job.id, question: job.question, model: job.model,
+                                                            answer: answer, language: language)
+        session.ask(message, timeout: AssistantClient.timeout) { result in
+            switch result {
+            case .success(let reply):
+                AssistantDiag.log(String(format: "consult result reply %.2fs: %@", reply.latency, reply.text))
+                completion(reply.text)
+            case .failure(let error):
+                AssistantDiag.log("consult result reply failed: \(error)")
+                completion(nil)
+            }
         }
     }
 

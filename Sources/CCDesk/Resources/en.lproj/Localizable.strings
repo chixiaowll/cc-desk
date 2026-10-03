@@ -217,6 +217,36 @@
 "assistant.undo.typed" = "Removed what was just typed";
 "assistant.undo.switched" = "Switched back to %@";
 
+/* Advisor, delegation and specialist agents (design §14) */
+"assistant.activity.consult" = "→ Asking %1$@ about %2$@";
+"assistant.activity.delegate" = "→ Delegating to %2$@ in %1$@";
+"assistant.activity.cancelConsult" = "→ Cancelling the senior assistant";
+"work.consult.notify.title" = "Assistant result (%@)";
+"work.consult.failed" = "The senior assistant could not finish; details are in Assistant Results";
+"work.speech.approval" = "%@ needs approval";
+"work.speech.approvalReason" = "%1$@ wants to %2$@. Approve?";
+"work.speech.finished" = "%@ has finished";
+"work.toast.approved" = "Approved %@";
+"work.toast.denied" = "Denied %@";
+"work.approval.changed" = "The request in %@ changed, so nothing was sent. Please check it again";
+"work.approval.notWaiting" = "%@ is no longer waiting for approval";
+"work.approval.gone" = "That %@ session is gone";
+"results.title" = "Assistant Results";
+"results.intro" = "Answers from the senior assistant (Sonnet / Opus), which reads your project in the background without changing anything. A short conclusion is spoken when an answer arrives; the full answer is here.";
+"results.empty" = "No results yet. Try telling the assistant “ask the senior assistant why the tests fail”.";
+"results.quotaNote" = "Sonnet / Opus use noticeably more of your plan than the assistant’s Haiku.";
+"results.cancel" = "Cancel";
+"results.copy" = "Copy the full answer";
+"results.seconds" = "%d s";
+"results.reading" = "%d lookups";
+"results.thinking" = "Thinking…";
+"results.tokens" = "%1$@ in / %2$@ out tokens";
+"results.failed" = "Failed";
+"results.timedOut" = "Timed out";
+"results.cancelled" = "Cancelled";
+"toolbar.results.help" = "Assistant Results";
+"menu.assistantResults" = "Assistant Results";
+
 /* Natural voice (local Qwen3-TTS) */
 "naturalVoice.install.title" = "Install the natural voice?";
 "naturalVoice.install.message" = "CC Desk can read replies with a natural neural voice (Qwen3-TTS, speaker serena) that runs entirely on this Mac. It needs uv and downloads about 2.5 GB (Python packages and model) into Application Support. Until it is ready, the system voice is used.";
