@@ -35,6 +35,12 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let model = AppModel()
+    /// 正在为切换语言而重启。
+    var relaunching = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        LocalizationProbe.runIfRequested()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -44,7 +50,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        model.confirmQuit() ? .terminateNow : .terminateCancel
+        guard model.confirmQuit() else {
+            relaunching = false
+            return .terminateCancel
+        }
+        guard relaunching else { return .terminateNow }
+        launchNewInstanceThenTerminate()
+        return .terminateLater
     }
 
     /// 关闭窗口不退出，内嵌 session 继续运行；点 Dock 图标重新打开窗口。
@@ -61,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct CCDeskApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @AppStorage(AppearancePreference.defaultsKey) private var appearance: String = AppearancePreference.system.rawValue
+    @State private var language = LanguagePreference.stored
 
     var body: some Scene {
         Window("CC Desk", id: "main") {
@@ -104,6 +117,17 @@ struct CCDeskApp: App {
                                 guard on else { return }
                                 appearance = pref.rawValue
                                 pref.apply(pool: delegate.model.pool)
+                            }))
+                    }
+                }
+                Section(L("menu.language")) {
+                    ForEach(LanguagePreference.allCases) { pref in
+                        Toggle(pref.label, isOn: Binding(
+                            get: { language == pref },
+                            set: { on in
+                                guard on else { return }
+                                language = pref
+                                delegate.selectLanguage(pref)
                             }))
                     }
                 }

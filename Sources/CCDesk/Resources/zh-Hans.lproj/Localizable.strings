@@ -154,3 +154,12 @@
 "voice.button.holdToTalk" = "按住说话";
 "voice.button.help" = "按住说话，松开后插入识别结果（也可按住右 ⌥）";
 "voice.button.accessibility" = "语音输入";
+
+/* Language */
+"menu.language" = "语言";
+"language.system" = "跟随系统";
+"alert.restart.title" = "需要重启 CC Desk 才能生效";
+"alert.restart.message" = "新的界面语言会在 CC Desk 重启后生效。";
+"action.restartNow" = "立即重启";
+"action.later" = "稍后";
+"alert.restartFailed.title" = "无法重启 CC Desk";

@@ -154,3 +154,12 @@
 "voice.button.holdToTalk" = "Hold to Talk";
 "voice.button.help" = "Hold to talk; the transcript is inserted when you release (or hold right ⌥)";
 "voice.button.accessibility" = "Voice input";
+
+/* Language */
+"menu.language" = "Language";
+"language.system" = "System";
+"alert.restart.title" = "Restart CC Desk to Apply";
+"alert.restart.message" = "The new language takes effect after CC Desk restarts.";
+"action.restartNow" = "Restart Now";
+"action.later" = "Later";
+"alert.restartFailed.title" = "Couldn’t Restart CC Desk";
