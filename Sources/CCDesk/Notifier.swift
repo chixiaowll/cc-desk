@@ -39,6 +39,17 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(request)
     }
 
+    /// Claude 用量提醒（无对应会话，点击只激活 App）。
+    func post(_ alert: UsageAlert) {
+        guard available else { return }
+        let content = UNMutableNotificationContent()
+        content.title = alert.title
+        content.body = alert.body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "usage-\(alert.limitID)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
     /// 发一条测试通知；若通知权限被关闭，回调 false 以便提示用户去系统设置打开。
     func sendTest(completion: @escaping (Bool) -> Void) {
         guard available else { completion(false); return }

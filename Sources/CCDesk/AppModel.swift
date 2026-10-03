@@ -48,6 +48,11 @@ final class AppModel: ObservableObject {
     private let agentIndex = AgentSessionIndex()
     /// pid -> (启动时间, cwd) 缓存；只在 `queue` 上使用。
     private var processDetails: [Int32: ProcessDetails] = [:]
+    /// Claude 套餐与用量（来自 Claude Code 写在 ~/.claude.json 的缓存，只读）；nil 时不显示。
+    @Published private(set) var claudeUsage: ClaudeUsage?
+    /// 只在 `queue` 上使用；文件 mtime 未变时不重新解析。
+    private let usageSource = ClaudeUsageSource()
+    private var refreshingUsage = false
     @Published var showIntegrations = false {
         didSet { if showIntegrations && !oldValue { refreshIntegrations() } }
     }
@@ -114,6 +119,7 @@ final class AppModel: ObservableObject {
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.poll() }
         poll()
         refreshHistory()
+        refreshUsage()
         voice.start()
     }
 
@@ -213,6 +219,35 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// 在后台读取 ~/.claude.json 的用量缓存（最多每 30 秒一次，mtime 未变时不解析）；跨过 90% 时每个重置周期提醒一次。
+    func refreshUsage() {
+        guard !refreshingUsage else { return }
+        refreshingUsage = true
+        let source = usageSource
+        queue.async { [weak self] in
+            let usage = source.read()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.refreshingUsage = false
+                if self.claudeUsage != usage { self.claudeUsage = usage }
+                if let usage { self.postUsageAlerts(usage) }
+            }
+        }
+    }
+
+    private static let usageAlertsKey = "usageAlertsNotified"
+
+    private func postUsageAlerts(_ usage: ClaudeUsage) {
+        var notified = UserDefaults.standard.dictionary(forKey: Self.usageAlertsKey) as? [String: Double] ?? [:]
+        let alerts = UsageAlerts.pending(usage: usage, lastNotified: notified, now: Date(), calendar: .current)
+        guard !alerts.isEmpty else { return }
+        for alert in alerts {
+            notifier.post(alert)
+            notified[alert.limitID] = alert.periodKey
+        }
+        UserDefaults.standard.set(notified, forKey: Self.usageAlertsKey)
+    }
+
     private func apply(registry: [RegistryEntry], processes: ProcessTable, agents snapshots: [AgentProcessSnapshot],
                        projects: [String: ProjectRef], titles: [String: TranscriptMeta]) {
         polling = false
@@ -265,6 +300,7 @@ final class AppModel: ObservableObject {
         if tick % 30 == 0 {
             saveWorkspace()
             refreshHistory()
+            refreshUsage()
         } else if !previousLive.subtracting(liveSessionIDs).isEmpty {
             // 有会话从侧栏消失（如关闭了已结束的终端）：立即刷新，让它回到历史列表。
             refreshHistory()

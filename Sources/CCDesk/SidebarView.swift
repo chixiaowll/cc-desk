@@ -32,7 +32,7 @@ struct SidebarView: View {
                         .foregroundStyle(theme.fg3)
                 }
             }
-            SidebarFooter(rows: groups.flatMap(\.rows), theme: theme)
+            SidebarFooter(rows: groups.flatMap(\.rows), usage: model.claudeUsage, now: model.now, theme: theme)
         }
         .background(theme.side.ignoresSafeArea())
         .toolbar {
@@ -282,16 +282,33 @@ struct SidebarIconButton: View {
     }
 }
 
-/// 底部汇总：「N 个会话 | ●N 处理中 | ●N 待处理 | ●N 未读」，0 时省略对应段。
+/// 底部汇总：（有 Claude 用量缓存时）上方一行用量，下方「N 个会话 | ●N 处理中 | ●N 待处理 | ●N 未读」，0 时省略对应段。
 struct SidebarFooter: View {
     let rows: [SidebarRow]
+    let usage: ClaudeUsage?
+    let now: Date
     let theme: Theme
 
     var body: some View {
+        VStack(spacing: 0) {
+            if let usage, !usage.footerLimits.isEmpty {
+                UsageFooterLine(usage: usage, now: now, theme: theme)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 9)
+                    .frame(height: 26)
+            }
+            counts
+        }
+        .overlay(alignment: .top) { theme.line.frame(height: 1) }
+    }
+
+    private var hasUsage: Bool { !(usage?.footerLimits.isEmpty ?? true) }
+
+    private var counts: some View {
         let working = rows.filter { $0.session.status == .working }.count
         let waiting = rows.filter { $0.session.status.isWaiting }.count
         let unread = rows.filter(\.showsUnread).count
-        HStack(spacing: 6) {
+        return HStack(spacing: 6) {
             Text("\(rows.count) 个会话")
             if working > 0 {
                 separator
@@ -312,8 +329,7 @@ struct SidebarFooter: View {
         .font(.system(size: 11.5))
         .foregroundStyle(theme.fg2)
         .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40, alignment: .leading)
-        .overlay(alignment: .top) { theme.line.frame(height: 1) }
+        .frame(maxWidth: .infinity, minHeight: hasUsage ? 32 : 40, maxHeight: hasUsage ? 32 : 40, alignment: .leading)
     }
 
     private var separator: some View {
