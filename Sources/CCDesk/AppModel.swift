@@ -634,8 +634,17 @@ final class AppModel: ObservableObject {
 
     func killExternal(_ row: SidebarRow) {
         guard let pid = row.session.pid, !row.session.host.isEmbedded else { return }
+        // 确认框可能开着很久：先记下进程身份，发信号前复核，pid 被复用时不误杀别的进程。
+        guard let identity = ProcessIdentity.current(pid: pid) else { return processGone() }
         guard confirm(L("confirm.kill.title", row.displayName), L("confirm.kill.message", Int(pid))) else { return }
+        guard identity.matches(ProcessIdentity.current(pid: pid)) else { return processGone() }
         kill(pid, SIGTERM)
+        poll()
+    }
+
+    /// 要结束 / 接管的进程已经不在（或 pid 已换成别的进程）。
+    private func processGone() {
+        alert(L("alert.processGone.title"), L("alert.processGone.message"))
         poll()
     }
 
@@ -655,6 +664,7 @@ final class AppModel: ObservableObject {
               let adapter = AgentAdapters.adapter(for: row.session.kind) else { return }
         let kind = row.session.kind
         guard !takingOver.contains(pid) else { return }
+        guard let identity = ProcessIdentity.current(pid: pid) else { return processGone() }
         if !confirmed, row.session.status.isActive,
            !confirm(L("confirm.takeOver.title", row.displayName), L("confirm.takeOver.message", row.session.status.label)) { return }
         let cwd = ProjectResolver.canonical(row.session.cwd)
@@ -662,12 +672,15 @@ final class AppModel: ObservableObject {
             alert(L("alert.directoryMissing.title"), cwd)
             return
         }
+        // 确认之后再核对一次：仍是当初那个进程才发信号。
+        guard identity.matches(ProcessIdentity.current(pid: pid)) else { return processGone() }
         takingOver.insert(pid)
         kill(pid, SIGTERM)
         DispatchQueue.global().async { [weak self] in
             var alive = true
             for _ in 0..<50 {
-                if kill(pid, 0) != 0 { alive = false; break }
+                // 按身份判断：退出后 pid 被复用也算已退出。
+                if !identity.matches(ProcessIdentity.current(pid: pid)) { alive = false; break }
                 usleep(100_000)
             }
             DispatchQueue.main.async {

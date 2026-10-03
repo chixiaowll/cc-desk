@@ -76,3 +76,23 @@ final class ProcessTableTests: XCTestCase {
         XCTAssertEqual(t.byPID[500]?.executableName, "Terminal")
     }
 }
+
+final class ProcessIdentityTests: XCTestCase {
+    func testCurrentProcessIdentityIsStable() throws {
+        let me = try XCTUnwrap(ProcessIdentity.current(pid: getpid()))
+        XCTAssertFalse(me.name.isEmpty)
+        XCTAssertTrue(me.matches(ProcessIdentity.current(pid: getpid())))
+    }
+
+    func testReusedPidDoesNotMatch() {
+        let t = Date(timeIntervalSince1970: 1000)
+        let original = ProcessIdentity(pid: 42, startedAt: t, name: "claude")
+        XCTAssertTrue(original.matches(ProcessIdentity(pid: 42, startedAt: t, name: "claude")))
+        XCTAssertFalse(original.matches(ProcessIdentity(pid: 42, startedAt: t.addingTimeInterval(5), name: "claude")),
+                       "same pid, later start: the pid was reused")
+        XCTAssertFalse(original.matches(ProcessIdentity(pid: 42, startedAt: t, name: "zsh")))
+        XCTAssertFalse(original.matches(ProcessIdentity(pid: 43, startedAt: t, name: "claude")))
+        XCTAssertFalse(original.matches(nil), "the process is gone")
+        XCTAssertNil(ProcessIdentity.current(pid: -1))
+    }
+}
