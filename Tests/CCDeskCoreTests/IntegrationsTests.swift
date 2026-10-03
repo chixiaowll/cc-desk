@@ -311,4 +311,52 @@ final class IntegrationsTests: ZhHansTestCase {
         XCTAssertEqual(try String(contentsOf: second, encoding: .utf8), "v2\n")
         XCTAssertEqual(try String(contentsOf: third, encoding: .utf8), "v3\n")
     }
+
+    // MARK: 等批准原因
+
+    /// 跑一次 hook 脚本（没有 tty，状态文件为 codex-<session>.json），返回写出的 message。
+    private func hookMessage(_ payload: String) throws -> String? {
+        let url = home.appendingPathComponent("hook.sh")
+        try IntegrationAssets.codexHookScript.write(to: url, atomically: true, encoding: .utf8)
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = [url.path, "waiting"]
+        p.environment = ["HOME": home.path, "PATH": "/usr/bin:/bin"]
+        let input = Pipe()
+        p.standardInput = input
+        try p.run()
+        input.fileHandleForWriting.write(Data(payload.utf8))
+        try input.fileHandleForWriting.close()
+        p.waitUntilExit()
+        // 测试进程的祖先里有 tty 时文件按 tty 命名，否则为 codex-s-1.json：取目录里唯一的文件。
+        let dir = home.appendingPathComponent(".cc-desk/state")
+        let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" }
+        defer { files.forEach { try? FileManager.default.removeItem(at: $0) } }
+        let state = try XCTUnwrap(files.first)
+        XCTAssertEqual(files.count, 1)
+        let data = try Data(contentsOf: state)
+        let obj = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(obj["status"] as? String, "waiting")
+        return obj["message"] as? String
+    }
+
+    func testCodexWaitingReasonIncludesTheCommand() throws {
+        func payload(_ toolInput: String) -> String {
+            #"{"session_id":"s-1","cwd":"/w","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":"# + toolInput + "}"
+        }
+        XCTAssertEqual(try hookMessage(payload(#"{"command":"rm -rf build"}"#)), "Bash: rm -rf build")
+        XCTAssertNotEqual(try hookMessage(payload(#"{"command":"rm -rf build"}"#)),
+                          try hookMessage(payload(#"{"command":"git push --force"}"#)),
+                          "two Bash requests are distinguishable")
+        XCTAssertEqual(try hookMessage(payload(#"{"command":"echo \"hi\" > \"a b\""}"#)), #"Bash: echo "hi" > "a b""#)
+        // 超长命令截断到 200 个字符（不是字节），中文不会被切坏；结尾不留半个转义。
+        let long = String(repeating: "中", count: 300)
+        XCTAssertEqual(try hookMessage(payload(#"{"command":"\#(long)"}"#)), "Bash: " + String(repeating: "中", count: 200))
+        let escapes = String(repeating: "a", count: 199) + #"\n tail"#
+        XCTAssertEqual(try hookMessage(payload(#"{"command":"\#(escapes)"}"#)), "Bash: " + String(repeating: "a", count: 199))
+        // 没有 command 字段：退回 tool_input 原文。
+        let raw = try XCTUnwrap(try hookMessage(payload(#"{"path":"/etc/hosts"}"#)))
+        XCTAssertTrue(raw.hasPrefix("Bash: {") && raw.contains("/etc/hosts"), raw)
+    }
 }

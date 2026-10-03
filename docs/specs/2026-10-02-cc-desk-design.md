@@ -195,7 +195,7 @@ v1 实现 `ClaudeAdapter`、`GenericAdapter`；v1.1 增加 `CodexAdapter`、`PiA
 | Agent | 安装位置 | 事件 → 状态 |
 |---|---|---|
 | Claude Code | `~/.claude/settings.json` 的 `hooks`（追加，不改动已有的 rtk hook） | `UserPromptSubmit` → working；`Notification` → waiting（带 message）；`Stop` → idle |
-| Codex（v1.1） | `~/.codex/hooks.json`（脚本 `~/.cc-desk/hooks/codex-state.sh`）+ `config.toml` 的 `[features] hooks = true` | `SessionStart` → idle；`UserPromptSubmit` / `PostToolUse` → working；`PermissionRequest` → waiting（message 为工具名）；`Stop` / `Interrupt` → idle |
+| Codex（v1.1） | `~/.codex/hooks.json`（脚本 `~/.cc-desk/hooks/codex-state.sh`）+ `config.toml` 的 `[features] hooks = true` | `SessionStart` → idle；`UserPromptSubmit` / `PostToolUse` → working；`PermissionRequest` → waiting（message 为「工具名: 命令」，取 `tool_input.command`，没有时取 description / `tool_input` 原文，最多 200 个字符；通知上的批准按钮据此区分两个不同的 Bash 请求。脚本版本 2，旧版本在集成页显示为需要修复、重新安装即可）；`Stop` / `Interrupt` → idle |
 | pi（v1.1） | `~/.pi/agent/extensions/cc-desk-state.ts` | `session_start` → idle（带 session id）；`agent_start` → working；`agent_end` → idle（pi 0.73.1 没有需要确认的事件） |
 
 v1.1 实测补充（codex-cli 0.160.0 / pi 0.73.1，详见 `docs/notes/2026-10-03-codex-pi-smoke.md`）：

@@ -7,7 +7,9 @@ import Foundation
 public enum IntegrationAssets {
     /// 安装文件里的标记行，用于识别 CC Desk 写入的文件 / 条目。
     public static let marker = "CC_DESK_INTEGRATION"
-    public static let version = 1
+    /// 各资产里 `CC_DESK_INTEGRATION_VERSION` 的值：内容改动时加一（状态按全文比较，旧文件显示为需要修复）。
+    public static let codexVersion = 2
+    public static let piVersion = 1
 
     /// Codex hook：`codex-state.sh <session|working|waiting|idle>`，stdin 为 Codex 的 hook JSON。
     /// 纯 POSIX sh（不依赖 python / jq），任何错误都静默 exit 0。
@@ -15,7 +17,7 @@ public enum IntegrationAssets {
 #!/bin/sh
 # CC Desk: Codex status hook. Installed and managed by CC Desk; reinstalling overwrites this file.
 # CC_DESK_INTEGRATION=codex
-# CC_DESK_INTEGRATION_VERSION=1
+# CC_DESK_INTEGRATION_VERSION=2
 # Usage: codex-state.sh <session|working|waiting|idle>  (Codex hook JSON on stdin)
 # Writes ~/.cc-desk/state/<tty>.json (or codex-<session_id>.json when no tty is reachable)
 # atomically. Always exits 0 silently.
@@ -47,8 +49,19 @@ main() {
   [ -n "$cwd" ] || cwd="$(esc "$PWD")"
   message=""
   if [ "$status" = waiting ]; then
+    # Reason = tool name plus what it wants to run, so an approval from a notification can tell two
+    # Bash requests apart. Prefer tool_input.command, then a description, else the raw tool_input.
     tool="$(field tool_name)"
+    detail="$(field command)"
+    [ -n "$detail" ] || detail="$(field description)"
+    if [ -z "$detail" ]; then
+      raw="$(printf '%s' "$flat" | sed -nE 's/.*"tool_input"[[:space:]]*:[[:space:]]*//p' | head -n 1)"
+      detail="$(esc "$raw")"
+    fi
+    # Keep at most 200 characters (not bytes) and never end inside an escape sequence.
+    detail="$(printf '%s' "$detail" | LC_ALL=en_US.UTF-8 cut -c1-200 | sed -E -e 's/\\u[0-9A-Fa-f]{0,3}$//' -e 's/\\+$//')"
     message="$tool"
+    if [ -n "$detail" ]; then message="$tool: $detail"; fi
   fi
 
   # Walk up the parent chain: first process with a tty, and the codex process itself.
