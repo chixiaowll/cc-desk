@@ -5,17 +5,32 @@ public struct ProcInfo: Equatable, Sendable {
     public let ppid: Int32
     /// 例如 "ttys007"；无终端时为 nil。
     public let tty: String?
+    /// `ps` 的 comm 列：可执行文件路径（或进程自设的标题，如 node 程序设置的 "pi"）。
     public let command: String
+    /// 完整命令行（`ps -axo pid=,args=`）；未取到时为 nil。
+    public let args: String?
 
-    public init(pid: Int32, ppid: Int32, tty: String?, command: String) {
+    public init(pid: Int32, ppid: Int32, tty: String?, command: String, args: String? = nil) {
         self.pid = pid
         self.ppid = ppid
         self.tty = tty
         self.command = command
+        self.args = args
+    }
+
+    /// comm 的最后一段路径，如 "/opt/.../bin/codex" -> "codex"。
+    public var executableName: String {
+        command.split(separator: "/").last.map(String.init) ?? command
+    }
+
+    /// 命令行按空白拆分后的各段（路径中含空格时会被拆开，只用于粗略判断子命令 / 参数）。
+    public var argv: [String] {
+        (args ?? "").split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
     }
 }
 
-/// `ps -axo pid=,ppid=,tty=,comm=` 的解析结果。
+/// `ps -axo pid=,ppid=,tty=,comm=` 的解析结果，可再合并 `ps -axo pid=,args=` 的命令行。
+/// comm 必须在行尾（路径可能含空格），所以命令行另用一次 ps 取得、按 pid 合并。
 public struct ProcessTable: Sendable {
     public let byPID: [Int32: ProcInfo]
 
@@ -23,7 +38,9 @@ public struct ProcessTable: Sendable {
         self.byPID = byPID
     }
 
-    public static func parse(_ output: String) -> ProcessTable {
+    /// `argsOutput` 为 `ps -axo pid=,args=` 的输出；两次 ps 之间新出现的进程没有 args。
+    public static func parse(_ output: String, args argsOutput: String? = nil) -> ProcessTable {
+        let argsByPID = argsOutput.map(parseArgs) ?? [:]
         var result: [Int32: ProcInfo] = [:]
         for line in output.split(separator: "\n") {
             var rest = Substring(line)
@@ -42,9 +59,22 @@ public struct ProcessTable: Sendable {
             let command = rest.trimmingCharacters(in: .whitespaces)
             guard !command.isEmpty else { continue }
             let tty = ttyField.hasPrefix("?") ? nil : String(ttyField)
-            result[pid] = ProcInfo(pid: pid, ppid: ppid, tty: tty, command: command)
+            result[pid] = ProcInfo(pid: pid, ppid: ppid, tty: tty, command: command, args: argsByPID[pid])
         }
         return ProcessTable(byPID: result)
+    }
+
+    /// 解析 `ps -axo pid=,args=`：首段为 pid，其余（trim 后）为完整命令行。
+    static func parseArgs(_ output: String) -> [Int32: String] {
+        var result: [Int32: String] = [:]
+        for line in output.split(separator: "\n") {
+            let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
+            guard let end = trimmed.firstIndex(where: { $0 == " " || $0 == "\t" }),
+                  let pid = Int32(trimmed[..<end]) else { continue }
+            let args = trimmed[end...].trimmingCharacters(in: .whitespaces)
+            if !args.isEmpty { result[pid] = args }
+        }
+        return result
     }
 
     public func isAlive(_ pid: Int32) -> Bool {

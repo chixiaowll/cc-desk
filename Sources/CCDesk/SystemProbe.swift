@@ -34,8 +34,11 @@ enum SystemProbe {
         return String(data: dataBox.withLock { $0 }, encoding: .utf8)
     }
 
+    /// comm 必须在行尾（路径可能含空格），命令行另用一次 `ps -axo pid=,args=` 取得并按 pid 合并。
     static func processTable() -> ProcessTable {
-        ProcessTable.parse(run("/bin/ps", ["-axo", "pid=,ppid=,tty=,comm="], timeout: 5) ?? "")
+        let comm = run("/bin/ps", ["-axo", "pid=,ppid=,tty=,comm="], timeout: 5) ?? ""
+        let args = run("/bin/ps", ["-axo", "pid=,args="], timeout: 5)
+        return ProcessTable.parse(comm, args: args)
     }
 
     /// 在用户的登录交互 shell 里检测 codex / pi 是否安装（GUI App 的 PATH 不含用户目录，不能直接 which）。

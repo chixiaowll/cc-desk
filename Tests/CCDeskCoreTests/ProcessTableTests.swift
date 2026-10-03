@@ -44,4 +44,35 @@ final class ProcessTableTests: XCTestCase {
         XCTAssertTrue(t.hasAncestor(of: 700) { $0.command.contains("/Terminal.app/") })
         XCTAssertFalse(t.hasAncestor(of: 801) { $0.command.contains("/Terminal.app/") })
     }
+
+    func testMergesArgsByPID() {
+        let comm = """
+            100     1 ttys021  node
+            101   100 ttys021  /opt/homebrew/lib/node_modules/@openai/codex/vendor/bin/codex
+            102     1 ??       /Applications/Visual Studio Code.app/Contents/MacOS/Electron
+            103     1 ttys019  pi
+        """
+        let args = """
+          100 node /opt/homebrew/bin/codex
+          101 /opt/homebrew/lib/node_modules/@openai/codex/vendor/bin/codex resume  abc-123
+          102 /Applications/Visual Studio Code.app/Contents/MacOS/Electron --type=renderer
+          103 pi\u{20}
+          999 ghost
+        """
+        let t = ProcessTable.parse(comm, args: args)
+        XCTAssertEqual(t.byPID.count, 4)
+        XCTAssertEqual(t.byPID[100]?.args, "node /opt/homebrew/bin/codex")
+        XCTAssertEqual(t.byPID[101]?.executableName, "codex")
+        XCTAssertEqual(t.byPID[101]?.argv, ["/opt/homebrew/lib/node_modules/@openai/codex/vendor/bin/codex", "resume", "abc-123"])
+        XCTAssertEqual(t.byPID[102]?.command, "/Applications/Visual Studio Code.app/Contents/MacOS/Electron")
+        XCTAssertEqual(t.byPID[103]?.args, "pi")
+        XCTAssertNil(t.byPID[999])
+    }
+
+    func testArgsMissingWhenNotProvided() {
+        let t = ProcessTable.parse(sample)
+        XCTAssertNil(t.byPID[700]?.args)
+        XCTAssertEqual(t.byPID[700]?.argv, [])
+        XCTAssertEqual(t.byPID[500]?.executableName, "Terminal")
+    }
 }
