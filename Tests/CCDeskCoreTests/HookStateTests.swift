@@ -50,6 +50,21 @@ final class HookStateTests: XCTestCase {
         XCTAssertNil(all.bySession["codex:sid-9"]?.tty)
     }
 
+    func testPruneRemovesOnlyOldFiles() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let old = dir.appendingPathComponent("codex-old.json"), fresh = dir.appendingPathComponent("ttys001.json")
+        let other = dir.appendingPathComponent("keep.txt")
+        for url in [old, fresh, other] { try json("{}").write(to: url) }
+        let longAgo = Date().addingTimeInterval(-30 * 86400)
+        for url in [old, other] { try FileManager.default.setAttributes([.modificationDate: longAgo], ofItemAtPath: url.path) }
+        HookStateReader.prune(directory: dir)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: other.path))
+    }
+
     func testLookupBySessionWhenHookHasNoTTY() {
         let start = Date(timeIntervalSince1970: 1000)
         let states = HookStates([

@@ -66,6 +66,19 @@ public enum HookStateReader {
     }
 }
 
+extension HookStateReader {
+    /// 删除超过 `maxAge` 未更新的状态文件（Codex 按会话 id 命名的文件会随会话增多而累积）。
+    public static func prune(directory: URL = defaultDirectory, maxAge: TimeInterval = 7 * 86400, now: Date = Date()) {
+        let fm = FileManager.default
+        let files = (try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        for url in files where url.pathExtension == "json" || url.pathExtension == "tmp" {
+            guard let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+                  now.timeIntervalSince(mtime) > maxAge else { continue }
+            try? fm.removeItem(at: url)
+        }
+    }
+}
+
 /// 按 tty 与按 (agent, 会话 id) 索引的 hook 状态；同一键有多份时取最新。
 public struct HookStates: Sendable {
     public private(set) var byTTY: [String: HookState] = [:]

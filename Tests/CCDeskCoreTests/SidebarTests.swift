@@ -215,9 +215,13 @@ final class SidebarTests: XCTestCase {
         let shell = AgentSession(id: "term:x", kind: .other, sessionID: nil, pid: nil, tty: nil, cwd: "/r/poems",
                                  name: "poems", nameIsDerived: false, host: .embedded(terminalID: tid),
                                  status: .unknown, statusChangedAt: Date())
-        let rows = build([shell, s("ext", cwd: "/r/poems", status: .unknown)])[0].rows
+        let codex = AgentSession(id: "term:y", kind: .codex, sessionID: nil, pid: 5, tty: nil, cwd: "/r/poems",
+                                 name: "", nameIsDerived: true, host: .embedded(terminalID: UUID()),
+                                 status: .unknown, statusChangedAt: Date())
+        let rows = build([shell, codex, s("ext", cwd: "/r/poems", status: .unknown)])[0].rows
         let labels = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.statusLabel) })
         XCTAssertEqual(labels["term:x"], "终端")
+        XCTAssertEqual(labels["term:y"], "未知", "an embedded agent with no status yet is not a plain shell")
         XCTAssertEqual(labels["ext"], "未知")
     }
 

@@ -261,6 +261,7 @@ final class AppModel: ObservableObject {
         updateBadge()
 
         tick += 1
+        if tick % 600 == 1 { queue.async { HookStateReader.prune() } }
         if tick % 30 == 0 {
             saveWorkspace()
             refreshHistory()
@@ -673,8 +674,11 @@ final class AppModel: ObservableObject {
     func saveWorkspace() {
         let embedded = pool.terminals.map { terminal -> WorkspaceEntry in
             let cwd = ProjectResolver.canonical(terminal.cwd)
-            return WorkspaceEntry(terminalID: terminal.id, cwd: cwd, sessionID: knownSessionIDs[terminal.id],
-                                  name: terminal.title, kind: knownKinds[terminal.id])
+            let sessionID = knownSessionIDs[terminal.id]
+            // 只记下确实在运行（或有会话可恢复）的 agent；启动失败 / 已退出的不在下次启动时重开。
+            let kind = sessionID != nil || observedAgent.contains(terminal.id) ? knownKinds[terminal.id] : nil
+            return WorkspaceEntry(terminalID: terminal.id, cwd: cwd, sessionID: sessionID,
+                                  name: terminal.title, kind: kind)
         }
         try? WorkspaceStore.save(WorkspaceFile(entries: embedded + missing))
     }

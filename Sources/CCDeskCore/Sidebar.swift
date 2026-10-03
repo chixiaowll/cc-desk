@@ -42,10 +42,10 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
         }
     }
 
-    /// 状态文字：内嵌终端里从未运行 claude 的普通 shell 显示「终端」，其余取状态本身的文字。
+    /// 状态文字：内嵌终端里没有运行 agent 的普通 shell 显示「终端」，其余取状态本身的文字。
     public var statusLabel: String {
         if showsUnread { return "已完成" }
-        if session.status == .unknown, session.host.isEmbedded { return "终端" }
+        if session.status == .unknown, session.host.isEmbedded, !session.kind.isAgent { return "终端" }
         return session.status.label
     }
 
