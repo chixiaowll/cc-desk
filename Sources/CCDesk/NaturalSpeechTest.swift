@@ -33,7 +33,7 @@ enum NaturalSpeechTest {
     }
 
     private static func say(_ s: String) {
-        FileHandle.standardOutput.write(Data((s + "\n").utf8))
+        try? FileHandle.standardOutput.write(contentsOf: Data((s + "\n").utf8))
     }
 
     private static func ms(_ seconds: TimeInterval) -> String { String(format: "%.0f ms", seconds * 1000) }

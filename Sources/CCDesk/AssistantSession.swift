@@ -96,7 +96,14 @@ final class AssistantSession: @unchecked Sendable {
         current = (next.completion, Date(), mine)
         turnText = AssistantTurnText()
         let line = Self.userLine(next.message)
-        stdin?.write(Data((line + "\n").utf8))
+        // 用会抛错的 write(contentsOf:)：进程已退出时 write(_:) 会抛 ObjC 异常、让整个 App 崩溃。
+        do {
+            try stdin?.write(contentsOf: Data((line + "\n").utf8))
+        } catch {
+            AssistantDiag.log("assistant session write failed: \(error.localizedDescription)")
+            stop(failing: .failed("write"))
+            return
+        }
         queue.asyncAfter(deadline: .now() + next.timeout) { [self] in
             guard let current, current.token == mine else { return }
             AssistantDiag.log("assistant session timeout")

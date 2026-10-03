@@ -19,7 +19,7 @@ enum AssistantDiag {
             }
             if let handle = try? FileHandle(forWritingTo: url) {
                 handle.seekToEndOfFile()
-                handle.write(Data(line.utf8))
+                try? handle.write(contentsOf: Data(line.utf8))
                 try? handle.close()
             } else {
                 try? Data(line.utf8).write(to: url)

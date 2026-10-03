@@ -18,7 +18,8 @@ enum MCPMode {
         while let line = readLine(strippingNewline: true) {
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { continue }
             if let reply = core.handle(line: line) {
-                FileHandle.standardOutput.write(Data((reply + "\n").utf8))
+                // claude 已退出（stdout 断开）时没必要继续。
+                do { try FileHandle.standardOutput.write(contentsOf: Data((reply + "\n").utf8)) } catch { exit(0) }
             }
         }
         exit(0)

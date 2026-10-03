@@ -81,6 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 enum CCDeskMain {
     static func main() {
+        // 子进程（助手会话 / 语音服务 / MCP）退出后再写它的管道会触发 SIGPIPE，默认会终止整个 App；
+        // 忽略后写入只会返回错误，由调用方处理。
+        signal(SIGPIPE, SIG_IGN)
         if CommandLine.arguments.dropFirst().contains("--mcp") { MCPMode.run() }
         NaturalSpeechTest.runIfRequested()
         CCDeskApp.main()
