@@ -229,6 +229,12 @@ enum TmuxSelfTest {
         let missingRestore = TerminalRestore.prepare(tmux: host, workspaceURL: dir.appendingPathComponent("absent.json"))
         check(Set(missingRestore.plan.adopted) == [a, b] && host.hasSession(terminalID: a) && host.hasSession(terminalID: b),
               "missing workspace adopts every live session and kills none")
+        // workspace 文件损坏：同样全部收养。
+        let corrupt = dir.appendingPathComponent("corrupt.json")
+        try? Data("{not json".utf8).write(to: corrupt)
+        let corruptRestore = TerminalRestore.prepare(tmux: host, workspaceURL: corrupt)
+        check(Set(corruptRestore.plan.adopted) == [a, b] && host.hasSession(terminalID: b),
+              "unreadable workspace adopts every live session and kills none")
         host.killSession(terminalID: b)
 
         // 11. 关闭会话：结束 tmux 会话及其中的进程。
