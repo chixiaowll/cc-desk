@@ -90,3 +90,8 @@
 "integration.error.piMissing" = "没有找到 %@，请先安装并运行一次 pi";
 "integration.error.foreignExists" = "%@ 已存在且不是 CC Desk 安装的，未做改动";
 "integration.error.foreignNotDeleted" = "%@ 不是 CC Desk 安装的，未删除";
+
+/* Conversation mode speech */
+"speech.needsApproval" = "需要批准";
+"speech.needsApprovalReason" = "需要批准：%@";
+"speech.done" = "已完成";

@@ -90,3 +90,8 @@
 "integration.error.piMissing" = "%@ was not found. Install and run pi once first.";
 "integration.error.foreignExists" = "%@ already exists and was not installed by CC Desk. Nothing was changed.";
 "integration.error.foreignNotDeleted" = "%@ was not installed by CC Desk, so it was not deleted.";
+
+/* Conversation mode speech */
+"speech.needsApproval" = "Needs approval";
+"speech.needsApprovalReason" = "Needs approval: %@";
+"speech.done" = "Done";
