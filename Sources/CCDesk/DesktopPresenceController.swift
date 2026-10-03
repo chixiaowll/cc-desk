@@ -79,24 +79,3 @@ final class DesktopPresence {
         main.orderOut(nil)
     }
 }
-
-/// 应用菜单里的「登录时启动 / 在菜单栏显示图标 / 全局快捷键」开关。
-struct DesktopMenuItems: View {
-    @ObservedObject private var preferences = DesktopPreferences.shared
-    @ObservedObject private var loginItem = LoginItemController.shared
-    @ObservedObject private var hotkeys = GlobalHotkeyCenter.shared
-
-    var body: some View {
-        Toggle(loginItem.state.needsApprovalHint ? L("menu.launchAtLogin.needsApproval") : L("menu.launchAtLogin"),
-               isOn: Binding(get: { loginItem.state.isOn }, set: { _ in loginItem.toggle() }))
-        Toggle(L("menu.showMenuBarIcon"), isOn: $preferences.menuBarIconShown)
-        Toggle(L("menu.globalHotkeys.detail",
-                 GlobalHotkey.default(for: .toggleMainWindow)?.displayString ?? "",
-                 GlobalHotkey.default(for: .toggleConversation)?.displayString ?? ""),
-               isOn: $preferences.globalHotkeysEnabled)
-        ForEach(hotkeys.unavailable) { hotkey in
-            Button(L("hotkey.unavailable", hotkey.displayString)) {}
-                .disabled(true)
-        }
-    }
-}

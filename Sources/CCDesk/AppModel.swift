@@ -75,9 +75,6 @@ final class AppModel: ObservableObject {
     private var refreshingUsage = false
     private let usageRefresher = UsageRefresher()
     private var sidebarOrder = SidebarOrder.load() ?? SidebarOrder()
-    @Published var showIntegrations = false {
-        didSet { if showIntegrations && !oldValue { refreshIntegrations() } }
-    }
     /// Codex / pi 状态集成的安装状态；nil 键表示尚未检测。
     @Published private(set) var integrationStatus: [AgentKind: IntegrationStatus] = [:]
     /// 正在安装 / 卸载的集成。
@@ -127,8 +124,7 @@ final class AppModel: ObservableObject {
             alert.informativeText = L("alert.notificationsOff.message")
             alert.addButton(withTitle: L("action.openSystemSettings"))
             alert.addButton(withTitle: L("action.cancel"))
-            if alert.runModal() == .alertFirstButtonReturn,
-               let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+            if alert.runModal() == .alertFirstButtonReturn, let url = Notifier.systemSettingsURL {
                 NSWorkspace.shared.open(url)
             }
         }

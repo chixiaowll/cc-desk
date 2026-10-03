@@ -137,6 +137,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         icon.state = .on
         icon.toolTip = L("statusMenu.hideIconHint")
         menu.addItem(icon)
+        menu.addItem(actionItem(L("statusMenu.settings"), #selector(openSettings)))
         menu.addItem(.separator())
         menu.addItem(actionItem(L("statusMenu.quit"), #selector(quit), key: "q", modifiers: .command))
     }
@@ -239,6 +240,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     @objc private func hideMenuBarIcon() {
         preferences.menuBarIconShown = false
     }
+
+    @objc private func openSettings() { SettingsOpener.open() }
 
     @objc private func quit() { NSApp.terminate(nil) }
 }

@@ -3,7 +3,6 @@
 /* Common actions */
 "action.confirm" = "OK";
 "action.cancel" = "Cancel";
-"action.done" = "Done";
 "action.ok" = "OK";
 "action.openSystemSettings" = "Open System Settings";
 "action.resume" = "Resume";
@@ -14,12 +13,7 @@
 "menu.newSession" = "New Session";
 "menu.closeSession" = "Close Session";
 "menu.history" = "History";
-"menu.appearance" = "Appearance";
-"menu.integrations" = "Integrations…";
 "menu.session" = "Session";
-"menu.installIntegrations" = "Install Codex / pi Status Integrations…";
-"menu.testNotification" = "Test Notifications & Badge";
-"menu.downloadVoiceModel" = "Download Voice Model Now";
 "menu.switchTo" = "Switch to Session %d";
 "appearance.system" = "System";
 "appearance.light" = "Light";
@@ -121,7 +115,6 @@
 "notify.test.body" = "You’ll be alerted like this when a session needs approval or finishes a turn.";
 
 /* Integrations */
-"integrations.title" = "Status Integrations";
 "integrations.intro" = "Once installed, CC Desk can accurately show whether Codex / pi sessions are working, waiting or idle — including sessions started in external terminals such as Terminal. Config files are backed up as *.cc-desk.bak before changes; uninstalling removes only what CC Desk added.";
 "integrations.claude.detail" = "Built in: reads ~/.claude/sessions, nothing to install";
 "integrations.codex.detail" = "~/.codex/hooks.json (hook script in ~/.cc-desk/hooks/) + [features] hooks = true in config.toml";
@@ -161,7 +154,6 @@
 "voice.button.accessibility" = "Voice input";
 
 /* Language */
-"menu.language" = "Language";
 "language.system" = "System";
 "alert.restart.title" = "Restart CC Desk to Apply";
 "alert.restart.message" = "The new language takes effect after CC Desk restarts.";
@@ -197,12 +189,6 @@
 "voice.speech.enhanced" = "%@ (Enhanced)";
 "voice.speech.sample" = "Hi, I’m your CC Desk assistant";
 "menu.resetAssistant" = "Reset Assistant Conversation";
-"menu.autoStartConversation" = "Start Assistant at Launch";
-"menu.persistentConversation" = "Stay Awake After Wake Word";
-"menu.turnSummaries" = "Spoken Turn Summaries";
-"menu.speechVoice" = "Speaking Voice";
-"menu.speechVoice.auto" = "Automatic (Best Quality)";
-"menu.speechVoice.download" = "Get More Voices…";
 "assistant.noTarget" = "Select a session in CC Desk first";
 "assistant.toast.confirmTakeOver" = "Say \"confirm\" to take over: %@";
 "assistant.toast.cancelled" = "Cancelled";
@@ -232,8 +218,6 @@
 "assistant.undo.switched" = "Switched back to %@";
 
 /* Natural voice (local Qwen3-TTS) */
-"menu.speechVoice.natural" = "Natural Voice (Qwen serena)";
-"menu.speechVoice.naturalInstalling" = "Natural Voice (installing…)";
 "naturalVoice.install.title" = "Install the natural voice?";
 "naturalVoice.install.message" = "CC Desk can read replies with a natural neural voice (Qwen3-TTS, speaker serena) that runs entirely on this Mac. It needs uv and downloads about 2.5 GB (Python packages and model) into Application Support. Until it is ready, the system voice is used.";
 "naturalVoice.install.confirm" = "Download and Install";
@@ -266,12 +250,11 @@
 "statusMenu.showMainWindow" = "Show CC Desk Window";
 "statusMenu.newSession" = "New Session…";
 "statusMenu.quit" = "Quit CC Desk";
-"statusMenu.hideIconHint" = "You can turn it back on from the CC Desk menu";
+"statusMenu.hideIconHint" = "Turn it back on in Settings › General";
 "menu.launchAtLogin" = "Launch at Login";
 "menu.launchAtLogin.needsApproval" = "Launch at Login (allow in System Settings)";
 "menu.showMenuBarIcon" = "Show Icon in Menu Bar";
 "menu.globalHotkeys" = "Enable Global Shortcuts";
-"menu.globalHotkeys.detail" = "Enable Global Shortcuts (%1$@ Window · %2$@ Conversation)";
 "hotkey.unavailable" = "%@ is taken by another app";
 "hotkey.listSeparator" = ", ";
 "alert.hotkeyUnavailable.title" = "Some global shortcuts are unavailable";
@@ -281,6 +264,92 @@
 "alert.loginItemFailed.title" = "Couldn't set Launch at Login";
 "alert.loginItemFailed.message" = "%@\n\nRun CC Desk from the Applications folder and try again.";
 
-/* 推送到手机 */
+/* Settings window */
+"settings.tab.general" = "General";
+"settings.tab.voice" = "Voice";
+"settings.tab.notifications" = "Notifications";
+"settings.tab.integrations" = "Integrations";
+"settings.tab.usage" = "Usage";
+"settings.general.appearance" = "Appearance";
+"settings.general.language" = "Language";
+"settings.general.languageNote" = "Changing the language restarts CC Desk; embedded sessions keep running.";
+"settings.general.desktop" = "Desktop";
+"settings.general.hotkeys" = "Global Shortcuts";
+"settings.general.hotkey.main" = "Show / hide main window";
+"settings.general.hotkey.conversation" = "Toggle conversation mode";
+"settings.general.hotkeysNote" = "Work in any app. Combinations taken by the system or another app are listed here.";
+"settings.voice.input" = "Push to Talk";
+"settings.voice.pushToTalk" = "Key";
+"settings.voice.pushToTalk.key" = "Hold right ⌥";
+"settings.voice.pushToTalk.note" = "While CC Desk is in front, hold right ⌥ (or the mic button in the detail view) and speak. On release, local Whisper types the text into the selected session (without pressing Return).";
+"settings.voice.model" = "Speech recognition model";
+"settings.voice.model.ready" = "Downloaded";
+"settings.voice.model.missing" = "Not downloaded";
+"settings.voice.model.download" = "Download";
+"settings.voice.model.downloading" = "Downloading %d%%";
+"settings.voice.model.loading" = "Loading…";
+"settings.voice.conversation" = "Conversation Mode";
+"settings.voice.autoStart" = "Start assistant at launch";
+"settings.voice.persistent" = "Stay in conversation";
+"settings.voice.persistent.note" = "After the wake word, keep listening until you say \"take a break\". Applies from the next wake-up.";
+"settings.voice.wakeWord" = "Wake word";
+"settings.voice.wakeWord.save" = "Save";
+"settings.voice.wakeWord.note" = "2–8 characters. Applies the next time you turn on conversation mode.";
+"settings.voice.wakeWord.noteOn" = "2–8 characters. Conversation mode is on: turn it off and on again to apply.";
+"settings.voice.summaries" = "Reply summaries";
+"settings.voice.summaries.note" = "When the selected session finishes a turn, speak a short summary instead of \"done\" (uses your Claude subscription).";
+"settings.voice.speech" = "Speech";
+"settings.voice.speechVoice" = "Voice";
+"settings.voice.speech.natural" = "Natural voice (Qwen serena)";
+"settings.voice.speech.auto" = "System voice · Automatic (best quality)";
+"settings.voice.speech.naturalStatus" = "Natural voice";
+"settings.voice.speech.installed" = "Installed";
+"settings.voice.speech.notInstalled" = "Not installed (about 2.5 GB)";
+"settings.voice.speech.installing" = "Installing…";
+"settings.voice.speech.install" = "Install…";
+"settings.voice.speech.preview" = "Preview";
+"settings.voice.speech.previewDisabled" = "No preview while conversation mode is on, so the mic doesn't pick it up";
+"settings.voice.speech.download" = "Download More System Voices…";
+"settings.voice.assistant" = "Voice Assistant";
+"settings.voice.resetAssistant" = "Reset Assistant Conversation";
+"settings.voice.resetAssistant.note" = "Clears the assistant's conversation memory; the next request starts fresh.";
+"settings.notify.system" = "System Notifications";
+"settings.notify.permission" = "Permission";
+"settings.notify.allowed" = "Allowed";
+"settings.notify.denied" = "Off";
+"settings.notify.notDetermined" = "Not asked yet";
+"settings.notify.unavailable" = "Unavailable (not running as an app bundle)";
+"settings.notify.onWaiting" = "Notify when a session needs approval";
+"settings.notify.onFinished" = "Notify when a session finishes a turn";
+"settings.notify.test" = "Test Notification & Badge";
+"settings.notify.note" = "No notification while CC Desk is in front showing that session. The Dock badge and unread marks aren't affected by these switches.";
+"settings.push.title" = "Push to Phone";
+"settings.push.provider" = "Service";
+"settings.push.provider.none" = "Off";
+"settings.push.provider.webhook" = "Custom webhook";
+"settings.push.server" = "Server";
+"settings.push.bark.key" = "Device key";
+"settings.push.bark.note" = "Copy the device key from the Bark app on your iPhone (the part after https://api.day.app/).";
+"settings.push.ntfy.topic" = "Topic";
+"settings.push.ntfy.token" = "Access token";
+"settings.push.optional" = "Optional";
+"settings.push.ntfy.note" = "Subscribe to the same topic in the ntfy app. Anyone who knows a topic on ntfy.sh can subscribe, so pick a hard-to-guess name.";
+"settings.push.webhook.url" = "URL";
+"settings.push.webhook.note" = "POST JSON: {title, body, session, project, status}; status is waiting / finished / test.";
+"settings.push.onWaiting" = "Push when a session needs approval";
+"settings.push.onFinished" = "Push when a session finishes a turn";
+"settings.push.when" = "When";
+"settings.push.when.away" = "When I'm away (idle 3+ minutes or screen locked)";
+"settings.push.when.always" = "Always";
+"settings.push.limitNote" = "At most one push per session and status every 2 minutes, and 20 per hour.";
+"settings.push.test" = "Send Test Push";
+"settings.push.sent" = "Sent (HTTP %d)";
+"settings.push.saveFailed" = "Couldn't save to the keychain: %@";
+"settings.push.privacy" = "Pushes send the project name, session title, status and a short reason (such as the command awaiting approval, up to 100 characters) to the chosen third-party service. No conversation content is sent. The device key, topic, token and webhook URL are stored in your keychain.";
 "push.result.network" = "Couldn't send: %@";
 "push.result.http" = "The service returned HTTP %d";
+"settings.usage.claude" = "Claude Usage";
+"settings.usage.none" = "No usage data yet. It appears after you sign in to Claude Code and use it once.";
+"settings.usage.refresh" = "Refresh Now";
+"settings.usage.alertNote" = "You get one alert per reset period when any limit reaches %d%%.";
+"statusMenu.settings" = "Settings…";

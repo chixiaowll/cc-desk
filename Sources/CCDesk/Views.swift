@@ -18,7 +18,6 @@ struct ContentView: View {
             if model.showHistoryPalette { HistoryPalette(model: model) }
         }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
-        .sheet(isPresented: $model.showIntegrations) { IntegrationsSheet(model: model) }
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
         .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(Theme.of(scheme).terminal) }
     }

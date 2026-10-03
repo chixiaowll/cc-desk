@@ -1,13 +1,12 @@
 import SwiftUI
 import CCDeskCore
 
-/// 设置 → 集成：Codex hook / pi 扩展的安装状态与安装、卸载（设计 §4.4）。从不自动安装。
-struct IntegrationsSheet: View {
+/// 设置 › 集成：Claude（内置）/ Codex hook / pi 扩展的安装状态与安装、卸载（设计 §4.4）。从不自动安装。
+struct IntegrationsList: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(L("integrations.title")).font(.headline)
             Text(L("integrations.intro"))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -34,14 +33,7 @@ struct IntegrationsSheet: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            HStack {
-                Spacer()
-                Button(L("action.done")) { model.showIntegrations = false }.keyboardShortcut(.defaultAction)
-            }
         }
-        .padding(20)
-        .frame(width: 520)
         .onAppear { model.refreshIntegrations() }
     }
 }

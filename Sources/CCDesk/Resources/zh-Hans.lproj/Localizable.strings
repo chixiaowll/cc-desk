@@ -3,7 +3,6 @@
 /* Common actions */
 "action.confirm" = "确定";
 "action.cancel" = "取消";
-"action.done" = "完成";
 "action.ok" = "好";
 "action.openSystemSettings" = "打开系统设置";
 "action.resume" = "恢复";
@@ -14,12 +13,7 @@
 "menu.newSession" = "新建 Session";
 "menu.closeSession" = "关闭当前 Session";
 "menu.history" = "历史会话";
-"menu.appearance" = "外观";
-"menu.integrations" = "集成…";
 "menu.session" = "Session";
-"menu.installIntegrations" = "安装 Codex / pi 状态集成…";
-"menu.testNotification" = "测试通知与角标";
-"menu.downloadVoiceModel" = "预先下载语音模型";
 "menu.switchTo" = "切换到第 %d 个";
 "appearance.system" = "跟随系统";
 "appearance.light" = "浅色";
@@ -121,7 +115,6 @@
 "notify.test.body" = "会话需要批准或本轮完成时，会像这样提醒你。";
 
 /* Integrations */
-"integrations.title" = "状态集成";
 "integrations.intro" = "安装后，CC Desk 能准确显示 Codex / pi 会话的「处理中 / 等批准 / 空闲」，包括在 Terminal 等外部终端里启动的会话。修改配置前会备份为 *.cc-desk.bak；卸载只移除 CC Desk 自己添加的内容。";
 "integrations.claude.detail" = "内置：读取 ~/.claude/sessions，无需安装";
 "integrations.codex.detail" = "~/.codex/hooks.json（hook 脚本在 ~/.cc-desk/hooks/）+ config.toml 的 [features] hooks = true";
@@ -161,7 +154,6 @@
 "voice.button.accessibility" = "语音输入";
 
 /* Language */
-"menu.language" = "语言";
 "language.system" = "跟随系统";
 "alert.restart.title" = "需要重启 CC Desk 才能生效";
 "alert.restart.message" = "新的界面语言会在 CC Desk 重启后生效。";
@@ -197,12 +189,6 @@
 "voice.speech.enhanced" = "%@（增强）";
 "voice.speech.sample" = "你好，我是 CC Desk 助手";
 "menu.resetAssistant" = "重置助手对话";
-"menu.autoStartConversation" = "启动时开启助手";
-"menu.persistentConversation" = "常驻对话";
-"menu.turnSummaries" = "回复摘要";
-"menu.speechVoice" = "朗读声音";
-"menu.speechVoice.auto" = "自动（音质最好）";
-"menu.speechVoice.download" = "下载更多声音…";
 "assistant.noTarget" = "先选一个 CC Desk 里的会话";
 "assistant.toast.confirmTakeOver" = "说「确认」接管：%@";
 "assistant.toast.cancelled" = "已取消";
@@ -232,8 +218,6 @@
 "assistant.undo.switched" = "已切回 %@";
 
 /* 自然语音（本机 Qwen3-TTS） */
-"menu.speechVoice.natural" = "自然语音（千问 serena）";
-"menu.speechVoice.naturalInstalling" = "自然语音（正在安装…）";
 "naturalVoice.install.title" = "安装自然语音？";
 "naturalVoice.install.message" = "CC Desk 可以用更自然的神经网络声音（千问 Qwen3-TTS，说话人 serena）朗读回复，完全在这台 Mac 上运行。需要 uv，会下载约 2.5 GB（Python 依赖和模型）到「应用程序支持」目录。装好之前继续使用系统声音。";
 "naturalVoice.install.confirm" = "下载并安装";
@@ -266,12 +250,11 @@
 "statusMenu.showMainWindow" = "显示 CC Desk 主窗口";
 "statusMenu.newSession" = "新建会话…";
 "statusMenu.quit" = "退出 CC Desk";
-"statusMenu.hideIconHint" = "隐藏后可在 CC Desk 菜单里重新打开";
+"statusMenu.hideIconHint" = "隐藏后可在「设置 › 通用」里重新打开";
 "menu.launchAtLogin" = "登录时启动";
 "menu.launchAtLogin.needsApproval" = "登录时启动（待在系统设置中允许）";
 "menu.showMenuBarIcon" = "在菜单栏显示图标";
 "menu.globalHotkeys" = "启用全局快捷键";
-"menu.globalHotkeys.detail" = "启用全局快捷键（%1$@ 主窗口 · %2$@ 对话模式）";
 "hotkey.unavailable" = "%@ 已被其他 App 占用";
 "hotkey.listSeparator" = "、";
 "alert.hotkeyUnavailable.title" = "部分全局快捷键不可用";
@@ -281,6 +264,92 @@
 "alert.loginItemFailed.title" = "无法设置登录时启动";
 "alert.loginItemFailed.message" = "%@\n\n请从「应用程序」文件夹运行 CC Desk 后再试。";
 
-/* 推送到手机 */
+/* 设置窗口 */
+"settings.tab.general" = "通用";
+"settings.tab.voice" = "语音";
+"settings.tab.notifications" = "通知";
+"settings.tab.integrations" = "集成";
+"settings.tab.usage" = "用量";
+"settings.general.appearance" = "外观";
+"settings.general.language" = "语言";
+"settings.general.languageNote" = "切换语言需要重启 CC Desk；内嵌会话会继续运行。";
+"settings.general.desktop" = "桌面";
+"settings.general.hotkeys" = "全局快捷键";
+"settings.general.hotkey.main" = "显示 / 隐藏主窗口";
+"settings.general.hotkey.conversation" = "开关对话模式";
+"settings.general.hotkeysNote" = "在任何 App 里都可用；被系统或其他 App 占用的组合会在这里提示。";
+"settings.voice.input" = "按住说话";
+"settings.voice.pushToTalk" = "按键";
+"settings.voice.pushToTalk.key" = "按住右 ⌥";
+"settings.voice.pushToTalk.note" = "CC Desk 在前台时按住右 ⌥（或详情区的麦克风按钮）说话，松开后本机 Whisper 识别并输入到选中的会话（不回车）。";
+"settings.voice.model" = "语音识别模型";
+"settings.voice.model.ready" = "已下载";
+"settings.voice.model.missing" = "未下载";
+"settings.voice.model.download" = "下载";
+"settings.voice.model.downloading" = "下载中 %d%%";
+"settings.voice.model.loading" = "加载中…";
+"settings.voice.conversation" = "对话模式";
+"settings.voice.autoStart" = "启动时开启助手";
+"settings.voice.persistent" = "常驻对话";
+"settings.voice.persistent.note" = "唤醒后一直在线，说「休息一下」才回到待命。下次唤醒时生效。";
+"settings.voice.wakeWord" = "唤醒词";
+"settings.voice.wakeWord.save" = "保存";
+"settings.voice.wakeWord.note" = "2–8 个字，下次开启对话模式时生效。";
+"settings.voice.wakeWord.noteOn" = "2–8 个字。对话模式正在运行：关闭再开启后生效。";
+"settings.voice.summaries" = "回复摘要";
+"settings.voice.summaries.note" = "选中会话一轮完成时播报一两句摘要，而不是「已完成」（占用 Claude 订阅额度）。";
+"settings.voice.speech" = "朗读";
+"settings.voice.speechVoice" = "朗读声音";
+"settings.voice.speech.natural" = "自然语音（千问 serena）";
+"settings.voice.speech.auto" = "系统声音 · 自动（音质最好）";
+"settings.voice.speech.naturalStatus" = "自然语音";
+"settings.voice.speech.installed" = "已安装";
+"settings.voice.speech.notInstalled" = "未安装（约 2.5 GB）";
+"settings.voice.speech.installing" = "正在安装…";
+"settings.voice.speech.install" = "安装…";
+"settings.voice.speech.preview" = "试听";
+"settings.voice.speech.previewDisabled" = "对话模式开启时不试听，免得被麦克风收进去";
+"settings.voice.speech.download" = "下载更多系统声音…";
+"settings.voice.assistant" = "语音助手";
+"settings.voice.resetAssistant" = "重置助手对话";
+"settings.voice.resetAssistant.note" = "丢弃助手的对话记忆，下一句话从头开始。";
+"settings.notify.system" = "系统通知";
+"settings.notify.permission" = "通知权限";
+"settings.notify.allowed" = "已允许";
+"settings.notify.denied" = "已关闭";
+"settings.notify.notDetermined" = "尚未询问";
+"settings.notify.unavailable" = "不可用（未打包运行）";
+"settings.notify.onWaiting" = "会话等批准时通知";
+"settings.notify.onFinished" = "会话完成一轮时通知";
+"settings.notify.test" = "测试通知与角标";
+"settings.notify.note" = "App 在前台且正看着该会话时不通知；Dock 角标与未读标记不受这两个开关影响。";
+"settings.push.title" = "推送到手机";
+"settings.push.provider" = "推送服务";
+"settings.push.provider.none" = "不推送";
+"settings.push.provider.webhook" = "自定义 Webhook";
+"settings.push.server" = "服务器";
+"settings.push.bark.key" = "设备 Key";
+"settings.push.bark.note" = "在 iPhone 的 Bark App 里复制设备 Key（推送地址 https://api.day.app/ 后面那一段）。";
+"settings.push.ntfy.topic" = "主题";
+"settings.push.ntfy.token" = "访问令牌";
+"settings.push.optional" = "可选";
+"settings.push.ntfy.note" = "在手机的 ntfy App 里订阅同一个主题。ntfy.sh 上任何知道主题名的人都能订阅，请用不易猜到的名字。";
+"settings.push.webhook.url" = "地址";
+"settings.push.webhook.note" = "POST JSON：{title, body, session, project, status}，status 为 waiting / finished / test。";
+"settings.push.onWaiting" = "会话等批准时推送";
+"settings.push.onFinished" = "会话完成一轮时推送";
+"settings.push.when" = "推送时机";
+"settings.push.when.away" = "离开 Mac 时（空闲 3 分钟以上或已锁屏）";
+"settings.push.when.always" = "总是";
+"settings.push.limitNote" = "同一会话的同一种状态 2 分钟内最多推送一次，每小时最多 20 条。";
+"settings.push.test" = "发送测试推送";
+"settings.push.sent" = "已发送（HTTP %d）";
+"settings.push.saveFailed" = "无法保存到钥匙串：%@";
+"settings.push.privacy" = "推送会把项目名、会话标题、状态和简短原因（如等待批准的命令，最多 100 字）发送给所选的第三方服务，不包含对话内容。设备 Key、主题、令牌与 Webhook 地址保存在钥匙串里。";
 "push.result.network" = "发送失败：%@";
 "push.result.http" = "服务返回 HTTP %d";
+"settings.usage.claude" = "Claude 用量";
+"settings.usage.none" = "暂无用量数据：登录 Claude Code 并使用过一次后显示。";
+"settings.usage.refresh" = "立即刷新";
+"settings.usage.alertNote" = "任一额度达到 %d%% 时，每个重置周期提醒一次。";
+"statusMenu.settings" = "设置…";

@@ -90,6 +90,28 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(request)
     }
 
+    /// 系统通知权限（设置 › 通知显示）。
+    enum Authorization {
+        case allowed, denied, notDetermined, unavailable
+    }
+
+    static let systemSettingsURL = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")
+
+    /// 查询通知权限，在主线程回调。
+    func authorization(completion: @escaping (Authorization) -> Void) {
+        guard available else { return completion(.unavailable) }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let state: Authorization
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral: state = .allowed
+            case .denied: state = .denied
+            case .notDetermined: state = .notDetermined
+            @unknown default: state = .denied
+            }
+            DispatchQueue.main.async { completion(state) }
+        }
+    }
+
     /// 发一条测试通知；若通知权限被关闭，回调 false 以便提示用户去系统设置打开。
     func sendTest(completion: @escaping (Bool) -> Void) {
         guard available else { completion(false); return }

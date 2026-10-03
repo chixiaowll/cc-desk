@@ -149,8 +149,6 @@ enum CCDeskMain {
 
 struct CCDeskApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @AppStorage(AppearancePreference.defaultsKey) private var appearance: String = AppearancePreference.system.rawValue
-    @State private var language = LanguagePreference.stored
 
     var body: some Scene {
         Window("CC Desk", id: "main") {
@@ -190,62 +188,21 @@ struct CCDeskApp: App {
                     delegate.model.showHistoryPalette = true
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
-                Divider()
-                Section(L("menu.appearance")) {
-                    ForEach(AppearancePreference.allCases) { pref in
-                        Toggle(pref.label, isOn: Binding(
-                            get: { appearance == pref.rawValue },
-                            set: { on in
-                                guard on else { return }
-                                appearance = pref.rawValue
-                                pref.apply(pool: delegate.model.pool)
-                            }))
-                    }
-                }
-                Section(L("menu.language")) {
-                    ForEach(LanguagePreference.allCases) { pref in
-                        Toggle(pref.label, isOn: Binding(
-                            get: { language == pref },
-                            set: { on in
-                                guard on else { return }
-                                language = pref
-                                delegate.selectLanguage(pref)
-                            }))
-                    }
-                }
             }
-            CommandGroup(replacing: .appSettings) {
-                Button(L("menu.integrations")) {
-                    delegate.model.openMainWindow?()
-                    delegate.model.showIntegrations = true
-                }
-                .keyboardShortcut(",")
-                Divider()
-                DesktopMenuItems()
-            }
+            // 偏好开关都在设置窗口（⌘,）里；这里只留常用动作。
             CommandMenu(L("menu.session")) {
-                Button(L("menu.installIntegrations")) {
-                    delegate.model.openMainWindow?()
-                    delegate.model.showIntegrations = true
-                }
-                Divider()
-                Button(L("menu.testNotification")) { delegate.model.testNotificationAndBadge() }
-                Button(L("menu.downloadVoiceModel")) {
-                    delegate.model.openMainWindow?()
-                    delegate.model.voice.predownload()
-                }
                 ConversationMenuItem(model: delegate.model, conversation: delegate.model.conversation)
-                TurnSummaryMenuItem()
-                PersistentConversationMenuItem()
-                AutoStartConversationMenuItem()
                 Button(L("menu.resetAssistant")) { delegate.model.conversation.resetAssistant() }
-                SpeechVoiceMenu(model: delegate.model, conversation: delegate.model.conversation)
                 Divider()
                 ForEach(1...9, id: \.self) { index in
                     Button(L("menu.switchTo", index)) { delegate.model.selectEmbedded(index: index - 1) }
                         .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
                 }
             }
+        }
+        // 设置窗口（应用菜单「设置…」，⌘,，设计 §16）。
+        Settings {
+            SettingsView(model: delegate.model, selectLanguage: { delegate.selectLanguage($0) })
         }
     }
 }
@@ -260,83 +217,5 @@ private struct ConversationMenuItem: View {
             get: { conversation.isOn },
             set: { _ in conversation.toggle() }))
             .keyboardShortcut("v", modifiers: [.command, .option])
-    }
-}
-
-/// 菜单「Session → 回复摘要」：对话模式下一轮完成时播报摘要而不是「已完成」（占用 Claude 订阅额度）。
-private struct TurnSummaryMenuItem: View {
-    @AppStorage(ConversationMode.summariesDefaultsKey) private var on = true
-
-    var body: some View {
-        Toggle(L("menu.turnSummaries"), isOn: $on)
-    }
-}
-
-/// 菜单「Session → 启动时开启助手」。
-private struct AutoStartConversationMenuItem: View {
-    @AppStorage(ConversationMode.autoStartDefaultsKey) private var on = false
-
-    var body: some View {
-        Toggle(L("menu.autoStartConversation"), isOn: $on)
-    }
-}
-
-/// 菜单「Session → 常驻对话」：唤醒后一直在线，不因沉默或发送而回到待命。
-private struct PersistentConversationMenuItem: View {
-    @AppStorage(ConversationMode.persistentDefaultsKey) private var on = true
-
-    var body: some View {
-        Toggle(L("menu.persistentConversation"), isOn: $on)
-    }
-}
-
-/// 菜单「Session → 朗读声音」：自然语音（本机 Qwen3-TTS，没装时先询问安装）、自动（音质最好的系统声音）
-/// 或指定一个已安装的系统声音；可跳到系统设置下载更多声音。
-private struct SpeechVoiceMenu: View {
-    let model: AppModel
-    @ObservedObject var conversation: ConversationMode
-    @ObservedObject private var installer = NaturalVoiceInstaller.shared
-    @AppStorage(SpeechVoiceRanking.defaultsKey) private var chosen = ""
-
-    var body: some View {
-        Menu(L("menu.speechVoice")) {
-            Toggle(installer.installing ? L("menu.speechVoice.naturalInstalling") : L("menu.speechVoice.natural"),
-                   isOn: naturalBinding)
-                .disabled(installer.installing)
-            Toggle(L("menu.speechVoice.auto"), isOn: binding(""))
-            Divider()
-            ForEach(SpeechVoices.candidates(), id: \.identifier) { voice in
-                Toggle(SpeechVoices.label(voice), isOn: binding(voice.identifier))
-            }
-            Divider()
-            Button(L("menu.speechVoice.download")) {
-                if let url = SpeechVoices.spokenContentSettingsURL { NSWorkspace.shared.open(url) }
-            }
-        }
-    }
-
-    /// `chosen` 只用来让菜单随偏好刷新；是否选中自然语音以 NaturalVoice.isSelected 为准（装好且没选过 = 默认）。
-    private var naturalBinding: Binding<Bool> {
-        Binding(get: { _ = chosen; return NaturalVoice.isSelected }, set: { on in
-            guard on else { return }
-            guard NaturalVoice.isInstalled else {
-                NaturalVoiceInstaller.shared.confirmAndInstall(hint: { model.voice.showHint($0) }) { ok in
-                    guard ok else { return }
-                    chosen = NaturalVoiceProtocol.preferenceID
-                    if !conversation.isOn { SpeechVoices.preview() }
-                }
-                return
-            }
-            chosen = NaturalVoiceProtocol.preferenceID
-            if !conversation.isOn { SpeechVoices.preview() }
-        })
-    }
-
-    private func binding(_ id: String) -> Binding<Bool> {
-        Binding(get: { chosen == id && !NaturalVoice.isSelected }, set: { on in
-            guard on else { return }
-            chosen = id
-            if !conversation.isOn { SpeechVoices.preview() }
-        })
     }
 }
