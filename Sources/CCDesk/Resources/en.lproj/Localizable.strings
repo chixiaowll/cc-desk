@@ -280,3 +280,7 @@
 "alert.loginItemApproval.message" = "CC Desk was added to your login items, but macOS needs you to allow it in System Settings › General › Login Items.";
 "alert.loginItemFailed.title" = "Couldn't set Launch at Login";
 "alert.loginItemFailed.message" = "%@\n\nRun CC Desk from the Applications folder and try again.";
+
+/* 推送到手机 */
+"push.result.network" = "Couldn't send: %@";
+"push.result.http" = "The service returned HTTP %d";

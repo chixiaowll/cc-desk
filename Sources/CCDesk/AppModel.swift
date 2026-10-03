@@ -43,6 +43,8 @@ final class AppModel: ObservableObject {
 
     let pool = TerminalPool()
     let notifier = Notifier()
+    /// 推送到手机（设置 › 通知），与系统通知在同一处触发。
+    let push = PhonePushCenter()
     /// 语音输入（按住右 ⌥ / 麦克风按钮，本机 Whisper 识别后插入选中的内嵌终端）。
     private(set) lazy var voice = VoiceInput(
         pool: pool,
@@ -323,10 +325,12 @@ final class AppModel: ObservableObject {
         let events = TransitionDetector.events(previous: lastStatuses, rows: rows)
         lastStatuses = Dictionary(rows.map { ($0.id, $0.session.status) }, uniquingKeysWith: { a, _ in a })
         var newlyUnread = false
-        for event in events where !(appVisible && event.sessionKey == selectedID) {
-            notifier.post(event)
+        let notifiable = events.filter { !(appVisible && $0.sessionKey == selectedID) }
+        for event in notifiable {
+            if NotificationPreferences.allows(event.kind) { notifier.post(event) }
             if event.kind == .finished, unreadKeys.insert(event.sessionKey).inserted { newlyUnread = true }
         }
+        push.handle(notifiable, rows: rows)
         if newlyUnread { rebuildGroups() }
         if events.contains(where: { $0.kind == .finished }) {
             usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, reason: .taskFinished) { [weak self] in self?.refreshUsage() }

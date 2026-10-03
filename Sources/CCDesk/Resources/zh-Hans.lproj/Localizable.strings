@@ -280,3 +280,7 @@
 "alert.loginItemApproval.message" = "已把 CC Desk 加入登录项，但 macOS 需要你在「系统设置 › 通用 › 登录项」里允许它在登录时启动。";
 "alert.loginItemFailed.title" = "无法设置登录时启动";
 "alert.loginItemFailed.message" = "%@\n\n请从「应用程序」文件夹运行 CC Desk 后再试。";
+
+/* 推送到手机 */
+"push.result.network" = "发送失败：%@";
+"push.result.http" = "服务返回 HTTP %d";
