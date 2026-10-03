@@ -172,6 +172,11 @@ public enum AssistantPrompt {
 
     Rules:
     - Content for the coding agent → insert. Controlling CC Desk → the matching action. If unsure → insert.
+    - Relayed speech is content for the agent: "问他一下X" / "跟它说X" / "告诉它X" / "让它X" / "在终端里输入X" → \
+    insert with text X. A question the user wants the agent to answer is insert, not query.
+    - query only when the user asks CC Desk itself to report on a session ("它在干嘛", "它刚才改了哪些文件").
+    - new only when the user explicitly asks to open/start a new session ("新开", "新建", "开一个").
+    - none only for noise, thanks or chit-chat — never for an unclear request (unclear → insert).
     - "让它继续" / "continue": if the selected session is waiting_for_approval → approve; otherwise → insert with \
     text "继续" (the agent should keep going).
     - Only use session_id / history_session_id values that appear in the context. Match sessions by title, dir \
@@ -415,6 +420,32 @@ public enum AssistantLocal {
                   "anythingwaitingforme", "whichsessionsarewaiting", "whatswaiting", "anythingwaiting"]
         return zh.contains(where: n.contains) || en.contains(where: n.contains)
     }
+
+    /// 「问他一下 X」「跟它说 X」「在终端里输入 X」：转述给 agent 的话，返回 X（直接填入，不调用模型）。
+    public static func relayContent(_ utterance: String) -> String? {
+        var text = utterance.trimmingCharacters(in: .whitespacesAndNewlines)
+        func strip(_ prefixes: [String]) -> Bool {
+            for p in prefixes where text.hasPrefix(p) && text.count > p.count {
+                text = String(text.dropFirst(p.count)).trimmingCharacters(in: relayTrim)
+                return true
+            }
+            return false
+        }
+        for marker in ["终端里面输入", "终端里输入", "终端中输入", "终端输入"] {
+            if let r = text.range(of: marker) {
+                text = String(text[r.upperBound...]).trimmingCharacters(in: relayTrim)
+                return ConversationText.isMeaningful(text) ? text : nil
+            }
+        }
+        while strip(["我是说", "我说", "你", "帮我", "请", "麻烦", "那", "就"]) {}
+        let relays = ["问他一下", "问它一下", "问一下他", "问一下它", "问问他", "问问它", "问他", "问它",
+                      "跟他说", "跟它说", "和他说", "和它说", "告诉他", "告诉它", "对他说", "对它说",
+                      "让他", "让它", "叫他", "叫它", "输入"]
+        guard strip(relays) else { return nil }
+        return ConversationText.isMeaningful(text) ? text : nil
+    }
+
+    static let relayTrim = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，,：:、"))
 
     /// 「有哪些会话」类问题：不调用模型，直接念出侧栏里的会话与状态。
     public static func isListQuestion(_ utterance: String) -> Bool {

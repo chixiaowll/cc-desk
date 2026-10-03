@@ -61,9 +61,17 @@ public enum SessionBuilder {
         return .other(tty: tty)
     }
 
+    /// CC Desk 自己在后台起的 agent（语音助手的 `claude -p`，工作目录 ~/.cc-desk/…）：不显示在侧栏。
+    public static let internalDirectory = (NSHomeDirectory() as NSString).appendingPathComponent(".cc-desk")
+
+    static func isInternal(cwd: String, internalDirectory: String) -> Bool {
+        cwd == internalDirectory || cwd.hasPrefix(internalDirectory + "/")
+    }
+
     public static func build(registry: [RegistryEntry], processes: ProcessTable,
                              embedded: [EmbeddedTerminalInfo], missing: [WorkspaceEntry],
-                             agents: [AgentProcessInfo] = []) -> [AgentSession] {
+                             agents: [AgentProcessInfo] = [],
+                             internalDirectory: String = SessionBuilder.internalDirectory) -> [AgentSession] {
         var embeddedByTTY: [String: EmbeddedTerminalInfo] = [:]
         for info in embedded {
             if let tty = info.tty { embeddedByTTY[tty] = info }
@@ -76,6 +84,7 @@ public enum SessionBuilder {
         // pid 存活且其 ps comm 的最后一段确为 "claude" 才算有效；否则说明 pid 被复用或记录已过期。
         let live = registry
             .filter { entry in
+                guard !isInternal(cwd: entry.cwd, internalDirectory: internalDirectory) else { return false }
                 guard let proc = processes.byPID[entry.pid] else { return false }
                 let lastComponent = proc.command.split(separator: "/").last.map(String.init) ?? proc.command
                 return lastComponent == "claude"
@@ -105,7 +114,8 @@ public enum SessionBuilder {
         }
 
         // Codex / pi：外部会话 id 为 "<kind>-pid:<pid>"。
-        for agent in agents.sorted(by: { $0.pid < $1.pid }) {
+        for agent in agents.sorted(by: { $0.pid < $1.pid })
+        where !isInternal(cwd: agent.cwd, internalDirectory: internalDirectory) {
             let host: SessionHost
             let id: String
             if let tty = agent.tty, let info = embeddedByTTY[tty] {

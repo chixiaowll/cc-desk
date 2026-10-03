@@ -228,4 +228,14 @@ final class AssistantTests: ZhHansTestCase {
         XCTAssertEqual(d.speak, "poems 空闲，herdr 在处理")
         XCTAssertFalse(d.isFallback)
     }
+
+    func testRelayContent() {
+        XCTAssertEqual(AssistantLocal.relayContent("你问他一下有没有开发完成。"), "有没有开发完成。")
+        XCTAssertEqual(AssistantLocal.relayContent("我说他在这个终端里面输入现在已经运行完了吗?"), "现在已经运行完了吗?")
+        XCTAssertEqual(AssistantLocal.relayContent("跟它说，把测试跑一下"), "把测试跑一下")
+        XCTAssertEqual(AssistantLocal.relayContent("让它继续"), "继续")
+        XCTAssertNil(AssistantLocal.relayContent("帮我切到 poems 那个"))
+        XCTAssertNil(AssistantLocal.relayContent("它刚才改了哪些文件"))
+        XCTAssertNil(AssistantLocal.relayContent("问他"))
+    }
 }

@@ -371,6 +371,14 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         if AssistantLocal.isWaitingQuestion(text) {
             return speak(AssistantLocal.waitingAnswer(sessions: context.sessions))
         }
+        if let content = AssistantLocal.relayContent(text) {
+            AssistantDiag.log("relay -> insert \"\(content)\"")
+            // 「让它继续」：正在等批准时就是批准。
+            if ConversationCommands.normalize(content) == "继续", target.flatMap(statusOf)?.isWaiting == true {
+                return perform(.approve, target: target)
+            }
+            return perform(.insert(content), target: target)
+        }
         if AssistantLocal.isListQuestion(text) {
             return speak(AssistantLocal.listAnswer(sessions: context.sessions))
         }

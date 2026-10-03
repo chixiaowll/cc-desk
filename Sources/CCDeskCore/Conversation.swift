@@ -164,7 +164,8 @@ public enum ConversationCommand: Equatable, Sendable {
 
 /// 把整句识别结果解析成指令（整句匹配，容忍标点、首尾语气词）。批准 / 拒绝只在 agent 等批准时生效。
 public enum ConversationCommands {
-    static let send: Set<String> = ["发送", "发出去", "发出", "提交", "发送出去", "送出", "send", "sendit", "submit"]
+    static let send: Set<String> = ["发送", "发出去", "发出", "提交", "发送出去", "送出", "发送给他", "发送给它", "发给他", "发给它",
+                                         "发过去", "发吧", "发出去给他", "send", "sendit", "submit", "sendittoit"]
     static let cancel: Set<String> = ["取消", "清空", "算了", "清除", "cancel", "clear", "clearit", "nevermind"]
     static let stop: Set<String> = [
         "退出对话模式", "停止对话", "退出对话", "结束对话", "关闭对话模式", "停止对话模式", "停止聆听", "停止监听",
