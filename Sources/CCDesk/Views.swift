@@ -52,9 +52,12 @@ struct DetailView: View {
                 }
                 VoiceOverlay(voice: model.voice, theme: theme)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 28)
+                    .padding(.bottom, 16)
             }
             .background(Color(nsColor: theme.terminal.background))
+            if row != nil {
+                VoiceBar(voice: model.voice, theme: theme)
+            }
         }
         .background(theme.main.ignoresSafeArea())
         .background(GeometryReader { proxy in
@@ -71,11 +74,8 @@ struct DetailView: View {
             }
             ToolbarItem(placement: .automatic) {
                 if let row {
-                    HStack(spacing: 8) {
-                        MicButton(voice: model.voice, theme: theme)
-                        StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
-                                   unread: row.showsUnread, theme: theme)
-                    }
+                    StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
+                               unread: row.showsUnread, theme: theme)
                 }
             }
         }

@@ -115,7 +115,29 @@ private struct LevelMeter: View {
     }
 }
 
-/// 详情区标题栏的麦克风按钮：按住说话，松开结束。
+/// 终端下方的语音输入条：紧挨 agent 输入框，按住按钮说话，松开后插入识别结果。
+struct VoiceBar: View {
+    @ObservedObject var voice: VoiceInput
+    let theme: Theme
+
+    var body: some View {
+        VStack(spacing: 0) {
+            theme.line.frame(height: 1)
+            HStack(spacing: 10) {
+                MicButton(voice: voice, theme: theme)
+                Text(voice.isRecording ? "松开结束，识别后插入输入框" : "按住说话 · 或按住右 ⌥")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(voice.isRecording ? theme.accent : theme.fg3)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 24)
+            .frame(height: 36)
+        }
+        .background(Color(nsColor: theme.terminal.background))
+    }
+}
+
+/// 语音输入条里的麦克风按钮：按住说话，松开结束。
 struct MicButton: View {
     @ObservedObject var voice: VoiceInput
     let theme: Theme
@@ -123,24 +145,29 @@ struct MicButton: View {
 
     var body: some View {
         let active = voice.isRecording
-        Image(systemName: active ? "mic.fill" : "mic")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(active ? theme.pillWaitFg : theme.fg2)
-            .frame(width: 26, height: 22)
-            .background(Capsule().fill(active ? theme.accent : theme.pillIdleBg))
-            .contentShape(Capsule())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        guard !pressing else { return }
-                        pressing = true
-                        voice.mousePressed()
-                    }
-                    .onEnded { _ in
-                        pressing = false
-                        voice.mouseReleased()
-                    })
-            .help("按住说话，松开后插入识别结果（也可按住右 ⌥）")
-            .accessibilityLabel("语音输入")
+        HStack(spacing: 5) {
+            Image(systemName: active ? "mic.fill" : "mic")
+                .font(.system(size: 12, weight: .semibold))
+            Text("按住说话")
+                .font(.system(size: 11.5, weight: .medium))
+        }
+        .foregroundStyle(active ? theme.pillWaitFg : theme.fg2)
+        .padding(.horizontal, 10)
+        .frame(height: 24)
+        .background(Capsule().fill(active ? theme.accent : theme.pillIdleBg))
+        .contentShape(Capsule())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard !pressing else { return }
+                    pressing = true
+                    voice.mousePressed()
+                }
+                .onEnded { _ in
+                    pressing = false
+                    voice.mouseReleased()
+                })
+        .help("按住说话，松开后插入识别结果（也可按住右 ⌥）")
+        .accessibilityLabel("语音输入")
     }
 }
