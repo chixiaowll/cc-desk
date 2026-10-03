@@ -26,7 +26,7 @@ struct SidebarView: View {
             }
             .overlay {
                 if groups.isEmpty {
-                    Text("没有运行中的 Claude Code session\n⌘N 新建")
+                    Text(L("sidebar.empty"))
                         .font(.system(size: 12))
                         .multilineTextAlignment(.center)
                         .foregroundStyle(theme.fg3)
@@ -38,11 +38,11 @@ struct SidebarView: View {
         .toolbar {
             ToolbarItem {
                 Button { model.showNewSession = true } label: { Image(systemName: "plus") }
-                    .help("新建会话 ⌘N")
+                    .help(L("toolbar.newSession.help"))
             }
             ToolbarItem {
                 Button { model.showHistoryPalette = true } label: { Image(systemName: "clock") }
-                    .help("历史会话 ⌘⇧H")
+                    .help(L("toolbar.history.help"))
             }
         }
     }
@@ -148,7 +148,7 @@ struct GroupHeaderView: View {
     private var actions: some View {
         HStack(spacing: 2) {
             if !model.history(forRoot: group.id).isEmpty {
-                SidebarIconButton(systemName: "clock", help: "历史会话", on: showHistory, theme: theme) {
+                SidebarIconButton(systemName: "clock", help: L("sidebar.history.help"), on: showHistory, theme: theme) {
                     if !showHistory { model.refreshHistory() }
                     showHistory.toggle()
                 }
@@ -167,7 +167,7 @@ struct GroupHeaderView: View {
             }
             if !allMissing {
                 SidebarIconButton(systemName: "plus",
-                                  help: "在 \(group.title) 新建 \(model.lastAgent.displayName) 会话（右键选择 agent）",
+                                  help: L("sidebar.newInGroup.help", group.title, model.lastAgent.displayName),
                                   theme: theme) {
                     model.newSession(cwd: group.id)
                 }
@@ -221,12 +221,12 @@ struct GroupCounts: View {
     }
 
     private var helpText: String {
-        [group.waitingCount > 0 ? "\(group.waitingCount) 个等批准" : nil,
-         group.unreadCount > 0 ? "\(group.unreadCount) 个已完成未读" : nil,
-         group.workingCount > 0 ? "\(group.workingCount) 个处理中" : nil,
-         group.idleCount > 0 ? "\(group.idleCount) 个空闲" : nil]
+        [group.waitingCount > 0 ? L("group.help.waiting", group.waitingCount) : nil,
+         group.unreadCount > 0 ? L("group.help.unread", group.unreadCount) : nil,
+         group.workingCount > 0 ? L("group.help.working", group.workingCount) : nil,
+         group.idleCount > 0 ? L("group.help.idle", group.idleCount) : nil]
             .compactMap { $0 }
-            .joined(separator: "，")
+            .joined(separator: L("list.separator.clause"))
     }
 }
 
@@ -309,21 +309,21 @@ struct SidebarFooter: View {
         let waiting = rows.filter { $0.session.status.isWaiting }.count
         let unread = rows.filter(\.showsUnread).count
         return HStack(spacing: 6) {
-            Text("\(rows.count) 个会话")
+            Text(LN("footer.sessions", rows.count))
             if working > 0 {
                 separator
                 Circle().fill(theme.dot).frame(width: 6, height: 6)
-                Text("\(working) 处理中")
+                Text(L("footer.working", working))
             }
             if waiting > 0 {
                 separator
                 Circle().fill(theme.pillWaitBg).frame(width: 6, height: 6)
-                Text("\(waiting) 待处理").fontWeight(.semibold).foregroundStyle(theme.accent)
+                Text(L("footer.waiting", waiting)).fontWeight(.semibold).foregroundStyle(theme.accent)
             }
             if unread > 0 {
                 separator
                 Circle().fill(theme.unread).frame(width: 6, height: 6)
-                Text("\(unread) 未读").fontWeight(.medium).foregroundStyle(theme.unread)
+                Text(L("footer.unread", unread)).fontWeight(.medium).foregroundStyle(theme.unread)
             }
         }
         .font(.system(size: 11.5))

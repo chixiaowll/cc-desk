@@ -57,8 +57,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
             if allowed {
                 let content = UNMutableNotificationContent()
-                content.title = "CC Desk 通知测试"
-                content.body = "会话需要批准或本轮完成时，会像这样提醒你。"
+                content.title = L("notify.test.title")
+                content.body = L("notify.test.body")
                 content.sound = .default
                 UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
             }

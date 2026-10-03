@@ -13,6 +13,7 @@ final class LocalizationTests: XCTestCase {
     /// (源码目录, 该模块的资源目录)
     private static let modules = [
         ("Sources/CCDeskCore", "Sources/CCDeskCore/Resources"),
+        ("Sources/CCDesk", "Sources/CCDesk/Resources"),
     ]
 
     private func strings(_ resources: String, _ language: String) throws -> [String: String] {
@@ -26,13 +27,21 @@ final class LocalizationTests: XCTestCase {
         let dir = Self.repoRoot.appendingPathComponent(sourceDir)
         let files = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" }
-        let regex = try NSRegularExpression(pattern: #"\bL\("([^"\\]+)""#)
+        // L("key") 与 LN("key")（数量文案，对应 key.one / key.other）。
+        let regex = try NSRegularExpression(pattern: #"\b(LN?)\("([^"\\]+)""#)
         var keys = Set<String>()
         for file in files {
             let text = try String(contentsOf: file, encoding: .utf8)
             let range = NSRange(text.startIndex..., in: text)
             for match in regex.matches(in: text, range: range) {
-                if let r = Range(match.range(at: 1), in: text) { keys.insert(String(text[r])) }
+                guard let fn = Range(match.range(at: 1), in: text), let r = Range(match.range(at: 2), in: text) else { continue }
+                let key = String(text[r])
+                if text[fn] == "LN" {
+                    keys.insert(key + ".one")
+                    keys.insert(key + ".other")
+                } else {
+                    keys.insert(key)
+                }
             }
         }
         return keys

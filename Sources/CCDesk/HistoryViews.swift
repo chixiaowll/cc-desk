@@ -18,9 +18,9 @@ struct HistoryPopover: View {
         let filtered = entries.filter { query.isEmpty || $0.item.title.localizedCaseInsensitiveContains(query) }
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
-                Text("\(title) 的历史会话").lineLimit(1).truncationMode(.tail)
+                Text(L("history.popover.title", title)).lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 6)
-                Text("\(entries.count) 条").fontWeight(.medium).foregroundStyle(theme.fg3)
+                Text(L("history.popover.count", entries.count)).fontWeight(.medium).foregroundStyle(theme.fg3)
             }
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(theme.fg2)
@@ -30,7 +30,7 @@ struct HistoryPopover: View {
 
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(theme.fg3)
-                TextField("", text: $query, prompt: Text("搜索这个目录的历史…").foregroundColor(theme.fg3))
+                TextField("", text: $query, prompt: Text(L("history.popover.search")).foregroundColor(theme.fg3))
                     .textFieldStyle(.plain)
                     .font(.system(size: 12.5))
                     .foregroundStyle(theme.fg1)
@@ -42,7 +42,7 @@ struct HistoryPopover: View {
             .padding(.bottom, 4)
 
             if filtered.isEmpty {
-                Text("没有匹配的历史会话")
+                Text(L("history.noMatches"))
                     .font(.system(size: 12))
                     .foregroundStyle(theme.fg3)
                     .padding(.vertical, 14)
@@ -62,7 +62,7 @@ struct HistoryPopover: View {
 
             Button(action: onSearchAll) {
                 HStack {
-                    Text("在全部历史中搜索")
+                    Text(L("history.searchAll"))
                     Spacer()
                     KeyCap(text: "⌘⇧H", theme: theme)
                 }
@@ -152,7 +152,7 @@ struct HistoryPalette: View {
                 Image(systemName: "magnifyingglass").font(.system(size: 14)).foregroundStyle(theme.fg3)
                 PaletteSearchField(
                     text: $query,
-                    placeholder: "搜索所有历史会话…",
+                    placeholder: L("history.palette.search"),
                     textColor: NSColor(theme.fg1),
                     placeholderColor: NSColor(theme.fg3),
                     onMove: { delta in
@@ -172,7 +172,7 @@ struct HistoryPalette: View {
             let kinds = AgentKind.launchable.filter { kind in model.history.contains { $0.item.kind == kind } }
             if kinds.count >= 2 {
                 HStack(spacing: 6) {
-                    AgentFilterChip(title: "全部", selected: agentFilter == nil, theme: theme) { agentFilter = nil; selection = 0 }
+                    AgentFilterChip(title: L("history.filter.all"), selected: agentFilter == nil, theme: theme) { agentFilter = nil; selection = 0 }
                     ForEach(kinds, id: \.self) { kind in
                         AgentFilterChip(title: kind.displayName, selected: agentFilter == kind, theme: theme) {
                             agentFilter = agentFilter == kind ? nil : kind
@@ -187,7 +187,7 @@ struct HistoryPalette: View {
             }
 
             if flat.isEmpty {
-                Text("没有匹配的历史会话")
+                Text(L("history.noMatches"))
                     .font(.system(size: 12))
                     .foregroundStyle(theme.fg3)
                     .padding(.vertical, 24)
@@ -229,9 +229,9 @@ struct HistoryPalette: View {
             }
 
             HStack(spacing: 14) {
-                HStack(spacing: 3) { KeyCap(text: "↑", theme: theme); KeyCap(text: "↓", theme: theme); Text("选择") }
-                HStack(spacing: 3) { KeyCap(text: "↩", theme: theme); Text("在原目录恢复") }
-                HStack(spacing: 3) { KeyCap(text: "esc", theme: theme); Text("关闭") }
+                HStack(spacing: 3) { KeyCap(text: "↑", theme: theme); KeyCap(text: "↓", theme: theme); Text(L("history.hint.select")) }
+                HStack(spacing: 3) { KeyCap(text: "↩", theme: theme); Text(L("history.hint.resume")) }
+                HStack(spacing: 3) { KeyCap(text: "esc", theme: theme); Text(L("history.hint.close")) }
                 Spacer()
             }
             .font(.system(size: 11))
@@ -301,7 +301,7 @@ struct PaletteRow: View {
             if showAgent { AgentTag(kind: entry.item.kind, theme: theme) }
             Group {
                 if active {
-                    Text("↩ 恢复").fontWeight(.semibold).foregroundStyle(theme.action)
+                    Text(L("history.row.resumeHint")).fontWeight(.semibold).foregroundStyle(theme.action)
                 } else {
                     Text(RelativeTime.short(from: entry.item.modifiedAt, now: now)).foregroundStyle(theme.fg3)
                 }
@@ -373,7 +373,7 @@ struct ResumeLabel: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: "arrow.uturn.backward").font(.system(size: 9, weight: .semibold))
-            Text("恢复")
+            Text(L("action.resume"))
         }
         .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(theme.action)
@@ -422,7 +422,7 @@ private func historyHelp(_ item: HistoryItem) -> String {
     var text = "\(item.title)\n\(item.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~"))"
     if let prompt = item.lastPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !prompt.isEmpty {
         let line = prompt.components(separatedBy: .newlines).joined(separator: " ")
-        text += "\n最近：\(line.count > 80 ? String(line.prefix(80)) + "…" : line)"
+        text += "\n" + L("history.tooltip.recent", line.count > 80 ? String(line.prefix(80)) + "…" : line)
     }
     return text
 }

@@ -54,13 +54,13 @@ struct SessionRowView: View {
                         Button(action: onResume) {
                             HStack(spacing: 3) {
                                 Image(systemName: "arrow.uturn.left").font(.system(size: 9, weight: .semibold))
-                                Text("恢复").font(.system(size: 11, weight: .semibold))
+                                Text(L("action.resume")).font(.system(size: 11, weight: .semibold))
                             }
                             .foregroundStyle(theme.action)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .help("在这个终端里恢复会话")
+                        .help(L("row.resume.help"))
                     } else {
                         Text(RelativeTime.short(from: row.session.statusChangedAt, now: now))
                             .font(.system(size: 10.5).monospacedDigit())
@@ -92,7 +92,7 @@ struct SessionRowView: View {
     /// 第二行：状态文字（状态色）+ 可选的「 · <agent>」（次要灰色）。目录缺失显示路径，不带 agent。
     private var statusLine: Text {
         if isMissing {
-            return Text("目录缺失").fontWeight(.medium).foregroundColor(theme.pillMissFg)
+            return Text(L("status.directoryMissing")).fontWeight(.medium).foregroundColor(theme.pillMissFg)
                 + Text(" · \(row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~"))").foregroundColor(theme.fg2)
         }
         return statusText + agentSuffix
@@ -104,9 +104,9 @@ struct SessionRowView: View {
         }
         switch row.session.status {
         case .waiting(let reason):
-            return Text(reason.map { "等批准 · \($0)" } ?? "等批准").fontWeight(.bold).foregroundColor(theme.pillWaitBg)
+            return Text(reason.map { L("row.waitingWithReason", $0) } ?? AgentStatus.waiting(nil).label).fontWeight(.bold).foregroundColor(theme.pillWaitBg)
         case .working:
-            return Text("处理中").fontWeight(.medium).foregroundColor(theme.pillWorkFg)
+            return Text(AgentStatus.working.label).fontWeight(.medium).foregroundColor(theme.pillWorkFg)
         case .idle, .ended, .unknown:
             return Text(row.statusLabel).fontWeight(.medium).foregroundColor(theme.fg3)
         }
@@ -232,29 +232,29 @@ struct RowMenu: View {
     var body: some View {
         switch row.session.host {
         case .missing:
-            Button("在其他目录打开…") { model.relocateMissing(row) }
-            Button("移除") { model.removeMissing(row) }
+            Button(L("row.menu.openElsewhere")) { model.relocateMissing(row) }
+            Button(L("row.menu.remove")) { model.removeMissing(row) }
         default:
             if row.session.host.isEmbedded, row.session.status == .ended {
-                Button("恢复会话") { model.resumeEnded(row) }
+                Button(L("row.menu.resume")) { model.resumeEnded(row) }
                     .disabled(model.isResumingEnded(row))
                 Divider()
             }
-            Button("在 Finder 中打开") { model.revealInFinder(row) }
+            Button(L("row.menu.revealInFinder")) { model.revealInFinder(row) }
             if row.session.sessionID != nil {
-                Button("复制恢复命令") { model.copyResumeCommand(row) }
+                Button(L("row.menu.copyResumeCommand")) { model.copyResumeCommand(row) }
             }
             if !row.session.host.isEmbedded {
-                Button("在这里接管") { model.takeOver(row) }
+                Button(L("row.menu.takeOver")) { model.takeOver(row) }
                     .disabled(row.session.sessionID == nil || row.session.pid == nil || model.isTakingOver(row))
             }
             Divider()
             if row.session.host.isEmbedded {
-                Button(row.session.status == .ended || row.session.status == .unknown ? "关闭终端" : "关闭") {
+                Button(row.session.status == .ended || row.session.status == .unknown ? L("row.menu.closeTerminal") : L("row.menu.close")) {
                     model.close(row)
                 }
             } else {
-                Button("结束进程") { model.killExternal(row) }
+                Button(L("row.menu.kill")) { model.killExternal(row) }
             }
         }
     }

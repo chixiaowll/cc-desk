@@ -99,10 +99,10 @@ final class AppModel: ObservableObject {
         notifier.sendTest { allowed in
             guard !allowed else { return }
             let alert = NSAlert()
-            alert.messageText = "通知已被关闭"
-            alert.informativeText = "请在「系统设置 → 通知 → CC Desk」中允许通知，才能在会话需要批准时收到提醒。"
-            alert.addButton(withTitle: "打开系统设置")
-            alert.addButton(withTitle: "取消")
+            alert.messageText = L("alert.notificationsOff.title")
+            alert.informativeText = L("alert.notificationsOff.message")
+            alert.addButton(withTitle: L("action.openSystemSettings"))
+            alert.addButton(withTitle: L("action.cancel"))
             if alert.runModal() == .alertFirstButtonReturn,
                let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
                 NSWorkspace.shared.open(url)
@@ -432,7 +432,7 @@ final class AppModel: ObservableObject {
                 NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: appPath),
                                                    configuration: NSWorkspace.OpenConfiguration())
             } else {
-                alert("无法跳转", "这个 session 运行在不支持定位的终端中。可以右键「在这里接管」。")
+                alert(L("alert.cannotJump.title"), L("alert.cannotJump.message"))
             }
         case .missing:
             break
@@ -475,17 +475,17 @@ final class AppModel: ObservableObject {
     func newSession(cwd rawCwd: String, kind: AgentKind? = nil) {
         let kind = kind ?? lastAgent
         guard let launcher = AgentAdapters.adapter(for: kind) else {
-            alert("无法新建", "普通终端没有可启动的 agent。")
+            alert(L("alert.cannotCreate.title"), L("alert.cannotCreate.message"))
             return
         }
         let cwd = ProjectResolver.canonical(rawCwd)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
-            alert("目录不存在", cwd)
+            alert(L("alert.directoryMissing.title"), cwd)
             return
         }
         if availability(of: kind) == .notInstalled {
-            alert("没有找到 \(kind.displayName)", "请先安装 \(launcher.launchCommand()) 命令，并确认它在登录 shell 的 PATH 中。")
+            alert(L("alert.agentNotFound.title", kind.displayName), L("alert.agentNotFound.message", launcher.launchCommand()))
             return
         }
         if lastAgent != kind {
@@ -521,7 +521,7 @@ final class AppModel: ObservableObject {
     func close(_ row: SidebarRow) {
         guard case .embedded(let tid) = row.session.host, let terminal = pool.terminal(tid) else { return }
         if row.session.status.isActive,
-           !confirm("关闭「\(row.displayName)」？", "它还在\(row.session.status.label)，关闭会中断当前这一轮。") { return }
+           !confirm(L("confirm.close.title", row.displayName), L("confirm.close.message", row.session.status.label)) { return }
         terminal.terminate()
         removeTerminal(tid)
     }
@@ -532,7 +532,7 @@ final class AppModel: ObservableObject {
 
     func killExternal(_ row: SidebarRow) {
         guard let pid = row.session.pid, !row.session.host.isEmbedded else { return }
-        guard confirm("结束「\(row.displayName)」？", "将向进程 \(pid) 发送 SIGTERM。") else { return }
+        guard confirm(L("confirm.kill.title", row.displayName), L("confirm.kill.message", Int(pid))) else { return }
         kill(pid, SIGTERM)
         poll()
     }
@@ -548,10 +548,10 @@ final class AppModel: ObservableObject {
         let kind = row.session.kind
         guard !takingOver.contains(pid) else { return }
         if row.session.status.isActive,
-           !confirm("接管「\(row.displayName)」？", "它还在\(row.session.status.label)，接管会先结束外部进程，中断当前这一轮。") { return }
+           !confirm(L("confirm.takeOver.title", row.displayName), L("confirm.takeOver.message", row.session.status.label)) { return }
         let cwd = ProjectResolver.canonical(row.session.cwd)
         guard FileManager.default.fileExists(atPath: cwd) else {
-            alert("目录不存在", cwd)
+            alert(L("alert.directoryMissing.title"), cwd)
             return
         }
         takingOver.insert(pid)
@@ -566,7 +566,7 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 self.takingOver.remove(pid)
                 if alive {
-                    self.alert("外部进程没有退出", "进程 \(pid) 在 5 秒内没有结束，请手动处理后重试。")
+                    self.alert(L("alert.processStillRunning.title"), L("alert.processStillRunning.message", Int(pid)))
                     return
                 }
                 let terminal = self.makeTerminal(id: UUID(), cwd: cwd, command: adapter.resumeCommand(sessionID: sid))
@@ -595,7 +595,7 @@ final class AppModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "为「\(entry.name)」选择新的目录"
+        panel.message = L("panel.relocate.message", entry.name)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let cwd = ProjectResolver.canonical(url.path)
         missing.removeAll { $0.terminalID == tid }
@@ -624,7 +624,7 @@ final class AppModel: ObservableObject {
         let cwd = ProjectResolver.canonical(item.cwd)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir), isDir.boolValue else {
-            alert("目录不存在", cwd)
+            alert(L("alert.directoryMissing.title"), cwd)
             return
         }
         let terminal = makeTerminal(id: UUID(), cwd: cwd, command: adapter.resumeCommand(sessionID: item.sessionID))
@@ -641,7 +641,7 @@ final class AppModel: ObservableObject {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "选择要启动 \(kind.displayName) 的目录"
+        panel.message = L("panel.chooseDirectory.message", kind.displayName)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         showNewSession = false
         newSession(cwd: url.path, kind: kind)
@@ -657,7 +657,7 @@ final class AppModel: ObservableObject {
     }
 
     func installIntegration(_ kind: AgentKind) {
-        runIntegration(kind, verb: "安装") {
+        runIntegration(kind, failureTitle: L("integration.installFailed", kind.displayName)) {
             switch kind {
             case .codex: try CodexIntegration().install()
             case .pi: try PiIntegration().install()
@@ -667,8 +667,9 @@ final class AppModel: ObservableObject {
     }
 
     func uninstallIntegration(_ kind: AgentKind) {
-        guard confirm("卸载 \(kind.displayName) 状态集成？", "只移除 CC Desk 添加的内容；卸载后外部终端里的 \(kind.displayName) 会话将无法显示准确状态。") else { return }
-        runIntegration(kind, verb: "卸载") {
+        guard confirm(L("confirm.uninstallIntegration.title", kind.displayName),
+                      L("confirm.uninstallIntegration.message", kind.displayName)) else { return }
+        runIntegration(kind, failureTitle: L("integration.uninstallFailed", kind.displayName)) {
             switch kind {
             case .codex: try CodexIntegration().uninstall()
             case .pi: try PiIntegration().uninstall()
@@ -677,7 +678,7 @@ final class AppModel: ObservableObject {
         }
     }
 
-    private func runIntegration(_ kind: AgentKind, verb: String, _ work: @escaping () throws -> Void) {
+    private func runIntegration(_ kind: AgentKind, failureTitle: String, _ work: @escaping () throws -> Void) {
         guard !integrationBusy.contains(kind) else { return }
         integrationBusy.insert(kind)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -687,7 +688,7 @@ final class AppModel: ObservableObject {
                 guard let self else { return }
                 self.integrationBusy.remove(kind)
                 self.refreshIntegrations()
-                if let failure { self.alert("\(kind.displayName) 状态集成\(verb)失败", failure) }
+                if let failure { self.alert(failureTitle, failure) }
             }
         }
     }
@@ -698,8 +699,8 @@ final class AppModel: ObservableObject {
     func confirmQuit() -> Bool {
         let active = sessions.filter { $0.host.isEmbedded && $0.status.isActive }
         if !active.isEmpty {
-            let names = active.map { $0.name.isEmpty ? $0.cwd : $0.name }.joined(separator: "、")
-            guard confirm("还有 \(active.count) 个 session 在运行", "\(names)\n退出会中断它们，下次打开时会自动恢复对话。") else {
+            let names = active.map { $0.name.isEmpty ? $0.cwd : $0.name }.joined(separator: L("list.separator"))
+            guard confirm(LN("confirm.quit.title", active.count), L("confirm.quit.message", names)) else {
                 return false
             }
         }
@@ -784,8 +785,8 @@ final class AppModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = info
-        alert.addButton(withTitle: "确定")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: L("action.confirm"))
+        alert.addButton(withTitle: L("action.cancel"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 
@@ -798,10 +799,10 @@ final class AppModel: ObservableObject {
 
     private func alertAutomationDenied() {
         let alert = NSAlert()
-        alert.messageText = "无法跳转到 Terminal"
-        alert.informativeText = "请在「系统设置 → 隐私与安全性 → 自动化」中允许 CC Desk 控制 Terminal，或该标签已关闭。"
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "好")
+        alert.messageText = L("alert.automationDenied.title")
+        alert.informativeText = L("alert.automationDenied.message")
+        alert.addButton(withTitle: L("action.openSystemSettings"))
+        alert.addButton(withTitle: L("action.ok"))
         if alert.runModal() == .alertFirstButtonReturn,
            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
             NSWorkspace.shared.open(url)

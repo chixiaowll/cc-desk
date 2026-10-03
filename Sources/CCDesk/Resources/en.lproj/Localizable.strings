@@ -1,0 +1,156 @@
+/* CCDesk app — English (development language) */
+
+/* Common actions */
+"action.confirm" = "OK";
+"action.cancel" = "Cancel";
+"action.done" = "Done";
+"action.ok" = "OK";
+"action.openSystemSettings" = "Open System Settings";
+"action.resume" = "Resume";
+"list.separator" = ", ";
+"list.separator.clause" = ", ";
+
+/* Menus */
+"menu.newSession" = "New Session";
+"menu.closeSession" = "Close Session";
+"menu.history" = "History";
+"menu.appearance" = "Appearance";
+"menu.integrations" = "Integrations…";
+"menu.session" = "Session";
+"menu.installIntegrations" = "Install Codex / pi Status Integrations…";
+"menu.testNotification" = "Test Notifications & Badge";
+"menu.downloadVoiceModel" = "Download Voice Model Now";
+"menu.switchTo" = "Switch to Session %d";
+"appearance.system" = "System";
+"appearance.light" = "Light";
+"appearance.dark" = "Dark";
+
+/* Toolbar & sidebar */
+"toolbar.newSession.help" = "New Session ⌘N";
+"toolbar.history.help" = "History ⌘⇧H";
+"sidebar.empty" = "No running Claude Code sessions\nPress ⌘N to start one";
+"sidebar.history.help" = "History";
+"sidebar.newInGroup.help" = "New %2$@ session in %1$@ (right-click to choose an agent)";
+"group.help.waiting" = "%d waiting";
+"group.help.unread" = "%d done, unread";
+"group.help.working" = "%d working";
+"group.help.idle" = "%d idle";
+"footer.sessions.one" = "%d session";
+"footer.sessions.other" = "%d sessions";
+"footer.working" = "%d working";
+"footer.waiting" = "%d waiting";
+"footer.unread" = "%d unread";
+
+/* Session rows */
+"status.directoryMissing" = "Directory missing";
+"status.done" = "Done";
+"row.waitingWithReason" = "Waiting · %@";
+"row.resume.help" = "Resume the session in this terminal";
+"row.menu.openElsewhere" = "Open in Another Directory…";
+"row.menu.remove" = "Remove";
+"row.menu.resume" = "Resume Session";
+"row.menu.revealInFinder" = "Show in Finder";
+"row.menu.copyResumeCommand" = "Copy Resume Command";
+"row.menu.takeOver" = "Take Over Here";
+"row.menu.closeTerminal" = "Close Terminal";
+"row.menu.close" = "Close";
+"row.menu.kill" = "End Process";
+
+/* Detail & new session */
+"detail.empty" = "Select a session on the left, or press ⌘N to start one";
+"newSession.title" = "New %@ Session";
+"newSession.noRecent" = "No recent directories yet";
+"newSession.recent" = "Recent";
+"newSession.chooseOther" = "Choose Another Directory…";
+"newSession.agent" = "Agent";
+"agentPicker.unavailable.help" = "%1$@: %2$@";
+"agentPicker.use.help" = "Use %@";
+"agentMenu.unavailable" = "%1$@ (%2$@)";
+
+/* History */
+"history.popover.title" = "History for %@";
+"history.popover.count" = "%d";
+"history.popover.search" = "Search history in this directory…";
+"history.noMatches" = "No matching sessions";
+"history.searchAll" = "Search All History";
+"history.palette.search" = "Search all sessions…";
+"history.filter.all" = "All";
+"history.hint.select" = "Select";
+"history.hint.resume" = "Resume in original directory";
+"history.hint.close" = "Close";
+"history.row.resumeHint" = "↩ Resume";
+"history.tooltip.recent" = "Recent: %@";
+
+/* Alerts & confirmations */
+"alert.notificationsOff.title" = "Notifications Are Turned Off";
+"alert.notificationsOff.message" = "Allow notifications in System Settings → Notifications → CC Desk to be alerted when a session needs approval.";
+"alert.cannotJump.title" = "Can’t Jump to Session";
+"alert.cannotJump.message" = "This session is running in a terminal that can’t be targeted. Right-click it and choose “Take Over Here”.";
+"alert.cannotCreate.title" = "Can’t Create Session";
+"alert.cannotCreate.message" = "A plain terminal has no agent to launch.";
+"alert.directoryMissing.title" = "Directory Not Found";
+"alert.agentNotFound.title" = "%@ Not Found";
+"alert.agentNotFound.message" = "Install the %@ command and make sure it is on your login shell’s PATH.";
+"alert.processStillRunning.title" = "External Process Didn’t Exit";
+"alert.processStillRunning.message" = "Process %d didn’t exit within 5 seconds. Stop it manually and try again.";
+"alert.automationDenied.title" = "Can’t Jump to Terminal";
+"alert.automationDenied.message" = "Allow CC Desk to control Terminal in System Settings → Privacy & Security → Automation, or the tab has been closed.";
+"alert.micDenied.title" = "Microphone Unavailable";
+"alert.micDenied.message" = "Allow CC Desk in System Settings → Privacy & Security → Microphone. Speech recognition runs entirely on this Mac.";
+"confirm.close.title" = "Close “%@”?";
+"confirm.close.message" = "Status: %@. Closing it will interrupt the current turn.";
+"confirm.kill.title" = "End “%@”?";
+"confirm.kill.message" = "SIGTERM will be sent to process %d.";
+"confirm.takeOver.title" = "Take Over “%@”?";
+"confirm.takeOver.message" = "Status: %@. Taking over ends the external process first, interrupting the current turn.";
+"confirm.quit.title.one" = "%d session is still running";
+"confirm.quit.title.other" = "%d sessions are still running";
+"confirm.quit.message" = "%@\nQuitting will interrupt them. Conversations are restored automatically next time.";
+"confirm.uninstallIntegration.title" = "Uninstall %@ Status Integration?";
+"confirm.uninstallIntegration.message" = "Only what CC Desk added is removed. Afterwards, %@ sessions in external terminals can’t show accurate status.";
+"panel.relocate.message" = "Choose a new directory for “%@”";
+"panel.chooseDirectory.message" = "Choose a directory to start %@ in";
+
+/* Notifications */
+"notify.test.title" = "CC Desk Notification Test";
+"notify.test.body" = "You’ll be alerted like this when a session needs approval or finishes a turn.";
+
+/* Integrations */
+"integrations.title" = "Status Integrations";
+"integrations.intro" = "Once installed, CC Desk can accurately show whether Codex / pi sessions are working, waiting or idle — including sessions started in external terminals such as Terminal. Config files are backed up as *.cc-desk.bak before changes; uninstalling removes only what CC Desk added.";
+"integrations.claude.detail" = "Built in: reads ~/.claude/sessions, nothing to install";
+"integrations.codex.detail" = "~/.codex/hooks.json (hook script in ~/.cc-desk/hooks/) + [features] hooks = true in config.toml";
+"integrations.footnote" = "Running Codex / pi sessions must be restarted to pick this up. The first time Codex loads a new hook it asks “Hooks need review” — choose Trust to let it run. Without the integration, Codex / pi in embedded terminals still show status via screen detection.";
+"integrations.install" = "Install";
+"integrations.uninstall" = "Uninstall";
+"integrations.reinstall" = "Reinstall";
+"integrations.enabled" = "Enabled";
+"integrations.checking" = "Checking…";
+"integration.installFailed" = "Couldn’t Install %@ Status Integration";
+"integration.uninstallFailed" = "Couldn’t Uninstall %@ Status Integration";
+
+/* Usage */
+"usage.extraLine" = "Extra usage: %@";
+"usage.staleNote" = "Claude Code refreshes this cache while running; the data may be out of date";
+"usage.currentLimit" = "Current limit";
+
+/* Voice input */
+"voice.hint.modelReady" = "Voice model is ready";
+"voice.hint.downloadFailed" = "Voice model download failed: %@";
+"voice.hint.stillTranscribing" = "Still transcribing the previous clip…";
+"voice.hint.holdToTalk" = "Hold to talk, release to finish";
+"voice.hint.selectSession" = "Select an embedded session first";
+"voice.hint.micGranted" = "Microphone allowed. Hold to talk again";
+"voice.hint.micDenied" = "Microphone access was not granted";
+"voice.hint.nothingRecognized" = "Nothing was recognized";
+"voice.hint.targetClosed" = "The target session has closed";
+"voice.hint.transcriptionFailed" = "Speech recognition failed: %@";
+"voice.overlay.release" = "Release to finish";
+"voice.overlay.transcribing" = "Transcribing…";
+"voice.overlay.downloading" = "Downloading voice model for first use… %d%%";
+"voice.overlay.loading" = "Loading voice model… the first load may take a few minutes";
+"voice.bar.recording" = "Release to finish; text is inserted into the prompt";
+"voice.bar.idle" = "Hold to talk · or hold right ⌥";
+"voice.button.holdToTalk" = "Hold to Talk";
+"voice.button.help" = "Hold to talk; the transcript is inserted when you release (or hold right ⌥)";
+"voice.button.accessibility" = "Voice input";

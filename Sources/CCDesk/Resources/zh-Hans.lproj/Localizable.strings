@@ -1,0 +1,156 @@
+/* CCDesk app — 简体中文 */
+
+/* Common actions */
+"action.confirm" = "确定";
+"action.cancel" = "取消";
+"action.done" = "完成";
+"action.ok" = "好";
+"action.openSystemSettings" = "打开系统设置";
+"action.resume" = "恢复";
+"list.separator" = "、";
+"list.separator.clause" = "，";
+
+/* Menus */
+"menu.newSession" = "新建 Session";
+"menu.closeSession" = "关闭当前 Session";
+"menu.history" = "历史会话";
+"menu.appearance" = "外观";
+"menu.integrations" = "集成…";
+"menu.session" = "Session";
+"menu.installIntegrations" = "安装 Codex / pi 状态集成…";
+"menu.testNotification" = "测试通知与角标";
+"menu.downloadVoiceModel" = "预先下载语音模型";
+"menu.switchTo" = "切换到第 %d 个";
+"appearance.system" = "跟随系统";
+"appearance.light" = "浅色";
+"appearance.dark" = "深色";
+
+/* Toolbar & sidebar */
+"toolbar.newSession.help" = "新建会话 ⌘N";
+"toolbar.history.help" = "历史会话 ⌘⇧H";
+"sidebar.empty" = "没有运行中的 Claude Code session\n⌘N 新建";
+"sidebar.history.help" = "历史会话";
+"sidebar.newInGroup.help" = "在 %1$@ 新建 %2$@ 会话（右键选择 agent）";
+"group.help.waiting" = "%d 个等批准";
+"group.help.unread" = "%d 个已完成未读";
+"group.help.working" = "%d 个处理中";
+"group.help.idle" = "%d 个空闲";
+"footer.sessions.one" = "%d 个会话";
+"footer.sessions.other" = "%d 个会话";
+"footer.working" = "%d 处理中";
+"footer.waiting" = "%d 待处理";
+"footer.unread" = "%d 未读";
+
+/* Session rows */
+"status.directoryMissing" = "目录缺失";
+"status.done" = "已完成";
+"row.waitingWithReason" = "等批准 · %@";
+"row.resume.help" = "在这个终端里恢复会话";
+"row.menu.openElsewhere" = "在其他目录打开…";
+"row.menu.remove" = "移除";
+"row.menu.resume" = "恢复会话";
+"row.menu.revealInFinder" = "在 Finder 中打开";
+"row.menu.copyResumeCommand" = "复制恢复命令";
+"row.menu.takeOver" = "在这里接管";
+"row.menu.closeTerminal" = "关闭终端";
+"row.menu.close" = "关闭";
+"row.menu.kill" = "结束进程";
+
+/* Detail & new session */
+"detail.empty" = "选择左侧的 session，或按 ⌘N 新建";
+"newSession.title" = "新建 %@ 会话";
+"newSession.noRecent" = "还没有最近使用的目录";
+"newSession.recent" = "最近使用";
+"newSession.chooseOther" = "选择其他目录…";
+"newSession.agent" = "Agent";
+"agentPicker.unavailable.help" = "%1$@：%2$@";
+"agentPicker.use.help" = "使用 %@";
+"agentMenu.unavailable" = "%1$@（%2$@）";
+
+/* History */
+"history.popover.title" = "%@ 的历史会话";
+"history.popover.count" = "%d 条";
+"history.popover.search" = "搜索这个目录的历史…";
+"history.noMatches" = "没有匹配的历史会话";
+"history.searchAll" = "在全部历史中搜索";
+"history.palette.search" = "搜索所有历史会话…";
+"history.filter.all" = "全部";
+"history.hint.select" = "选择";
+"history.hint.resume" = "在原目录恢复";
+"history.hint.close" = "关闭";
+"history.row.resumeHint" = "↩ 恢复";
+"history.tooltip.recent" = "最近：%@";
+
+/* Alerts & confirmations */
+"alert.notificationsOff.title" = "通知已被关闭";
+"alert.notificationsOff.message" = "请在「系统设置 → 通知 → CC Desk」中允许通知，才能在会话需要批准时收到提醒。";
+"alert.cannotJump.title" = "无法跳转";
+"alert.cannotJump.message" = "这个 session 运行在不支持定位的终端中。可以右键「在这里接管」。";
+"alert.cannotCreate.title" = "无法新建";
+"alert.cannotCreate.message" = "普通终端没有可启动的 agent。";
+"alert.directoryMissing.title" = "目录不存在";
+"alert.agentNotFound.title" = "没有找到 %@";
+"alert.agentNotFound.message" = "请先安装 %@ 命令，并确认它在登录 shell 的 PATH 中。";
+"alert.processStillRunning.title" = "外部进程没有退出";
+"alert.processStillRunning.message" = "进程 %d 在 5 秒内没有结束，请手动处理后重试。";
+"alert.automationDenied.title" = "无法跳转到 Terminal";
+"alert.automationDenied.message" = "请在「系统设置 → 隐私与安全性 → 自动化」中允许 CC Desk 控制 Terminal，或该标签已关闭。";
+"alert.micDenied.title" = "无法使用麦克风";
+"alert.micDenied.message" = "请在「系统设置 → 隐私与安全性 → 麦克风」中允许 CC Desk。语音识别完全在本机完成。";
+"confirm.close.title" = "关闭「%@」？";
+"confirm.close.message" = "它还在%@，关闭会中断当前这一轮。";
+"confirm.kill.title" = "结束「%@」？";
+"confirm.kill.message" = "将向进程 %d 发送 SIGTERM。";
+"confirm.takeOver.title" = "接管「%@」？";
+"confirm.takeOver.message" = "它还在%@，接管会先结束外部进程，中断当前这一轮。";
+"confirm.quit.title.one" = "还有 %d 个 session 在运行";
+"confirm.quit.title.other" = "还有 %d 个 session 在运行";
+"confirm.quit.message" = "%@\n退出会中断它们，下次打开时会自动恢复对话。";
+"confirm.uninstallIntegration.title" = "卸载 %@ 状态集成？";
+"confirm.uninstallIntegration.message" = "只移除 CC Desk 添加的内容；卸载后外部终端里的 %@ 会话将无法显示准确状态。";
+"panel.relocate.message" = "为「%@」选择新的目录";
+"panel.chooseDirectory.message" = "选择要启动 %@ 的目录";
+
+/* Notifications */
+"notify.test.title" = "CC Desk 通知测试";
+"notify.test.body" = "会话需要批准或本轮完成时，会像这样提醒你。";
+
+/* Integrations */
+"integrations.title" = "状态集成";
+"integrations.intro" = "安装后，CC Desk 能准确显示 Codex / pi 会话的「处理中 / 等批准 / 空闲」，包括在 Terminal 等外部终端里启动的会话。修改配置前会备份为 *.cc-desk.bak；卸载只移除 CC Desk 自己添加的内容。";
+"integrations.claude.detail" = "内置：读取 ~/.claude/sessions，无需安装";
+"integrations.codex.detail" = "~/.codex/hooks.json（hook 脚本在 ~/.cc-desk/hooks/）+ config.toml 的 [features] hooks = true";
+"integrations.footnote" = "已在运行的 Codex / pi 需重新启动后生效。Codex 第一次加载新 hook 时会提示「Hooks need review」，选择 Trust 后才会运行。未安装时，内嵌终端里的 Codex / pi 仍可通过屏幕识别显示状态。";
+"integrations.install" = "安装";
+"integrations.uninstall" = "卸载";
+"integrations.reinstall" = "重新安装";
+"integrations.enabled" = "已启用";
+"integrations.checking" = "检测中…";
+"integration.installFailed" = "%@ 状态集成安装失败";
+"integration.uninstallFailed" = "%@ 状态集成卸载失败";
+
+/* Usage */
+"usage.extraLine" = "额外用量：%@";
+"usage.staleNote" = "Claude Code 运行时会刷新这份缓存，数据可能已过时";
+"usage.currentLimit" = "当前限制";
+
+/* Voice input */
+"voice.hint.modelReady" = "语音模型已就绪";
+"voice.hint.downloadFailed" = "语音模型下载失败：%@";
+"voice.hint.stillTranscribing" = "正在识别上一段…";
+"voice.hint.holdToTalk" = "按住说话，松开结束";
+"voice.hint.selectSession" = "请先选择一个内嵌 session";
+"voice.hint.micGranted" = "已允许麦克风，请再次按住说话";
+"voice.hint.micDenied" = "未获得麦克风权限";
+"voice.hint.nothingRecognized" = "没有识别到内容";
+"voice.hint.targetClosed" = "目标 session 已关闭";
+"voice.hint.transcriptionFailed" = "语音识别失败：%@";
+"voice.overlay.release" = "松开结束";
+"voice.overlay.transcribing" = "识别中…";
+"voice.overlay.downloading" = "首次使用正在下载语音模型… %d%%";
+"voice.overlay.loading" = "正在加载语音模型…首次加载可能需要几分钟";
+"voice.bar.recording" = "松开结束，识别后插入输入框";
+"voice.bar.idle" = "按住说话 · 或按住右 ⌥";
+"voice.button.holdToTalk" = "按住说话";
+"voice.button.help" = "按住说话，松开后插入识别结果（也可按住右 ⌥）";
+"voice.button.accessibility" = "语音输入";

@@ -102,14 +102,14 @@ struct UsagePopover: View {
             }
             theme.line.frame(height: 1)
             VStack(alignment: .leading, spacing: 4) {
-                Text("额外用量：\(usage.extraUsageText)")
+                Text(L("usage.extraLine", usage.extraUsageText))
                     .font(.system(size: 11.5))
                     .foregroundStyle(theme.fg2)
                 Text(usage.ageText(now: now))
                     .font(.system(size: 11))
                     .foregroundStyle(usage.isStale(now: now) ? theme.fg3 : theme.fg2)
                 if usage.isStale(now: now) {
-                    Text("Claude Code 运行时会刷新这份缓存，数据可能已过时")
+                    Text(L("usage.staleNote"))
                         .font(.system(size: 11))
                         .foregroundStyle(theme.fg3)
                 }
@@ -128,7 +128,7 @@ struct UsagePopover: View {
                     .foregroundStyle(theme.fg1)
                     .lineLimit(1)
                 if limit.isActive {
-                    Text("当前限制")
+                    Text(L("usage.currentLimit"))
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(theme.accent)
                         .padding(.horizontal, 5)

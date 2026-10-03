@@ -119,10 +119,10 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
                 try await transcriber.prepare(progress: self?.progressSink ?? { @Sendable _ in })
                 self?.modelReady = true
                 self?.preparing = nil
-                self?.showHint("语音模型已就绪")
+                self?.showHint(L("voice.hint.modelReady"))
             } catch {
                 self?.preparing = nil
-                self?.showHint("语音模型下载失败：\(error.localizedDescription)")
+                self?.showHint(L("voice.hint.downloadFailed", error.localizedDescription))
             }
         }
     }
@@ -131,7 +131,7 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
 
     private func press(_ from: Source) {
         guard !transcribing else {
-            if from == .mouse { showHint("正在识别上一段…") }
+            if from == .mouse { showHint(L("voice.hint.stillTranscribing")) }
             return
         }
         source = from
@@ -159,7 +159,7 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
             let wasMouse = source == .mouse
             stopCapture(keep: false)
             phase = .idle
-            if wasMouse { showHint("按住说话，松开结束") }
+            if wasMouse { showHint(L("voice.hint.holdToTalk")) }
         case .cancel:
             stopCapture(keep: false)
             phase = .idle
@@ -212,14 +212,14 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
         guard !wasCapturing else { return }
         phase = .idle
         guard target != nil else {
-            showHint("请先选择一个内嵌 session")
+            showHint(L("voice.hint.selectSession"))
             return
         }
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async { [weak self] in
-                    self?.showHint(granted ? "已允许麦克风，请再次按住说话" : "未获得麦克风权限")
+                    self?.showHint(granted ? L("voice.hint.micGranted") : L("voice.hint.micDenied"))
                 }
             }
         case .denied, .restricted:
@@ -259,11 +259,11 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
         phase = .idle
         switch result {
         case .success(let text):
-            guard !text.isEmpty else { return showHint("没有识别到内容") }
-            guard let terminal = pool.terminal(target) else { return showHint("目标 session 已关闭") }
+            guard !text.isEmpty else { return showHint(L("voice.hint.nothingRecognized")) }
+            guard let terminal = pool.terminal(target) else { return showHint(L("voice.hint.targetClosed")) }
             terminal.send(text: text, submit: false)
         case .failure(let error):
-            showHint("语音识别失败：\(error.localizedDescription)")
+            showHint(L("voice.hint.transcriptionFailed", error.localizedDescription))
         }
     }
 
@@ -303,10 +303,10 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
 
     private func alertMicrophoneDenied() {
         let alert = NSAlert()
-        alert.messageText = "无法使用麦克风"
-        alert.informativeText = "请在「系统设置 → 隐私与安全性 → 麦克风」中允许 CC Desk。语音识别完全在本机完成。"
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "好")
+        alert.messageText = L("alert.micDenied.title")
+        alert.informativeText = L("alert.micDenied.message")
+        alert.addButton(withTitle: L("action.openSystemSettings"))
+        alert.addButton(withTitle: L("action.ok"))
         if alert.runModal() == .alertFirstButtonReturn,
            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
             NSWorkspace.shared.open(url)

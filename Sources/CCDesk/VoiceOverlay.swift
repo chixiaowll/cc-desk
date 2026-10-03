@@ -44,18 +44,18 @@ struct VoiceOverlay: View {
             switch content {
             case .recording:
                 PulsingMic(color: theme.accent)
-                Text("松开结束").foregroundStyle(theme.fg1)
+                Text(L("voice.overlay.release")).foregroundStyle(theme.fg1)
                 LevelMeter(level: voice.level, color: theme.accent, idle: theme.line)
             case .transcribing:
                 ProgressView().controlSize(.small)
-                Text("识别中…").foregroundStyle(theme.fg1)
+                Text(L("voice.overlay.transcribing")).foregroundStyle(theme.fg1)
             case .downloading(let fraction):
                 ProgressView().controlSize(.small)
-                Text("首次使用正在下载语音模型… \(Int(fraction * 100))%").foregroundStyle(theme.fg1)
+                Text(L("voice.overlay.downloading", Int(fraction * 100))).foregroundStyle(theme.fg1)
                     .monospacedDigit()
             case .loading:
                 ProgressView().controlSize(.small)
-                Text("正在加载语音模型…首次加载可能需要几分钟").foregroundStyle(theme.fg1)
+                Text(L("voice.overlay.loading")).foregroundStyle(theme.fg1)
             case .hint(let text):
                 Image(systemName: "mic").foregroundStyle(theme.fg2)
                 Text(text).foregroundStyle(theme.fg2)
@@ -125,7 +125,7 @@ struct VoiceBar: View {
             theme.line.frame(height: 1)
             HStack(spacing: 10) {
                 MicButton(voice: voice, theme: theme)
-                Text(voice.isRecording ? "松开结束，识别后插入输入框" : "按住说话 · 或按住右 ⌥")
+                Text(voice.isRecording ? L("voice.bar.recording") : L("voice.bar.idle"))
                     .font(.system(size: 11.5))
                     .foregroundStyle(voice.isRecording ? theme.accent : theme.fg3)
                 Spacer(minLength: 0)
@@ -148,7 +148,7 @@ struct MicButton: View {
         HStack(spacing: 5) {
             Image(systemName: active ? "mic.fill" : "mic")
                 .font(.system(size: 12, weight: .semibold))
-            Text("按住说话")
+            Text(L("voice.button.holdToTalk"))
                 .font(.system(size: 11.5, weight: .medium))
         }
         .foregroundStyle(active ? theme.pillWaitFg : theme.fg2)
@@ -167,7 +167,7 @@ struct MicButton: View {
                     pressing = false
                     voice.mouseReleased()
                 })
-        .help("按住说话，松开后插入识别结果（也可按住右 ⌥）")
-        .accessibilityLabel("语音输入")
+        .help(L("voice.button.help"))
+        .accessibilityLabel(L("voice.button.accessibility"))
     }
 }

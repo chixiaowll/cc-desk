@@ -46,7 +46,7 @@ struct DetailView: View {
                 TerminalContainer(pool: model.pool, terminalIDs: model.pool.terminals.map(\.id),
                                   selected: model.selectedTerminalID, background: theme.terminal.background)
                 if model.selectedTerminalID == nil {
-                    Text("选择左侧的 session，或按 ⌘N 新建")
+                    Text(L("detail.empty"))
                         .font(.system(size: 13))
                         .foregroundStyle(theme.fg3)
                 }
@@ -131,8 +131,8 @@ struct StatusPill: View {
     }
 
     private var colors: (Color, Color, String) {
-        if missing { return (theme.pillMissBg, theme.pillMissFg, "目录缺失") }
-        if unread && !status.isWaiting { return (theme.chipUnreadBg, theme.chipUnreadFg, "已完成") }
+        if missing { return (theme.pillMissBg, theme.pillMissFg, L("status.directoryMissing")) }
+        if unread && !status.isWaiting { return (theme.chipUnreadBg, theme.chipUnreadFg, L("status.done")) }
         switch status {
         case .waiting: return (theme.pillWaitBg, theme.pillWaitFg, label ?? status.label)
         case .working: return (theme.pillWorkBg, theme.pillWorkFg, label ?? status.label)
@@ -205,12 +205,12 @@ struct NewSessionSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("新建 \(kind.displayName) 会话").font(.headline)
+            Text(L("newSession.title", kind.displayName)).font(.headline)
             AgentPicker(model: model, selection: $kind)
             if model.recentDirs.isEmpty {
-                Text("还没有最近使用的目录").foregroundStyle(.secondary)
+                Text(L("newSession.noRecent")).foregroundStyle(.secondary)
             } else {
-                Text("最近使用").font(.subheadline).foregroundStyle(.secondary)
+                Text(L("newSession.recent")).font(.subheadline).foregroundStyle(.secondary)
                 ForEach(Array(model.recentDirs.enumerated()), id: \.element) { index, dir in
                     Button {
                         model.showNewSession = false
@@ -223,9 +223,9 @@ struct NewSessionSheet: View {
                 }
             }
             HStack {
-                Button("选择其他目录…") { model.chooseDirectoryAndCreate(kind: kind) }
+                Button(L("newSession.chooseOther")) { model.chooseDirectoryAndCreate(kind: kind) }
                 Spacer()
-                Button("取消") { model.showNewSession = false }.keyboardShortcut(.cancelAction)
+                Button(L("action.cancel")) { model.showNewSession = false }.keyboardShortcut(.cancelAction)
             }
         }
         .padding(20)
@@ -248,7 +248,7 @@ struct AgentPicker: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("Agent").foregroundStyle(.secondary)
+            Text(L("newSession.agent")).foregroundStyle(.secondary)
             ForEach(AgentKind.launchable, id: \.self) { kind in
                 let availability = model.availability(of: kind)
                 Button {
@@ -270,7 +270,7 @@ struct AgentPicker: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!availability.isEnabled)
-                .help(availability.hint.map { "\(kind.displayName)：\($0)" } ?? "使用 \(kind.displayName)")
+                .help(availability.hint.map { L("agentPicker.unavailable.help", kind.displayName, $0) } ?? L("agentPicker.use.help", kind.displayName))
             }
             Spacer(minLength: 0)
         }
@@ -289,7 +289,7 @@ struct AgentLaunchMenu: View {
             Button {
                 model.newSession(cwd: cwd, kind: kind)
             } label: {
-                Text(availability.hint.map { "\(kind.displayName)（\($0)）" } ?? "新建 \(kind.displayName) 会话")
+                Text(availability.hint.map { L("agentMenu.unavailable", kind.displayName, $0) } ?? L("newSession.title", kind.displayName))
             }
             .disabled(!availability.isEnabled)
         }

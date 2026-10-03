@@ -21,7 +21,8 @@ let package = Package(
                 "CCDeskCore",
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
                 .product(name: "WhisperKit", package: "WhisperKit"),
-            ]
+            ],
+            resources: [.process("Resources")]
         ),
         .testTarget(name: "CCDeskCoreTests", dependencies: ["CCDeskCore"]),
     ],

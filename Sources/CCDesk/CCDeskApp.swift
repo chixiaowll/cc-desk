@@ -8,9 +8,9 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .system: return "跟随系统"
-        case .light: return "浅色"
-        case .dark: return "深色"
+        case .system: return L("appearance.system")
+        case .light: return L("appearance.light")
+        case .dark: return L("appearance.dark")
         }
     }
     var nsAppearance: NSAppearance? {
@@ -70,7 +70,7 @@ struct CCDeskApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("新建 Session") {
+                Button(L("menu.newSession")) {
                     delegate.model.openMainWindow?()
                     delegate.model.showNewSession = true
                 }
@@ -80,7 +80,7 @@ struct CCDeskApp: App {
             // `after:` 新增而非 `replacing:` 某个占位组，确保有且只有一个 ⌘W 绑定。
             // 选中内嵌 session 时关闭该 session（沿用原有确认逻辑）；否则按标准行为关闭窗口本身。
             CommandGroup(after: .newItem) {
-                Button("关闭当前 Session") {
+                Button(L("menu.closeSession")) {
                     if let row = delegate.model.selectedRow, row.session.host.isEmbedded {
                         delegate.model.closeSelected()
                     } else {
@@ -90,13 +90,13 @@ struct CCDeskApp: App {
                 .keyboardShortcut("w")
             }
             CommandGroup(after: .sidebar) {
-                Button("历史会话") {
+                Button(L("menu.history")) {
                     delegate.model.openMainWindow?()
                     delegate.model.showHistoryPalette = true
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
                 Divider()
-                Section("外观") {
+                Section(L("menu.appearance")) {
                     ForEach(AppearancePreference.allCases) { pref in
                         Toggle(pref.label, isOn: Binding(
                             get: { appearance == pref.rawValue },
@@ -109,26 +109,26 @@ struct CCDeskApp: App {
                 }
             }
             CommandGroup(replacing: .appSettings) {
-                Button("集成…") {
+                Button(L("menu.integrations")) {
                     delegate.model.openMainWindow?()
                     delegate.model.showIntegrations = true
                 }
                 .keyboardShortcut(",")
             }
-            CommandMenu("Session") {
-                Button("安装 Codex / pi 状态集成…") {
+            CommandMenu(L("menu.session")) {
+                Button(L("menu.installIntegrations")) {
                     delegate.model.openMainWindow?()
                     delegate.model.showIntegrations = true
                 }
                 Divider()
-                Button("测试通知与角标") { delegate.model.testNotificationAndBadge() }
-                Button("预先下载语音模型") {
+                Button(L("menu.testNotification")) { delegate.model.testNotificationAndBadge() }
+                Button(L("menu.downloadVoiceModel")) {
                     delegate.model.openMainWindow?()
                     delegate.model.voice.predownload()
                 }
                 Divider()
                 ForEach(1...9, id: \.self) { index in
-                    Button("切换到第 \(index) 个") { delegate.model.selectEmbedded(index: index - 1) }
+                    Button(L("menu.switchTo", index)) { delegate.model.selectEmbedded(index: index - 1) }
                         .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
                 }
             }
