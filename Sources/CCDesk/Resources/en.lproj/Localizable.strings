@@ -240,3 +240,8 @@
 "naturalVoice.hint.failed" = "Natural voice install failed, keeping the system voice: %@";
 "naturalVoice.error.noUV" = "uv not found (install it with brew install uv)";
 "naturalVoice.error.timeout" = "timed out";
+"sidebar.move" = "Move";
+"sidebar.move.top" = "Move to Top";
+"sidebar.move.up" = "Move Up";
+"sidebar.move.down" = "Move Down";
+"sidebar.move.bottom" = "Move to Bottom";

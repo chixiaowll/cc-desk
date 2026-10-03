@@ -240,3 +240,8 @@
 "naturalVoice.hint.failed" = "自然语音安装失败，继续使用系统声音：%@";
 "naturalVoice.error.noUV" = "找不到 uv（可用 brew install uv 安装）";
 "naturalVoice.error.timeout" = "超时";
+"sidebar.move" = "移动";
+"sidebar.move.top" = "移到最上";
+"sidebar.move.up" = "上移";
+"sidebar.move.down" = "下移";
+"sidebar.move.bottom" = "移到最下";

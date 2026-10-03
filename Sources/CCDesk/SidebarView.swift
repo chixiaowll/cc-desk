@@ -70,11 +70,35 @@ struct GroupSectionView: View {
                                            && !model.isResumingEnded(row) ? { model.resumeEnded(row) } : nil,
                                        showAgentLabel: showAgentLabel)
                             .onTapGesture { model.activate(row) }
-                            .contextMenu { RowMenu(model: model, row: row) }
+                            .contextMenu {
+                                RowMenu(model: model, row: row)
+                                if group.rows.count > 1 {
+                                    Divider()
+                                    MoveMenu { model.moveRow(row, $0) }
+                                }
+                            }
+                            .draggable("row:\(row.id)")
+                            .dropDestination(for: String.self) { items, _ in
+                                items.first.map { model.dropForReorder($0, ontoGroup: nil, ontoRow: row.id) } ?? false
+                            }
                     }
                 }
                 .padding(.leading, 16)
             }
+        }
+    }
+}
+
+/// 右键菜单「移动」：移到最上 / 上移 / 下移 / 移到最下（也可以直接拖拽）。
+struct MoveMenu: View {
+    let action: (SidebarOrder.Move) -> Void
+
+    var body: some View {
+        Menu(L("sidebar.move")) {
+            Button(L("sidebar.move.top")) { action(.top) }
+            Button(L("sidebar.move.up")) { action(.up) }
+            Button(L("sidebar.move.down")) { action(.down) }
+            Button(L("sidebar.move.bottom")) { action(.bottom) }
         }
     }
 }
@@ -144,6 +168,13 @@ struct GroupHeaderView: View {
         .onTapGesture { toggle() }
         .onHover { hovering = $0 }
         .help(group.id.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+        .contextMenu {
+            MoveMenu { model.moveGroup(group.id, $0) }
+        }
+        .draggable("group:\(group.id)")
+        .dropDestination(for: String.self) { items, _ in
+            items.first.map { model.dropForReorder($0, ontoGroup: group.id, ontoRow: nil) } ?? false
+        }
     }
 
     private var actions: some View {

@@ -76,9 +76,10 @@ public struct SessionGroup: Identifiable, Equatable, Sendable {
     public let idleCount: Int
     /// 已完成·未读且不在等批准的行数。
     public let unreadCount: Int
-    public var topStatus: AgentStatus { rows.first?.session.status ?? .unknown }
+    /// 组内最需要处理的状态（行按固定顺序排列，不一定在第一行）。
+    public var topStatus: AgentStatus { rows.min(by: { $0.rank < $1.rank })?.session.status ?? .unknown }
     /// 组内最靠前一行的排序值（见 `SidebarRow.rank`），用于组间排序。
-    public var topRank: Int { rows.first?.rank ?? 5 }
+    public var topRank: Int { rows.map(\.rank).min() ?? 5 }
 
     public init(id: String, title: String, rows: [SidebarRow], branch: String? = nil) {
         self.id = id
