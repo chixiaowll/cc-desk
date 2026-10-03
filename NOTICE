@@ -1,2 +1,7 @@
 CC Desk
 Uses SwiftTerm (MIT License) by Miguel de Icaza and contributors: https://github.com/migueldeicaza/SwiftTerm
+
+Screen detection rules (Sources/CCDeskCore/BundledManifests.swift: codex.toml, pi.toml) and the
+event mapping of the Codex hook / pi extension are derived from herdr (https://github.com/herdrdev/herdr),
+licensed under the Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+The manifests are included unmodified; the hook script and extension were rewritten for CC Desk.
