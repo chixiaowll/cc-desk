@@ -251,7 +251,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         }
         switch action {
         case .wake:
-            NSSound(named: "Tink")?.play()
+            // 唤醒后用语音应答（「我在」），播报期间暂停采集，结束后自动恢复聆听。
+            speak(L("conversation.wake.reply"))
         case .standby:
             NSSound(named: "Pop")?.play()
         case .insert(let text):

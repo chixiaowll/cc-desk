@@ -166,6 +166,7 @@
 
 /* Conversation mode */
 "menu.conversationMode" = "对话模式";
+"conversation.wake.reply" = "我在";
 "conversation.toggle" = "对话模式";
 "conversation.toggle.help" = "免按键语音：说「%@」唤起，说完后说「发送」（⌥⌘V）";
 "conversation.status.standby" = "待命中 · 说「%@」唤起";

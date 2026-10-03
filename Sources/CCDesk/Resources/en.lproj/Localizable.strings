@@ -166,6 +166,7 @@
 
 /* Conversation mode */
 "menu.conversationMode" = "Conversation Mode";
+"conversation.wake.reply" = "I’m here";
 "conversation.toggle" = "Conversation";
 "conversation.toggle.help" = "Hands-free voice: say “%@” to wake, speak, then say “send” (⌥⌘V)";
 "conversation.status.standby" = "Standby · say “%@” to wake";
