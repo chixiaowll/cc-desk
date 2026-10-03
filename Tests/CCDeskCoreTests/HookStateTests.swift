@@ -27,6 +27,7 @@ final class HookStateTests: XCTestCase {
         XCTAssertNil(HookStateReader.parse(json(#"{"agent":"codex","tty":"ttys1","status":"busy","ts":1}"#)))
         XCTAssertNil(HookStateReader.parse(json(#"{"agent":"other","tty":"ttys1","status":"idle","ts":1}"#)))
         XCTAssertNil(HookStateReader.parse(json(#"{"agent":"codex","status":"idle","ts":1}"#)))
+        XCTAssertNil(HookStateReader.parse(json(#"{"agent":"codex","tty":"","session_id":"","status":"idle","ts":1}"#)))
         XCTAssertNil(HookStateReader.parse(json(#"{"agent":"codex","tty":"ttys1","status":"idle"}"#)))
         XCTAssertNil(HookStateReader.parse(json("not json")))
     }
@@ -39,9 +40,29 @@ final class HookStateTests: XCTestCase {
         try json(#"{"agent":"pi","tty":"ttys002","status":"idle","ts":1000}"#).write(to: dir.appendingPathComponent("ttys002.json"))
         try json("garbage").write(to: dir.appendingPathComponent("ttys003.json"))
         try json(#"{"agent":"pi","tty":"ttys004","status":"idle","ts":1000}"#).write(to: dir.appendingPathComponent("ttys004.json.tmp"))
+        try json(#"{"agent":"codex","tty":"","session_id":"sid-9","pid":0,"status":"idle","ts":3000}"#).write(to: dir.appendingPathComponent("codex-sid-9.json"))
+        try json(#"{"agent":"pi","tty":"ttys005","status":"idle","ts":1000}"#).write(to: dir.appendingPathComponent(".ttys005.123.tmp.json"))
         let all = HookStateReader.readAll(directory: dir)
-        XCTAssertEqual(Set(all.keys), ["ttys001", "ttys002"])
-        XCTAssertEqual(all["ttys001"]?.status, .working)
+        XCTAssertEqual(Set(all.byTTY.keys), ["ttys001", "ttys002"])
+        XCTAssertEqual(all.byTTY["ttys001"]?.status, .working)
+        XCTAssertEqual(Set(all.bySession.keys), ["codex:sid-9"])
+        XCTAssertNil(all.bySession["codex:sid-9"]?.pid, "pid 0 means unknown")
+        XCTAssertNil(all.bySession["codex:sid-9"]?.tty)
+    }
+
+    func testLookupBySessionWhenHookHasNoTTY() {
+        let start = Date(timeIntervalSince1970: 1000)
+        let states = HookStates([
+            HookState(agent: .codex, sessionID: "s1", tty: nil, pid: nil, cwd: nil, status: .working, updatedAt: Date(timeIntervalSince1970: 1500)),
+            HookState(agent: .codex, sessionID: "old", tty: nil, pid: nil, cwd: nil, status: .working, updatedAt: Date(timeIntervalSince1970: 500)),
+            HookState(agent: .pi, sessionID: "p1", tty: "ttys009", pid: 42, cwd: nil, status: .idle, updatedAt: Date(timeIntervalSince1970: 10)),
+        ])
+        XCTAssertEqual(states.state(kind: .codex, pid: 7, tty: "ttys001", sessionID: "s1", processStart: start)?.status, .working)
+        XCTAssertNil(states.state(kind: .codex, pid: 7, tty: "ttys001", sessionID: "old", processStart: start), "written before this process started")
+        XCTAssertNil(states.state(kind: .codex, pid: 7, tty: "ttys001", sessionID: nil, processStart: start))
+        XCTAssertEqual(states.state(kind: .pi, pid: 42, tty: "ttys009", sessionID: nil, processStart: start)?.status, .idle)
+        XCTAssertNil(states.state(kind: .pi, pid: 43, tty: "ttys009", sessionID: nil, processStart: start))
+        XCTAssertEqual(states.state(kind: .pi, pid: 42, tty: nil, sessionID: "p1", processStart: start)?.status, .idle)
     }
 
     // MARK: 归属
@@ -82,6 +103,13 @@ final class HookStateTests: XCTestCase {
         XCTAssertEqual(r?.status, .waiting("allow command?"))
         let older = StatusMerger.merge(hook: obs(.working, 1000), screen: obs(.waiting(nil), 990), now: Date(timeIntervalSince1970: 1020))
         XCTAssertEqual(older?.status, .working)
+    }
+
+    func testScreenClearsStaleHookWaiting() {
+        let r = StatusMerger.merge(hook: obs(.waiting(nil), 1000), screen: obs(.working, 1005), now: Date(timeIntervalSince1970: 1006))
+        XCTAssertEqual(r?.status, .working)
+        let keep = StatusMerger.merge(hook: obs(.waiting(nil), 1000), screen: obs(.working, 990), now: Date(timeIntervalSince1970: 1006))
+        XCTAssertEqual(keep?.status, .waiting(nil))
     }
 
     func testSingleSources() {

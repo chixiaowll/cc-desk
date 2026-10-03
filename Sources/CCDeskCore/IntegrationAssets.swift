@@ -17,7 +17,8 @@ public enum IntegrationAssets {
 # CC_DESK_INTEGRATION=codex
 # CC_DESK_INTEGRATION_VERSION=1
 # Usage: codex-state.sh <session|working|waiting|idle>  (Codex hook JSON on stdin)
-# Writes ~/.cc-desk/state/<tty>.json atomically. Always exits 0 silently.
+# Writes ~/.cc-desk/state/<tty>.json (or codex-<session_id>.json when no tty is reachable)
+# atomically. Always exits 0 silently.
 
 action="${1:-}"
 input="$(cat 2>/dev/null)" || input=""
@@ -64,25 +65,33 @@ main() {
     shift 2 2>/dev/null || break
     comm="$*"
     if [ -z "$tty" ] && [ -n "$t" ] && [ "$t" != "??" ] && [ "$t" != "?" ]; then tty="$t"; fi
-    if [ -z "$agent_pid" ]; then
+    if [ -z "$agent_pid" ] && [ -n "$tty" ] && [ "$t" = "$tty" ]; then
       case "$comm" in codex|*/codex) agent_pid="$pid" ;; esac
     fi
     if [ -n "$tty" ] && [ -n "$agent_pid" ]; then break; fi
     pid="$ppid"
     n=$((n + 1))
   done
-  [ -n "$tty" ] || return 0
-  [ -n "$agent_pid" ] || agent_pid="$PPID"
+  # Codex 0.160 runs hooks inside its shared app-server daemon (no tty): then the file is keyed by
+  # session id and CC Desk maps the session to its terminal itself.
+  if [ -n "$tty" ]; then
+    name="$tty"
+  else
+    safe_sid="$(printf '%s' "$sid" | tr -cd 'A-Za-z0-9-')"
+    [ -n "$safe_sid" ] || return 0
+    name="codex-$safe_sid"
+  fi
+  [ -n "$agent_pid" ] || agent_pid=0
 
   ts="$(perl -MTime::HiRes=time -e 'printf("%d", time()*1000)' 2>/dev/null)"
   [ -n "$ts" ] || ts="$(( $(date +%s) * 1000 ))"
 
   dir="$HOME/.cc-desk/state"
   mkdir -p "$dir" 2>/dev/null || return 0
-  tmp="$dir/.$tty.$$.tmp"
+  tmp="$dir/.$name.$$.tmp"
   printf '{"agent":"codex","session_id":"%s","tty":"%s","pid":%s,"cwd":"%s","status":"%s","message":"%s","ts":%s}\n' \
     "$sid" "$tty" "$agent_pid" "$cwd" "$status" "$message" "$ts" >"$tmp" 2>/dev/null || { rm -f "$tmp"; return 0; }
-  mv -f "$tmp" "$dir/$tty.json" 2>/dev/null || rm -f "$tmp"
+  mv -f "$tmp" "$dir/$name.json" 2>/dev/null || rm -f "$tmp"
 }
 
 main >/dev/null 2>&1
