@@ -61,6 +61,11 @@ final class AssistantToolbox {
         case "resume_session": resumeSession(args, done)
         case "close_session": closeSession(args, done)
         case "take_over": takeOver(args, done)
+        case "consult": consult(args, done)
+        case "delegate": delegate(args, done)
+        case "list_agents": listAgents(done)
+        case "list_consults": listConsults(done)
+        case "cancel_consult": cancelConsult(args, done)
         default: done(.failure(ControlError(.unknownMethod, "unknown method \(method)")))
         }
     }

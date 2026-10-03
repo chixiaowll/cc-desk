@@ -58,6 +58,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     static let thinkingWatchdogDelay = AssistantClient.turnTimeout + 15
     /// 本轮助手调用过的工具是否都只是往输入框打字（是则不朗读回复，只显示提示条）；nil = 本轮没调用工具。
     private var turnQuiet: Bool?
+    /// 刚主动播报过的「某个后台会话要批准」（设计 §14）：之后的「批准 / 拒绝」作用于它，而不是选中的会话。
+    private var announcedApproval: AnnouncedApproval?
 
     private var session = ConversationSession()
     /// 等待识别的片段（与说话时选中的终端、开始说话的时刻 systemUptime）。
@@ -197,6 +199,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         heard = nil
         activity = nil
         resolveConfirmation(false)
+        announcedApproval = nil
         level = 0
         queue = []
         observed = nil
@@ -330,13 +333,43 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             }
             return answerConfirmation(text)
         }
+        let now = ProcessInfo.processInfo.systemUptime
         let waiting = target.flatMap(statusOf)?.isWaiting ?? false
+        // 选中的会话没在等批准、但刚播报过某个后台会话要批准：「批准 / 拒绝」作用于那个会话。
+        let announced = waiting ? nil : announcedApproval.flatMap { $0.isFresh(now: now) ? $0 : nil }
         session.persistent = Self.persistentEnabled
         let before = session.state
-        let actions = session.handle(transcript: text, waiting: waiting, now: ProcessInfo.processInfo.systemUptime)
-        AssistantDiag.log("heard \"\(text)\" state=\(before) assistant=\(session.routesToAssistant) -> \(actions)")
-        for action in actions { perform(action, target: target) }
+        let actions = session.handle(transcript: text, waiting: waiting || announced != nil, now: now)
+        AssistantDiag.log("heard \"\(text)\" state=\(before) assistant=\(session.routesToAssistant) -> \(actions)" +
+                          (announced.map { " announced=\($0.rowID)" } ?? ""))
+        for action in actions {
+            if let announced, action == .approve || action == .deny {
+                respondAnnounced(announced, approve: action == .approve)
+                continue
+            }
+            perform(action, target: target)
+        }
         state = session.state
+    }
+
+    /// 对刚播报过的后台会话执行批准 / 拒绝：仍在等同一个请求才发键（ApprovalNotification.decide 复核），否则说明原因。
+    private func respondAnnounced(_ announced: AnnouncedApproval, approve: Bool) {
+        announcedApproval = nil
+        guard let host else { return }
+        let decision = host.assistantRespondApproval(rowID: announced.rowID, expectedReason: announced.reason, approve: approve)
+        AssistantDiag.log("announced \(approve ? "approve" : "deny") \(announced.rowID) -> \(decision)")
+        switch decision {
+        case .apply:
+            let message = approve ? L("work.toast.approved", announced.name) : L("work.toast.denied", announced.name)
+            showToast(message)
+            assistant.note("\(approve ? "approved" : "denied") the permission prompt in \(announced.name) (the one you announced)")
+        case .reasonChanged:
+            speak(L("work.approval.changed", announced.name))
+        case .notWaiting:
+            speak(L("work.approval.notWaiting", announced.name))
+        case .gone, .notEmbedded:
+            speak(L("work.approval.gone", announced.name))
+        }
     }
 
     // MARK: 动作
@@ -579,6 +612,45 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
                     self.speak(summary ?? fallback)
                 }
             }
+        }
+    }
+
+    // MARK: 主动提醒（设计 §14，由 AssistantWork 调用）
+
+    /// 用户正在说话 / 等识别 / 等助手 / 听播报 / 回答确认问题：主动播报先排队，不打断。
+    var isBusyForProactive: Bool {
+        !isOn || preparing || capturing || transcribing || thinking || speaking || pendingConfirmation != nil || !queue.isEmpty
+    }
+
+    /// 播报一条主动提醒；approval 非 nil 时记下，之后的「批准 / 拒绝」作用于那个会话（待命时也接受，同播报等批准）。
+    func announce(_ text: String, approval: AnnouncedApproval?) {
+        guard isOn else { return }
+        if let approval {
+            announcedApproval = approval
+            session.noteWaitingAnnounced(now: ProcessInfo.processInfo.systemUptime)
+        }
+        showToast(text, duration: 4)
+        speak(text)
+    }
+
+    /// 后台会话的状态变化交给常驻助手；completion 在主线程：要播报的话（可能是 SILENT），失败时 nil。
+    func relayEvent(_ description: String, completion: @escaping (String?) -> Void) {
+        guard isOn, let host else { return completion(nil) }
+        let current = generation
+        let context = host.assistantContext(pendingText: "", lastSummary: nil)
+        assistant.event(description, context: context) { [weak self] reply in
+            guard let self, self.isOn, self.generation == current else { return }
+            completion(reply)
+        }
+    }
+
+    /// 顾问的结果交给常驻助手说一两句结论；completion 在主线程，失败时 nil。
+    func relayConsultResult(job: ConsultJob, answer: String, completion: @escaping (String?) -> Void) {
+        guard isOn else { return completion(nil) }
+        let current = generation
+        assistant.consultResult(job: job, answer: answer, language: Localization.currentLanguage) { [weak self] reply in
+            guard let self, self.isOn, self.generation == current else { return }
+            completion(reply)
         }
     }
 

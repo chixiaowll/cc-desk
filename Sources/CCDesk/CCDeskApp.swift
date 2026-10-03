@@ -239,6 +239,11 @@ struct CCDeskApp: App {
                 PersistentConversationMenuItem()
                 AutoStartConversationMenuItem()
                 Button(L("menu.resetAssistant")) { delegate.model.conversation.resetAssistant() }
+                Button(L("menu.assistantResults")) {
+                    delegate.showMainWindow()
+                    delegate.model.work.showResults = true
+                }
+                .keyboardShortcut("r", modifiers: [.command, .shift])
                 SpeechVoiceMenu(model: delegate.model, conversation: delegate.model.conversation)
                 Divider()
                 ForEach(1...9, id: \.self) { index in

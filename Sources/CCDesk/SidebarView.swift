@@ -45,6 +45,7 @@ struct SidebarView: View {
                 Button { model.showHistoryPalette = true } label: { Image(systemName: "clock") }
                     .help(L("toolbar.history.help"))
             }
+            ToolbarItem { AssistantResultsButton(work: model.work) }
         }
     }
 }

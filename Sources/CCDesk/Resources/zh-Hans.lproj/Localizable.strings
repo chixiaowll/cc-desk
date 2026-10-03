@@ -231,6 +231,36 @@
 "assistant.undo.typed" = "已删掉刚输入的内容";
 "assistant.undo.switched" = "已切回 %@";
 
+/* 顾问、派活、专业 agent（设计 §14） */
+"assistant.activity.consult" = "→ 请 %1$@ 看 %2$@";
+"assistant.activity.delegate" = "→ 在 %1$@ 派 %2$@ 干活";
+"assistant.activity.cancelConsult" = "→ 取消高级助手";
+"work.consult.notify.title" = "助手结果（%@）";
+"work.consult.failed" = "高级助手没能完成，详情在助手结果里";
+"work.speech.approval" = "%@ 需要批准";
+"work.speech.approvalReason" = "%1$@ 想要 %2$@，要批准吗？";
+"work.speech.finished" = "%@ 那边完成了";
+"work.toast.approved" = "已批准 %@";
+"work.toast.denied" = "已拒绝 %@";
+"work.approval.changed" = "%@ 的请求变了，没有执行，请再看一下";
+"work.approval.notWaiting" = "%@ 已经不在等批准了";
+"work.approval.gone" = "%@ 那个会话已经不在了";
+"results.title" = "助手结果";
+"results.intro" = "高级助手（Sonnet / Opus）在后台只读查看项目后给出的回答。回答完成时会播报一两句结论，完整内容在这里。";
+"results.empty" = "还没有结果。对助手说「让高级助手看看为什么测试失败」试试。";
+"results.quotaNote" = "Sonnet / Opus 比助手用的 Haiku 占用明显更多订阅额度。";
+"results.cancel" = "取消";
+"results.copy" = "复制完整回答";
+"results.seconds" = "%d 秒";
+"results.reading" = "已查看 %d 处";
+"results.thinking" = "思考中…";
+"results.tokens" = "输入 %1$@ / 输出 %2$@ token";
+"results.failed" = "失败";
+"results.timedOut" = "超时";
+"results.cancelled" = "已取消";
+"toolbar.results.help" = "助手结果";
+"menu.assistantResults" = "助手结果";
+
 /* 自然语音（本机 Qwen3-TTS） */
 "menu.speechVoice.natural" = "自然语音（千问 serena）";
 "menu.speechVoice.naturalInstalling" = "自然语音（正在安装…）";
