@@ -2,20 +2,49 @@ import AppKit
 import SwiftTerm
 import CCDeskCore
 
+/// 在 SwiftTerm 收到输出后通知外部（用于节流触发屏幕检测）。
+final class DetectingTerminalView: LocalProcessTerminalView {
+    var onOutput: (() -> Void)?
+
+    override func dataReceived(slice: ArraySlice<UInt8>) {
+        super.dataReceived(slice: slice)
+        onOutput?()
+    }
+}
+
 final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     let id: UUID
     let cwd: String
     let title: String
     let createdAt = Date()
-    let view: LocalProcessTerminalView
+    let view: DetectingTerminalView
     var onTerminated: ((UUID) -> Void)?
+
+    /// 终端里当前运行的、需要屏幕检测的 agent（Codex / pi）；由 AppModel 每次轮询后设置，nil 时不检测。
+    var detectionKind: AgentKind? {
+        didSet {
+            guard detectionKind != oldValue else { return }
+            screenStatus = nil
+            scheduleDetection()
+        }
+    }
+    /// 最近一次屏幕规则得出的状态及其开始时间（设计 §4.5）；只在主线程读写。
+    private(set) var screenStatus: StatusObservation?
+    /// 终端标题（OSC 0/2），供 `osc_title` 区域使用。
+    private(set) var oscTitle = ""
+    private var detectionScheduled = false
+    private var lastDetectionAt = Date.distantPast
+    /// 同一终端最多每 0.5 秒检测一次（设计 §4.2）。
+    private static let detectionInterval: TimeInterval = 0.5
+    private static let detectionQueue = DispatchQueue(label: "cc-desk.screen-detect", qos: .utility)
 
     init(id: UUID, cwd: String, title: String, command: String?, theme: TerminalTheme) {
         self.id = id
         self.cwd = cwd
         self.title = title
-        self.view = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        self.view = DetectingTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         super.init()
+        view.onOutput = { [weak self] in self?.scheduleDetection() }
         view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         apply(theme)
         view.processDelegate = self
@@ -75,9 +104,63 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         return "/bin/zsh"
     }
 
+    // MARK: 屏幕检测
+
+    /// 有输出时调用：合并 0.5 秒内的多次输出，到点后在主线程截取底部可见区域，在后台队列匹配规则。
+    func scheduleDetection() {
+        guard detectionKind != nil, !detectionScheduled else { return }
+        detectionScheduled = true
+        let delay = max(0, Self.detectionInterval - Date().timeIntervalSince(lastDetectionAt))
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.runDetection() }
+    }
+
+    private func runDetection() {
+        detectionScheduled = false
+        guard let kind = detectionKind, let manifest = BundledManifests.manifest(for: kind) else { return }
+        lastDetectionAt = Date()
+        let screen = bottomScreenText()
+        let title = oscTitle
+        Self.detectionQueue.async { [weak self] in
+            let detection = ScreenDetector.detect(manifest, screen: screen, oscTitle: title)
+            DispatchQueue.main.async { self?.apply(detection, kind: kind) }
+        }
+    }
+
+    private func apply(_ detection: ScreenDetection, kind: AgentKind) {
+        guard detectionKind == kind, !detection.skipStateUpdate,
+              let status = detection.state.agentStatus() else { return }
+        if screenStatus?.status != status { screenStatus = StatusObservation(status: status, at: Date()) }
+    }
+
+    /// 当前活动缓冲区底部一屏（不受用户滚动位置影响），每行去掉行尾空白，去掉末尾空行。
+    /// 必须在主线程调用（SwiftTerm 在主线程写缓冲区）。
+    private func bottomScreenText() -> String {
+        let terminal = view.getTerminal()
+        let rows = terminal.rows
+        let top = terminal.buffer.totalLinesTrimmed
+        guard terminal.getScrollInvariantLine(row: top) != nil else { return "" }
+        // 二分找到缓冲区最后一行（SwiftTerm 未公开行数）。
+        var lo = top, hi = top + (1 << 24)
+        while lo < hi {
+            let mid = lo + (hi - lo + 1) / 2
+            if terminal.getScrollInvariantLine(row: mid) != nil { lo = mid } else { hi = mid - 1 }
+        }
+        let first = max(top, lo - rows + 1)
+        var lines: [String] = []
+        lines.reserveCapacity(rows)
+        for row in first...lo {
+            lines.append(terminal.getScrollInvariantLine(row: row)?.translateToString(trimRight: true) ?? "")
+        }
+        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: LocalProcessTerminalViewDelegate
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
-    func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
+    func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
+        oscTitle = title
+        scheduleDetection()
+    }
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
     func processTerminated(source: TerminalView, exitCode: Int32?) {
         DispatchQueue.main.async { [weak self] in
@@ -115,12 +198,25 @@ final class TerminalPool {
         terminals.removeAll { $0.id == id }
     }
 
-    /// ended：claude 已退出的终端 -> 最近的 sessionId 与退出时间。
-    func infos(processes: ProcessTable, ended: [UUID: (id: String, at: Date)] = [:]) -> [EmbeddedTerminalInfo] {
+    /// ended：agent 已退出的终端 -> 最近的 sessionId、agent 种类与退出时间。
+    func infos(processes: ProcessTable, ended: [UUID: EndedSession] = [:]) -> [EmbeddedTerminalInfo] {
         terminals.map {
             EmbeddedTerminalInfo(id: $0.id, cwd: $0.cwd, tty: processes.tty(of: $0.shellPID),
                                  title: $0.title, createdAt: $0.createdAt,
-                                 lastSessionID: ended[$0.id]?.id, endedAt: ended[$0.id]?.at)
+                                 lastSessionID: ended[$0.id]?.id, lastKind: ended[$0.id]?.kind ?? .claude,
+                                 endedAt: ended[$0.id]?.at)
         }
     }
+
+    /// tty -> 终端。
+    func terminal(tty: String, processes: ProcessTable) -> EmbeddedTerminal? {
+        terminals.first { processes.tty(of: $0.shellPID) == tty }
+    }
+}
+
+/// 内嵌终端里已退出的 agent 会话（可原地恢复）。
+struct EndedSession {
+    let id: String
+    let kind: AgentKind
+    let at: Date
 }

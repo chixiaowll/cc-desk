@@ -31,8 +31,11 @@ public enum AgentResolver {
 
     /// 识别进程表里的 Codex / pi，配对会话文件，并找到各自适用的 hook 状态。
     /// 会话 id 的来源（按优先级）：同 tty 的 hook 上报（pi 在会话文件写出之前就会上报）→ 命令行参数 → 会话文件配对。
+    /// `fallbackSessions`：tty -> (种类, sessionId)，App 已知某个内嵌终端里应当在运行的会话（恢复 / 接管时发出的命令）；
+    /// 只在其他来源都给不出会话时使用（例如 pi 恢复后还没写入会话文件）。
     public static func resolve(processes: ProcessTable, details: Details, hooks: HookStates,
-                               index: AgentSessionIndex, now: Date = Date()) -> [AgentProcessSnapshot] {
+                               index: AgentSessionIndex, fallbackSessions: [String: (kind: AgentKind, sessionID: String)] = [:],
+                               now: Date = Date()) -> [AgentProcessSnapshot] {
         struct Pending {
             let proc: ProcInfo
             let kind: AgentKind
@@ -56,13 +59,19 @@ public enum AgentResolver {
             AgentProcessCandidate(pid: $0.proc.pid, kind: $0.kind, cwd: $0.cwd, startedAt: $0.start, sessionHint: $0.hint)
         }, now: now)
         return pending.map { p in
-            let file = matched[p.proc.pid]
-            let sessionID = file?.sessionID ?? p.ttyHook?.sessionID ?? p.hint
+            var file = matched[p.proc.pid]
+            var sessionID = file?.sessionID ?? p.ttyHook?.sessionID ?? p.hint
+            var path = file?.path
+            if sessionID == nil, let tty = p.proc.tty, let fallback = fallbackSessions[tty], fallback.kind == p.kind {
+                sessionID = fallback.sessionID
+                path = index.locate(kind: p.kind, sessionID: fallback.sessionID)
+                file = nil
+            }
             let hook = p.ttyHook ?? hooks.state(kind: p.kind, pid: p.proc.pid, tty: p.proc.tty,
                                                 sessionID: sessionID, processStart: p.start)
             return AgentProcessSnapshot(pid: p.proc.pid, kind: p.kind, tty: p.proc.tty,
                                         cwd: p.cwd ?? file?.cwd ?? hook?.cwd ?? NSHomeDirectory(),
-                                        startedAt: p.start, sessionID: sessionID, sessionPath: file?.path, hook: hook)
+                                        startedAt: p.start, sessionID: sessionID, sessionPath: path, hook: hook)
         }
     }
 

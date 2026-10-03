@@ -120,6 +120,8 @@ struct HistoryPalette: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var query = ""
     @State private var selection = 0
+    /// 按 agent 过滤；nil 为全部。
+    @State private var agentFilter: AgentKind?
 
     private struct Section: Identifiable {
         let label: String
@@ -166,6 +168,23 @@ struct HistoryPalette: View {
             .padding(.horizontal, 16)
             .frame(height: 50)
             .overlay(alignment: .bottom) { theme.line.frame(height: 1) }
+
+            let kinds = AgentKind.launchable.filter { kind in model.history.contains { $0.item.kind == kind } }
+            if kinds.count >= 2 {
+                HStack(spacing: 6) {
+                    AgentFilterChip(title: "全部", selected: agentFilter == nil, theme: theme) { agentFilter = nil; selection = 0 }
+                    ForEach(kinds, id: \.self) { kind in
+                        AgentFilterChip(title: kind.displayName, selected: agentFilter == kind, theme: theme) {
+                            agentFilter = agentFilter == kind ? nil : kind
+                            selection = 0
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 7)
+                .overlay(alignment: .bottom) { theme.line.frame(height: 1) }
+            }
 
             if flat.isEmpty {
                 Text("没有匹配的历史会话")
@@ -236,7 +255,8 @@ struct HistoryPalette: View {
 
     private func makeSections() -> [Section] {
         let entries = model.history.filter { entry in
-            query.isEmpty || (entry.item.title + entry.projectTitle).localizedCaseInsensitiveContains(query)
+            (agentFilter == nil || entry.item.kind == agentFilter)
+                && (query.isEmpty || (entry.item.title + entry.projectTitle).localizedCaseInsensitiveContains(query))
         }
         let byID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return HistoryGrouping.byDay(entries.map(\.item), now: model.now).map { group in
@@ -308,6 +328,27 @@ struct PaletteRow: View {
             prefix.append(ch)
         }
         return prefix + "…"
+    }
+}
+
+/// 历史搜索面板的 agent 过滤胶囊。
+struct AgentFilterChip: View {
+    let title: String
+    let selected: Bool
+    let theme: Theme
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                .foregroundStyle(selected ? theme.fg1 : theme.fg3)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(selected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.08)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -18,6 +18,7 @@ struct ContentView: View {
             if model.showHistoryPalette { HistoryPalette(model: model) }
         }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
+        .sheet(isPresented: $model.showIntegrations) { IntegrationsSheet(model: model) }
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
         .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(Theme.of(scheme).terminal) }
     }
@@ -233,10 +234,14 @@ struct NewSessionSheet: View {
             kind = model.lastAgent
             model.probeAgents()
         }
+        .onChange(of: model.installedAgents) { _, _ in
+            // 检测完成后上次的 agent 已不可用（如被卸载）：退回 Claude。
+            if !model.availability(of: kind).isEnabled, model.installedAgents != nil { kind = .claude }
+        }
     }
 }
 
-/// 新建会话的 agent 选择：Claude / Codex / pi；尚不能启动的选项置灰并标注原因（未安装 / 即将支持）。
+/// 新建会话的 agent 选择：Claude / Codex / pi；本机未安装（或尚在检测）的选项置灰并标注原因。
 struct AgentPicker: View {
     @ObservedObject var model: AppModel
     @Binding var selection: AgentKind

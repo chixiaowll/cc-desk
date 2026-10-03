@@ -48,6 +48,10 @@ enum SystemProbe {
         return AgentProbe.parse(run(shell, ["-l", "-i", "-c", AgentProbe.script], timeout: 3) ?? "")
     }
 
+    static func processDetails(pid: Int32, includeCwd: Bool) -> ProcessDetails? {
+        ProcessDetails.of(pid: pid, includeCwd: includeCwd)
+    }
+
     static func git(cwd: String, args: [String]) -> String? {
         run("/usr/bin/git", ["-C", cwd] + args, timeout: 3)
     }

@@ -108,7 +108,19 @@ struct CCDeskApp: App {
                     }
                 }
             }
+            CommandGroup(replacing: .appSettings) {
+                Button("集成…") {
+                    delegate.model.openMainWindow?()
+                    delegate.model.showIntegrations = true
+                }
+                .keyboardShortcut(",")
+            }
             CommandMenu("Session") {
+                Button("安装 Codex / pi 状态集成…") {
+                    delegate.model.openMainWindow?()
+                    delegate.model.showIntegrations = true
+                }
+                Divider()
                 Button("测试通知与角标") { delegate.model.testNotificationAndBadge() }
                 Button("预先下载语音模型") {
                     delegate.model.openMainWindow?()

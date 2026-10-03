@@ -39,6 +39,25 @@ final class AgentResolverTests: XCTestCase {
         XCTAssertEqual(snaps[1].hook?.status, .idle)
     }
 
+    func testFallbackSessionUsedOnlyWhenNothingElseKnown() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let index = AgentSessionIndex(codexRoot: root.appendingPathComponent("c"), piRoot: root.appendingPathComponent("p"))
+        let table = ProcessTable(byPID: [
+            20: ProcInfo(pid: 20, ppid: 1, tty: "ttys002", command: "pi", args: "pi"),
+            21: ProcInfo(pid: 21, ppid: 1, tty: "ttys003", command: "pi", args: "pi"),
+        ])
+        let hooks = HookStates([
+            HookState(agent: .pi, sessionID: "from-hook", tty: "ttys003", pid: 21, cwd: nil, status: .idle, updatedAt: Date()),
+        ])
+        let snaps = AgentResolver.resolve(processes: table, details: { _ in ("/w", Date().addingTimeInterval(-5)) },
+                                          hooks: hooks, index: index,
+                                          fallbackSessions: ["ttys002": (.pi, "restored"), "ttys003": (.pi, "stale")])
+        XCTAssertEqual(snaps.map(\.sessionID), ["restored", "from-hook"])
+        let wrongKind = AgentResolver.resolve(processes: table, details: { _ in ("/w", nil) }, hooks: HookStates(),
+                                              index: index, fallbackSessions: ["ttys002": (.codex, "x")])
+        XCTAssertNil(wrongKind.first?.sessionID)
+    }
+
     func testStatusFallsBackToUnknownAtProcessStart() {
         let start = Date(timeIntervalSince1970: 50)
         let s = AgentResolver.status(hook: nil, screen: nil, startedAt: start, now: Date())

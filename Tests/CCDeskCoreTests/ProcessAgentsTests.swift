@@ -59,3 +59,13 @@ final class ProcessAgentsTests: XCTestCase {
         XCTAssertEqual(AgentProcessMatcher.sessionHint(kind: .pi, argv: ["node", "pi", "--session", "01a1"]), "01a1")
     }
 }
+
+final class ProcessDetailsTests: XCTestCase {
+    func testReadsOwnProcess() throws {
+        let d = try XCTUnwrap(ProcessDetails.of(pid: getpid(), includeCwd: true))
+        XCTAssertEqual(d.cwd.map(ProjectResolver.canonical), ProjectResolver.canonical(FileManager.default.currentDirectoryPath))
+        XCTAssertLessThan(d.startedAt, Date())
+        XCTAssertNil(ProcessDetails.of(pid: getpid(), includeCwd: false)?.cwd)
+        XCTAssertNil(ProcessDetails.of(pid: 999_999, includeCwd: true))
+    }
+}
