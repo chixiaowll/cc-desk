@@ -47,7 +47,7 @@ final class UsageRefresher {
     private static func run() -> Bool {
         guard let exe = AssistantClient.shared.resolvedClaude() else { return false }
         let dir = AssistantClient.workingDirectory
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        AssistantClient.prepareWorkingDirectory(dir)
         var env = LaunchSpec.sanitizedEnvironment(base: ProcessInfo.processInfo.environment)
         if let path = exe.searchPath { env["PATH"] = path }
         env["CC_DESK"] = "1"

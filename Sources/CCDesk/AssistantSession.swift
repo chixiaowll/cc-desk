@@ -31,15 +31,18 @@ final class AssistantSession: @unchecked Sendable {
 
     private var process: Process?
     private var stdin: FileHandle?
+    private var stdout: FileHandle?
     private var buffer = Data()
-    private var pending: [(message: String, timeout: TimeInterval, completion: (Result<AssistantReply, AssistantError>) -> Void)] = []
-    private var current: (completion: (Result<AssistantReply, AssistantError>) -> Void, started: Date, token: Int)?
+    /// 请求队列（恰好一次的 completion、超时、退出 / 重置后继续往下走）；只在 queue 上使用。
+    private lazy var requests = AssistantRequestQueue<AssistantReply>(driver: AssistantRequestQueue.Driver(
+        ensureRunning: { [unowned self] in process != nil || start() },
+        send: { [unowned self] message in write(message) },
+        stopProcess: { [unowned self] in stopProcess() },
+        schedule: { [unowned self] seconds, work in queue.asyncAfter(deadline: .now() + seconds, execute: work) }))
     /// 当前请求里模型最后说的话（最后一次工具调用之后）。
     private var turnText = AssistantTurnText()
-    private var token = 0
     private var resumedID: String?
     private var answeredSinceStart = false
-    private var rotateAfterReply = false
     private var _generation = 0
 
     init(directory: URL, model: String, system: String, promptVersion: Int, toolArguments: @escaping () -> [String],
@@ -55,11 +58,13 @@ final class AssistantSession: @unchecked Sendable {
     /// 每启动一个新进程加一（接回 / 新会话都算）。
     var generation: Int { queue.sync { _generation } }
 
-    /// 发一条用户消息；completion 在主线程。
+    /// 发一条用户消息；completion 在主线程，恰好调用一次。
     func ask(_ message: String, timeout: TimeInterval, completion: @escaping (Result<AssistantReply, AssistantError>) -> Void) {
         queue.async { [self] in
-            pending.append((message, timeout, { result in DispatchQueue.main.async { completion(result) } }))
-            pump()
+            requests.enqueue(Self.userLine(message), timeout: timeout) { result in
+                let mapped = result.mapError(Self.map)
+                DispatchQueue.main.async { completion(mapped) }
+            }
         }
     }
 
@@ -68,46 +73,42 @@ final class AssistantSession: @unchecked Sendable {
         queue.async { [self] in if process == nil { _ = start() } }
     }
 
-    /// 丢弃当前会话，下一条消息开始新会话（菜单「重置助手对话」/ 上下文过大）。
+    /// 丢弃当前会话，下一条消息开始新会话（菜单「重置助手对话」/ 上下文过大）。排队的消息继续用新会话处理。
     func reset() {
         queue.async { [self] in
             try? FileManager.default.removeItem(at: storeURL)
-            stop(failing: .failed("reset"))
+            requests.abort("reset")
         }
     }
 
     func shutdown() {
-        queue.sync { stop(failing: .failed("shutdown")) }
+        queue.sync { requests.shutdown() }
+    }
+
+    private static func map(_ failure: AssistantRequestQueue<AssistantReply>.Failure) -> AssistantError {
+        switch failure {
+        case .notStarted: return .notInstalled
+        case .timeout:
+            AssistantDiag.log("assistant session timeout")
+            return .timeout
+        case .writeFailed: return .failed("write")
+        case .exited: return .failed("exited")
+        case .aborted(let reason): return .failed(reason)
+        case .failed(let message): return .failed(message)
+        }
     }
 
     // MARK: 只在 queue 上调用
 
-    private func pump() {
-        guard current == nil, !pending.isEmpty else { return }
-        if process == nil, !start() {
-            let failed = pending
-            pending = []
-            failed.forEach { $0.completion(.failure(.notInstalled)) }
-            return
-        }
-        let next = pending.removeFirst()
-        token += 1
-        let mine = token
-        current = (next.completion, Date(), mine)
+    private func write(_ line: String) -> Bool {
         turnText = AssistantTurnText()
-        let line = Self.userLine(next.message)
         // 用会抛错的 write(contentsOf:)：进程已退出时 write(_:) 会抛 ObjC 异常、让整个 App 崩溃。
         do {
             try stdin?.write(contentsOf: Data((line + "\n").utf8))
+            return stdin != nil
         } catch {
             AssistantDiag.log("assistant session write failed: \(error.localizedDescription)")
-            stop(failing: .failed("write"))
-            return
-        }
-        queue.asyncAfter(deadline: .now() + next.timeout) { [self] in
-            guard let current, current.token == mine else { return }
-            AssistantDiag.log("assistant session timeout")
-            stop(failing: .timeout)
+            return false
         }
     }
 
@@ -125,7 +126,7 @@ final class AssistantSession: @unchecked Sendable {
 
     private func start() -> Bool {
         guard let exe = executable() else { return false }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        AssistantClient.prepareWorkingDirectory(directory)
         var args = ["-p", "--model", model, "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
             + toolArguments() + ["--system-prompt", system]
         if let stored = loadStored() {
@@ -154,9 +155,12 @@ final class AssistantSession: @unchecked Sendable {
         p.standardInput = inPipe
         p.standardOutput = outPipe
         p.standardError = FileHandle.nullDevice
-        outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        // 不强引用 p：handler 挂在管道上，强引用会形成 Process ↔ 管道的循环，进程退出后泄漏 fd。
+        outPipe.fileHandleForReading.readabilityHandler = { [weak self, weak p] handle in
             let data = handle.availableData
-            guard let self else { return }
+            // EOF：清掉 handler，否则空数据会让它不停被调用。
+            if data.isEmpty { handle.readabilityHandler = nil }
+            guard let self, let p else { return }
             self.queue.async { self.receive(data, from: p) }
         }
         p.terminationHandler = { [weak self] proc in
@@ -164,11 +168,13 @@ final class AssistantSession: @unchecked Sendable {
             self.queue.async { self.exited(proc) }
         }
         do { try p.run() } catch {
+            outPipe.fileHandleForReading.readabilityHandler = nil
             AssistantDiag.log("assistant session start failed: \(error.localizedDescription)")
             return false
         }
         process = p
         stdin = inPipe.fileHandleForWriting
+        stdout = outPipe.fileHandleForReading
         buffer = Data()
         answeredSinceStart = false
         _generation += 1
@@ -191,25 +197,21 @@ final class AssistantSession: @unchecked Sendable {
 
     private func handleResult(_ line: String) {
         guard let obj = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
-              obj["type"] as? String == "result", let current else { return }
-        self.current = nil
-        if let envelope = AssistantEnvelope.parse(line) {
-            answeredSinceStart = true
-            current.completion(.success(AssistantReply(text: turnText.spoken(result: envelope.result),
-                                                       inputTokens: envelope.inputTokens,
-                                                       outputTokens: envelope.outputTokens,
-                                                       latency: Date().timeIntervalSince(current.started))))
-            if envelope.contextTokens > Self.rotateInputTokens { rotateAfterReply = true }
-        } else {
-            current.completion(.failure(.failed(String(line.prefix(200)))))
+              obj["type"] as? String == "result", let started = requests.currentStartedAt else { return }
+        guard let envelope = AssistantEnvelope.parse(line) else {
+            return requests.complete(.failure(.failed(String(line.prefix(200)))))
         }
-        if rotateAfterReply {
-            rotateAfterReply = false
+        answeredSinceStart = true
+        let rotate = envelope.contextTokens > Self.rotateInputTokens
+        if rotate {
             AssistantDiag.log("assistant session rotating (context too large)")
             try? FileManager.default.removeItem(at: storeURL)
-            stop(failing: .failed("rotate"))
         }
-        pump()
+        requests.complete(.success(AssistantReply(text: turnText.spoken(result: envelope.result),
+                                                  inputTokens: envelope.inputTokens,
+                                                  outputTokens: envelope.outputTokens,
+                                                  latency: Date().timeIntervalSince(started))),
+                          restart: rotate)
     }
 
     private func exited(_ p: Process) {
@@ -217,24 +219,27 @@ final class AssistantSession: @unchecked Sendable {
         AssistantDiag.log("assistant session exited status=\(p.terminationStatus)")
         // 接回旧会话还没答过一句就退出：多半是会话已不存在，换新会话。
         if resumedID != nil, !answeredSinceStart { try? FileManager.default.removeItem(at: storeURL) }
-        let failing = current
-        current = nil
-        process = nil
-        stdin = nil
-        failing?.completion(.failure(.failed("exited")))
-        pump()
+        releaseProcess()
+        requests.processExited()
     }
 
-    private func stop(failing error: AssistantError) {
-        if let current {
-            self.current = nil
-            current.completion(.failure(error))
-        }
+    /// 停掉当前进程（之后它的退出不再报告给队列）。
+    private func stopProcess() {
         guard let p = process else { return }
+        releaseProcess()
+        if p.isRunning { p.terminate() }
+    }
+
+    /// 清掉 handler、关闭父进程这边的管道端，忘掉进程。
+    private func releaseProcess() {
+        process?.terminationHandler = nil
         process = nil
         try? stdin?.close()
         stdin = nil
-        if p.isRunning { p.terminate() }
+        stdout?.readabilityHandler = nil
+        try? stdout?.close()
+        stdout = nil
+        buffer = Data()
     }
 
     static func userLine(_ text: String) -> String {

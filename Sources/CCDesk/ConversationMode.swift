@@ -51,6 +51,11 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private var lastSummaries: [UUID: String] = [:]
     /// 等待语音确认的工具调用（关闭 / 接管 / 中断）：截止时间与回调。
     private var pendingConfirmation: (deadline: TimeInterval, completion: (Bool) -> Void)?
+    /// 每次开始等助手加一；迟到的回复 / 看门狗据此判断是不是同一轮。
+    private var thinkingTurn = 0
+    private var thinkingWatchdog: DispatchWorkItem?
+    /// 助手一轮的超时（含语音确认）之外再留 15 秒余量。
+    static let thinkingWatchdogDelay = AssistantClient.turnTimeout + 15
     /// 本轮助手调用过的工具是否都只是往输入框打字（是则不朗读回复，只显示提示条）；nil = 本轮没调用工具。
     private var turnQuiet: Bool?
 
@@ -185,6 +190,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         transcribing = false
         speaking = false
         thinking = false
+        thinkingWatchdog?.cancel()
+        thinkingWatchdog = nil
         heard = nil
         activity = nil
         resolveConfirmation(false)
@@ -431,9 +438,10 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             return speak(answer)
         }
         let current = generation
-        beginThinking(heard: text)
+        let turn = beginThinking(heard: text)
         assistant.handle(utterance: text, context: context) { [weak self] result in
-            guard let self, self.isOn, self.generation == current else { return }
+            // 看门狗已经结束了这一轮时忽略迟到的回复。
+            guard let self, self.isOn, self.generation == current, self.thinkingTurn == turn, self.thinking else { return }
             let quiet = self.turnQuiet == true
             self.endThinking()
             switch result {
@@ -450,16 +458,36 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func beginThinking(heard text: String) {
+    /// 开始等助手；返回这一轮的编号。看门狗保证 `thinking` 最多持续「一轮超时 + 余量」，
+    /// 否则助手那边万一没有回调，后面所有的话都会排在 transcribeNext 里出不来。
+    @discardableResult
+    private func beginThinking(heard text: String) -> Int {
+        thinkingTurn += 1
+        let turn = thinkingTurn
         thinking = true
         heard = text
         activity = nil
         turnQuiet = nil
         session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
         NSSound(named: "Tink")?.play()
+        thinkingWatchdog?.cancel()
+        let current = generation
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isOn, self.generation == current, self.thinking, self.thinkingTurn == turn else { return }
+            AssistantDiag.log("assistant watchdog: no reply after \(Int(Self.thinkingWatchdogDelay))s, giving up")
+            self.endThinking()
+            self.speak(L("assistant.unavailable"))
+            self.state = self.session.state
+            self.transcribeNext()
+        }
+        thinkingWatchdog = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.thinkingWatchdogDelay, execute: work)
+        return turn
     }
 
     private func endThinking() {
+        thinkingWatchdog?.cancel()
+        thinkingWatchdog = nil
         thinking = false
         heard = nil
         activity = nil

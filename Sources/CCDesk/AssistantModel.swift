@@ -63,15 +63,24 @@ final class AssistantClient: @unchecked Sendable {
         let base = ["--strict-mcp-config", "--tools", ""]
         guard let exe = Bundle.main.executableURL?.path else { return base }
         let url = workingDirectory.appendingPathComponent("mcp.json")
+        // 不含控制接口口令（口令经 claude 进程的环境传给 MCP 子进程）；目录 0700、文件 0600。
         let json = MCPServerCore.configJSON(executable: exe, socketPath: ControlProtocol.socketPath())
         do {
-            try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
+            prepareWorkingDirectory(workingDirectory)
             try json.write(to: url, atomically: true, encoding: .utf8)
+            chmod(url.path, 0o600)
         } catch {
             AssistantDiag.log("assistant mcp config write failed: \(error.localizedDescription)")
             return base
         }
         return ["--mcp-config", url.path] + base + ["--allowedTools", "mcp__\(AssistantTools.mcpServerName)__*"]
+    }
+
+    /// 建好助手的工作目录并收紧为 0700（里面有 mcp.json、session.json）。
+    static func prepareWorkingDirectory(_ url: URL) {
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+        chmod(url.path, 0o700)
     }
 
     /// 已解析到 claude（nil = 尚未解析）。
