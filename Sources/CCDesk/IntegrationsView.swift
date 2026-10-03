@@ -15,17 +15,17 @@ struct IntegrationsSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 0) {
-                IntegrationRow(name: "Claude", detail: "内置：读取 ~/.claude/sessions，无需安装", status: nil,
+                IntegrationRow(name: "Claude", detail: "内置：读取 ~/.claude/sessions，无需安装", builtIn: true, status: nil,
                                busy: false, install: nil, uninstall: nil)
                 Divider()
                 IntegrationRow(name: "Codex",
                                detail: "~/.codex/hooks.json（hook 脚本在 ~/.cc-desk/hooks/）+ config.toml 的 [features] hooks = true",
-                               status: model.integrationStatus[.codex], busy: model.integrationBusy.contains(.codex),
+                               builtIn: false, status: model.integrationStatus[.codex], busy: model.integrationBusy.contains(.codex),
                                install: { model.installIntegration(.codex) },
                                uninstall: { model.uninstallIntegration(.codex) })
                 Divider()
                 IntegrationRow(name: "pi", detail: "~/.pi/agent/extensions/cc-desk-state.ts",
-                               status: model.integrationStatus[.pi], busy: model.integrationBusy.contains(.pi),
+                               builtIn: false, status: model.integrationStatus[.pi], busy: model.integrationBusy.contains(.pi),
                                install: { model.installIntegration(.pi) },
                                uninstall: { model.uninstallIntegration(.pi) })
             }
@@ -51,7 +51,9 @@ struct IntegrationsSheet: View {
 private struct IntegrationRow: View {
     let name: String
     let detail: String
-    /// nil 表示内置、无需安装。
+    /// 内置、无需安装（Claude）。
+    let builtIn: Bool
+    /// nil 表示尚未检测完成。
     let status: IntegrationStatus?
     let busy: Bool
     let install: (() -> Void)?
@@ -93,13 +95,14 @@ private struct IntegrationRow: View {
     }
 
     private var statusText: String {
-        guard let status else { return "已启用" }
-        return status.label
+        if builtIn { return "已启用" }
+        return status?.label ?? "检测中…"
     }
 
     private var statusColor: Color {
+        if builtIn { return .green }
         switch status {
-        case nil, .installed?: return .green
+        case .installed?: return .green
         case .needsRepair?: return .orange
         default: return .secondary
         }
