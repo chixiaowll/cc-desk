@@ -97,7 +97,8 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
     // MARK: 麦克风按钮
 
     func mousePressed() {
-        guard !hotkey.isHolding else { return }
+        // 与右 ⌥ 一样受 canListen 约束：对话模式开着时不再起第二个录音引擎和识别。
+        guard !hotkey.isHolding, canListen() else { return }
         press(.mouse)
         if capturing { // 鼠标按住立即显示，不必等 0.3s
             phase = .recording
@@ -339,6 +340,7 @@ final class AudioRecorder {
     private let queue = DispatchQueue(label: "cc-desk.voice.audio")
     private let lock = NSLock()
     private var engine: AVAudioEngine?
+    private var observer: NSObjectProtocol?
     private var samples: [Float] = []
     private var currentLevel: Float = 0
 
@@ -355,26 +357,49 @@ final class AudioRecorder {
             currentLevel = 0
             lock.unlock()
 
-            let engine = AVAudioEngine()
-            guard MicrophoneTap.install(on: engine, handler: { [weak self] chunk in self?.append(chunk) }) else { return }
-            do {
-                engine.prepare()
-                try engine.start()
-                self.engine = engine
-            } catch {
-                engine.inputNode.removeTap(onBus: 0)
+            _ = startEngine()
+        }
+    }
+
+    /// 只在 queue 上调用。
+    private func startEngine() -> Bool {
+        let engine = AVAudioEngine()
+        guard MicrophoneTap.install(on: engine, handler: { [weak self] chunk in self?.append(chunk) }) else { return false }
+        do {
+            engine.prepare()
+            try engine.start()
+        } catch {
+            engine.inputNode.removeTap(onBus: 0)
+            return false
+        }
+        self.engine = engine
+        // 录音中换了输入设备：引擎会停下，按新设备重建一次，已录的采样保留。
+        observer = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine,
+                                                          queue: nil) { [weak self] _ in
+            self?.queue.async { [weak self] in
+                guard let self, self.engine === engine else { return }
+                self.stopEngine()
+                _ = self.startEngine()
             }
         }
+        return true
+    }
+
+    /// 只在 queue 上调用。
+    private func stopEngine() {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = nil
+        if let engine {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()
+        }
+        engine = nil
     }
 
     /// 停止录音，在主线程回调采样。
     func stop(completion: @escaping ([Float]) -> Void) {
         queue.async { [self] in
-            if let engine {
-                engine.inputNode.removeTap(onBus: 0)
-                engine.stop()
-            }
-            engine = nil
+            stopEngine()
             lock.lock()
             let result = samples
             samples = []

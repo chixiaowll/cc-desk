@@ -60,8 +60,10 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private var turnQuiet: Bool?
 
     private var session = ConversationSession()
-    /// 等待识别的片段（与说话时选中的终端）。
-    private var queue: [(samples: [Float], target: UUID?)] = []
+    /// 等待识别的片段（与说话时选中的终端、开始说话的时刻 systemUptime）。
+    private var queue: [(samples: [Float], target: UUID?, startedAt: TimeInterval)] = []
+    /// 等待语音确认时，只接受这个时刻（确认问题播报完）之后才开始说的话。
+    private var confirmationListenAfter: TimeInterval = 0
     private var timer: Timer?
     private var toastWork: DispatchWorkItem?
     private var resumeWork: DispatchWorkItem?
@@ -219,14 +221,17 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             paused = false
         }
         let current = generation
-        recorder.start(onSamples: { [weak self] chunk in
-            self?.audioQueue.async { self?.feed(chunk, generation: current) }
-        }, completion: { [weak self] ok in
+        let micLost: () -> Void = { [weak self] in
             DispatchQueue.main.async {
-                guard let self, self.generation == current, !ok else { return }
+                guard let self, self.generation == current, self.isOn else { return }
                 self.voice.showHint(L("voice.hint.micUnavailable"))
                 self.turnOff()
             }
+        }
+        recorder.start(onSamples: { [weak self] chunk in
+            self?.audioQueue.async { self?.feed(chunk, generation: current) }
+        }, onLost: micLost, completion: { ok in
+            if !ok { micLost() }
         })
         timer?.invalidate()
         let timer = Timer(timeInterval: 1.0 / 15, repeats: true) { [weak self] _ in self?.tick() }
@@ -276,9 +281,11 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             capturing = false
         case .utterance(let samples):
             capturing = false
-            session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
+            let now = ProcessInfo.processInfo.systemUptime
+            session.noteSpeech(now: now)
+            let startedAt = now - Double(samples.count) / Double(MicrophoneTap.sampleRate)
             // 助手常驻：没选中内嵌会话时也照常识别（列会话 / 切换 / 新建不需要目标终端）。
-            queue.append((samples, selectedTerminalID()))
+            queue.append((samples, selectedTerminalID(), startedAt))
             transcribeNext()
         }
     }
@@ -286,7 +293,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private func transcribeNext() {
         // 等助手时先不处理后面的话，保证插入顺序；助手在等语音确认时例外。
         guard !transcribing, !thinking || pendingConfirmation != nil, !queue.isEmpty else { return }
-        let (samples, target) = queue.removeFirst()
+        let (samples, target, startedAt) = queue.removeFirst()
         let duration = Double(samples.count) / Double(MicrophoneTap.sampleRate)
         let policy = session.transcriptionPolicy(duration: duration)
         let matcher = session.matcher
@@ -309,13 +316,20 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             }
             guard let self, self.isOn, self.generation == current else { return }
             self.transcribing = false
-            if let text, !text.isEmpty { self.apply(text, target: target) }
+            if let text, !text.isEmpty { self.apply(text, target: target, startedAt: startedAt) }
             self.transcribeNext()
         }
     }
 
-    private func apply(_ text: String, target: UUID?) {
-        if pendingConfirmation != nil { return answerConfirmation(text) }
+    private func apply(_ text: String, target: UUID?, startedAt: TimeInterval) {
+        if pendingConfirmation != nil {
+            // 问题播报完之前就开始说的话（已在排队 / 识别中）不能当作回答。
+            guard startedAt >= confirmationListenAfter else {
+                AssistantDiag.log("ignored \"\(text)\" (spoken before the confirmation question finished)")
+                return
+            }
+            return answerConfirmation(text)
+        }
         let waiting = target.flatMap(statusOf)?.isWaiting ?? false
         session.persistent = Self.persistentEnabled
         let before = session.state
@@ -514,8 +528,10 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     /// 播报确认问题并显示提示条，等最多 `window` 秒的「确认」；其他话 / 超时 / 关闭对话模式都算取消。
     func requestConfirmation(question: String, toast: String, window: TimeInterval, completion: @escaping (Bool) -> Void) {
         resolveConfirmation(false)
-        pendingConfirmation = (ProcessInfo.processInfo.systemUptime + window, completion)
-        // 问题之前说的话不能当作回答。
+        let now = ProcessInfo.processInfo.systemUptime
+        pendingConfirmation = (now + window, completion)
+        // 问题之前说的话不能当作回答：丢掉排队的，正在识别的那句由 apply 按开始时间丢弃；播报完再更新这个时刻。
+        confirmationListenAfter = now
         queue = []
         AssistantDiag.log("confirm? \"\(question)\"")
         showToast(toast, duration: window)
@@ -598,6 +614,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     /// 播报结束后稍等再恢复采集（扬声器余音）。
     private func speechEnded() {
         guard !output.isSpeaking else { return }
+        if pendingConfirmation != nil { confirmationListenAfter = ProcessInfo.processInfo.systemUptime }
         resumeWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.output.isSpeaking else { return }
@@ -618,35 +635,76 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
 
 /// 持续录音：AVAudioEngine 输入 -> 16 kHz 单声道块，交给回调（音频线程），不在内存里累积。
 /// start / stop 在专用串行队列上执行，不阻塞主线程。
+/// 输入设备变化（插拔 AirPods、换默认麦克风）时 AVAudioEngine 会停下并发出 configuration change：
+/// 这时按新设备的格式重建引擎和 tap；重试几次仍失败就调用 onLost（对话模式随之关闭并提示）。
 final class ContinuousRecorder: @unchecked Sendable {
     private let queue = DispatchQueue(label: "cc-desk.conversation.audio")
     private var engine: AVAudioEngine?
+    private var observer: NSObjectProtocol?
+    private var onSamples: (([Float]) -> Void)?
+    private var onLost: (() -> Void)?
+    /// 每次 start / stop 加一；迟到的重建据此丢弃。
+    private var epoch = 0
 
-    /// completion(false)：没有可用的输入设备或无法启动。
-    func start(onSamples: @escaping ([Float]) -> Void, completion: @escaping (Bool) -> Void) {
+    /// completion(false)：没有可用的输入设备或无法启动。onLost：运行中设备变化后无法恢复。
+    func start(onSamples: @escaping ([Float]) -> Void, onLost: @escaping () -> Void, completion: @escaping (Bool) -> Void) {
         queue.async { [self] in
             stopEngine()
-            let engine = AVAudioEngine()
-            guard MicrophoneTap.install(on: engine, handler: { chunk in onSamples(Array(chunk)) }) else {
-                return completion(false)
-            }
-            do {
-                engine.prepare()
-                try engine.start()
-                self.engine = engine
-                completion(true)
-            } catch {
-                engine.inputNode.removeTap(onBus: 0)
-                completion(false)
-            }
+            epoch += 1
+            self.onSamples = onSamples
+            self.onLost = onLost
+            completion(startEngine())
         }
     }
 
     func stop() {
-        queue.async { [self] in stopEngine() }
+        queue.async { [self] in
+            epoch += 1
+            stopEngine()
+            onSamples = nil
+            onLost = nil
+        }
+    }
+
+    // MARK: 只在 queue 上调用
+
+    private func startEngine() -> Bool {
+        guard let onSamples else { return false }
+        let engine = AVAudioEngine()
+        guard MicrophoneTap.install(on: engine, handler: { chunk in onSamples(Array(chunk)) }) else { return false }
+        do {
+            engine.prepare()
+            try engine.start()
+        } catch {
+            engine.inputNode.removeTap(onBus: 0)
+            return false
+        }
+        self.engine = engine
+        let current = epoch
+        observer = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine,
+                                                          queue: nil) { [weak self] _ in
+            self?.queue.async { self?.rebuild(epoch: current, attempt: 0) }
+        }
+        return true
+    }
+
+    private func rebuild(epoch current: Int, attempt: Int) {
+        guard current == epoch, onSamples != nil else { return }
+        AssistantDiag.log("conversation: audio configuration changed, rebuilding the input engine (attempt \(attempt + 1))")
+        stopEngine()
+        if startEngine() { return }
+        // 换设备的瞬间输入格式可能是 0 Hz：稍等再试。
+        guard attempt < 4 else {
+            AssistantDiag.log("conversation: no usable input after the configuration change")
+            onLost?()
+            return
+        }
+        queue.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.rebuild(epoch: current, attempt: attempt + 1) }
     }
 
     private func stopEngine() {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = nil
         guard let engine else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
