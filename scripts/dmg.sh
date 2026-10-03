@@ -1,5 +1,6 @@
 #!/bin/sh
 # 打包可分发的 DMG：通用二进制（Apple 芯片 + Intel）、ad-hoc 签名、带「应用程序」快捷方式。
+# 内置从源码编译的通用 tmux（Contents/Helpers/tmux），让内嵌会话在 App 重启后继续运行（设计 §14）。
 # 未经 Apple 公证：在其他电脑首次打开需右键「打开」，或在「系统设置 → 隐私与安全性」中点「仍要打开」。
 set -eu
 cd "$(dirname "$0")/.."
@@ -26,7 +27,16 @@ for B in CCDesk_CCDesk CCDesk_CCDeskCore; do
     cp -R "$BIN_DIR/$B.bundle" "$APP/Contents/Resources/"
 done
 cp -R scripts/Localization/*.lproj "$APP/Contents/Resources/"
+# 内置 tmux 与第三方许可证；先签 helper 再签整个 App。
+TMUX_BIN="$(./scripts/build-tmux.sh | tail -n 1)"
+mkdir -p "$APP/Contents/Helpers" "$APP/Contents/Resources/ThirdPartyNotices"
+cp "$TMUX_BIN" "$APP/Contents/Helpers/tmux"
+cp "$(dirname "$TMUX_BIN")/LICENSES.txt" "$APP/Contents/Resources/ThirdPartyNotices/tmux.txt"
+cp NOTICE "$APP/Contents/Resources/NOTICE"
+lipo "$APP/Contents/Helpers/tmux" -verify_arch arm64 x86_64
+codesign --force --sign - "$APP/Contents/Helpers/tmux"
 codesign --force --deep --sign - "$APP"
+codesign --verify --deep --strict "$APP"
 ln -s /Applications "$STAGE/应用程序"
 cat > "$STAGE/首次打开说明.txt" <<'TXT'
 CC Desk 安装说明
