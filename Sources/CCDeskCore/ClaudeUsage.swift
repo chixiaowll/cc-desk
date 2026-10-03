@@ -225,6 +225,8 @@ public enum UsageResetText {
         if delta < 60 { return "即将重置" }
         if delta < 3600 { return "\(Int(delta / 60))分钟后重置" }
         if delta < 6 * 3600 { return "\(Int(delta / 3600))小时后重置" }
+        // 服务端常给 xx:59:59.6 这样的时间，按最近的整分钟显示。
+        let resetsAt = Date(timeIntervalSince1970: (resetsAt.timeIntervalSince1970 / 60).rounded() * 60)
         let time = String(format: "%02d:%02d", calendar.component(.hour, from: resetsAt),
                           calendar.component(.minute, from: resetsAt))
         if calendar.isDate(resetsAt, inSameDayAs: now) { return "今天 \(time) 重置" }
@@ -233,6 +235,56 @@ public enum UsageResetText {
             return "明天 \(time) 重置"
         }
         return "\(calendar.component(.month, from: resetsAt))月\(calendar.component(.day, from: resetsAt))日 重置"
+    }
+}
+
+extension UsageLimit {
+    /// 「89%」；缓存里的重置时间已过时为「—」（数据不代表当前周期）。
+    public func percentText(now: Date) -> String {
+        isExpired(now: now) ? "—" : "\(Int(percent.rounded()))%"
+    }
+
+    public func resetText(now: Date, calendar: Calendar) -> String? {
+        resetsAt.map { UsageResetText.text(resetsAt: $0, now: now, calendar: calendar) }
+    }
+}
+
+extension ClaudeUsage {
+    /// 缓存超过这个时长视为可能过时。
+    public static let staleAfter: TimeInterval = 30 * 60
+
+    public func isStale(now: Date) -> Bool { now.timeIntervalSince(fetchedAt) > Self.staleAfter }
+
+    /// 「数据更新于 N 分钟前（来自 Claude Code 缓存）」。
+    public func ageText(now: Date) -> String {
+        let age = now.timeIntervalSince(fetchedAt)
+        let when: String
+        if fetchedAt == .distantPast {
+            when = "未知时间"
+        } else if age < 60 {
+            when = "刚刚"
+        } else if age < 3600 {
+            when = "\(Int(age / 60)) 分钟前"
+        } else if age < 86400 {
+            when = "\(Int(age / 3600)) 小时前"
+        } else {
+            when = "\(Int(age / 86400)) 天前"
+        }
+        return "数据更新于 \(when)（来自 Claude Code 缓存）"
+    }
+
+    /// 悬停提示的多行文本。
+    public func summary(now: Date, calendar: Calendar) -> String {
+        var lines = [planLabel.isEmpty ? "Claude" : "Claude \(planLabel)"]
+        for limit in limits {
+            var line = "\(limit.label)  \(limit.percentText(now: now))"
+            if let reset = limit.resetText(now: now, calendar: calendar) { line += "  \(reset)" }
+            if limit.isActive { line += "（当前限制）" }
+            lines.append(line)
+        }
+        lines.append("额外用量：\(extraUsageText)")
+        lines.append(ageText(now: now))
+        return lines.joined(separator: "\n")
     }
 }
 

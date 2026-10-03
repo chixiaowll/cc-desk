@@ -193,6 +193,8 @@ final class ClaudeUsageTests: XCTestCase {
         XCTAssertEqual(UsageResetText.text(resetsAt: at("2026-10-03T21:30:00+08:00"), now: now, calendar: cal), "今天 21:30 重置")
         XCTAssertEqual(UsageResetText.text(resetsAt: at("2026-10-04T09:00:00+08:00"), now: now, calendar: cal), "明天 09:00 重置")
         XCTAssertEqual(UsageResetText.text(resetsAt: at("2026-10-05T09:00:00+08:00"), now: now, calendar: cal), "10月5日 重置")
+        XCTAssertEqual(UsageResetText.text(resetsAt: at("2026-10-04T08:59:59.6+08:00"), now: now, calendar: cal), "明天 09:00 重置")
+        XCTAssertEqual(UsageResetText.text(resetsAt: at("2026-10-04T23:59:59.9+08:00"), now: now, calendar: cal), "10月5日 重置")
         XCTAssertEqual(UsageResetText.text(resetsAt: at("2026-10-03T09:00:00+08:00"), now: now, calendar: cal), "已重置")
     }
 
@@ -260,6 +262,26 @@ final class ClaudeUsageTests: XCTestCase {
         XCTAssertTrue(limit("session", 50, at("2026-10-03T09:59:00+08:00")).isExpired(now: now))
         XCTAssertFalse(limit("session", 50, at("2026-10-03T10:01:00+08:00")).isExpired(now: now))
         XCTAssertFalse(limit("session", 50, nil).isExpired(now: now))
+    }
+
+    func testAgeAndSummary() throws {
+        let usage = try XCTUnwrap(ClaudeUsage.parse(json(withLimits)))
+        let fetched = usage.fetchedAt
+        XCTAssertEqual(usage.ageText(now: fetched.addingTimeInterval(20)), "数据更新于 刚刚（来自 Claude Code 缓存）")
+        XCTAssertEqual(usage.ageText(now: fetched.addingTimeInterval(5 * 60 + 10)), "数据更新于 5 分钟前（来自 Claude Code 缓存）")
+        XCTAssertEqual(usage.ageText(now: fetched.addingTimeInterval(3 * 3600)), "数据更新于 3 小时前（来自 Claude Code 缓存）")
+        XCTAssertEqual(usage.ageText(now: fetched.addingTimeInterval(2 * 86400)), "数据更新于 2 天前（来自 Claude Code 缓存）")
+        XCTAssertFalse(usage.isStale(now: fetched.addingTimeInterval(30 * 60)))
+        XCTAssertTrue(usage.isStale(now: fetched.addingTimeInterval(31 * 60)))
+
+        let now = at("2026-10-03T12:00:00+08:00")
+        let summary = usage.summary(now: now, calendar: shanghai).components(separatedBy: "\n")
+        XCTAssertEqual(summary.first, "Claude Team · Max 5x")
+        XCTAssertEqual(summary[1], "5 小时  20%  1小时后重置")
+        XCTAssertEqual(summary[2], "7 天（全部）  89%  明天 09:00 重置（当前限制）")
+        XCTAssertEqual(summary[4], "monthly_thing · Desktop  5%")
+        XCTAssertEqual(summary[5], "额外用量：未开启（组织已停用）")
+        XCTAssertEqual(limit("session", 50, at("2026-10-03T11:00:00+08:00")).percentText(now: now), "—")
     }
 
     // MARK: 文件读取（按 mtime 缓存）
