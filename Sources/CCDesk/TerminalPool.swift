@@ -2,13 +2,58 @@ import AppKit
 import SwiftTerm
 import CCDeskCore
 
-/// 在 SwiftTerm 收到输出后通知外部（用于节流触发屏幕检测）。
+/// 在 SwiftTerm 收到输出后通知外部（用于节流触发屏幕检测）；⌘-点击文件路径交给 `pathClickHandler`（设计 §17）。
 final class DetectingTerminalView: LocalProcessTerminalView {
     var onOutput: (() -> Void)?
+    /// ⌘-点击：(终端视图, 点击行的文字, 列, 是否按着 ⇧) -> 是否已处理（识别出存在的文件）。
+    /// 未处理时照常交给 SwiftTerm（URL / OSC 8 链接、选择、tmux 鼠标模式不受影响）。
+    static var pathClickHandler: ((DetectingTerminalView, String, Int, Bool) -> Bool)?
+    /// 按下时已处理的 ⌘-点击：吞掉对应的松开，不再交给 SwiftTerm / tmux。
+    private var swallowMouseUp = false
 
     override func dataReceived(slice: ArraySlice<UInt8>) {
         super.dataReceived(slice: slice)
         onOutput?()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        swallowMouseUp = false
+        if event.modifierFlags.contains(.command), event.clickCount == 1, handlePathClick(event) {
+            swallowMouseUp = true
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if swallowMouseUp {
+            swallowMouseUp = false
+            return
+        }
+        super.mouseUp(with: event)
+    }
+
+    /// 取点击处那一行屏幕文字与列号；URL（非 file://）留给 SwiftTerm 自己的链接处理。
+    private func handlePathClick(_ event: NSEvent) -> Bool {
+        guard let handler = Self.pathClickHandler else { return false }
+        let terminal = getTerminal()
+        let cols = terminal.cols, rows = terminal.rows
+        // characterIndex(for:) 按窗口坐标算出 row * cols + col（与 SwiftTerm 内部的点击定位一致）。
+        let index = characterIndex(for: event.locationInWindow)
+        guard cols > 0, rows > 0, index >= 0 else { return false }
+        let row = min(index / cols, rows - 1)
+        let col = min(index % cols, cols - 1)
+        if let link = terminal.link(at: .screen(Position(col: col, row: row)), mode: .explicitAndImplicit),
+           link.contains("://"), !link.hasPrefix("file://") {
+            return false
+        }
+        guard let line = terminal.getLine(row: row) else { return false }
+        // 每个单元格一个字符（宽字符后面的占位格是 "\0"，换成空格），列号与字符下标一一对应。
+        let text = line.translateToString(trimRight: false, characterProvider: { cell in
+            let c = cell.getCharacter()
+            return c == "\0" ? " " : c
+        })
+        return handler(self, text, col, event.modifierFlags.contains(.shift))
     }
 }
 

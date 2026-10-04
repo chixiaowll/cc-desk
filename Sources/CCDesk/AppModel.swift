@@ -140,6 +140,7 @@ final class AppModel: ObservableObject {
         conversation.host = self
         work.start()
         startControlServer()
+        installTerminalPathClicks()
         notifier.onOpen = { [weak self] key in self?.openFromNotification(key) }
         notifier.onApproval = { [weak self] key, reason, approve in
             self?.respondFromNotification(key, expectedReason: reason, approve: approve)
