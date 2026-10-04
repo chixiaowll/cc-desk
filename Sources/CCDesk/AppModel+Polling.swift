@@ -175,6 +175,12 @@ extension AppModel {
             return value
         }
         for event in routes.notify where NotificationPreferences.allows(event.kind) { notifier.post(event) }
+        // 每个状态事件的去向（排查「为什么没收到通知 / 推送」；只记种类与去向，不记标题内容）。
+        for event in events {
+            let notified = routes.notify.contains(event) && NotificationPreferences.allows(event.kind)
+            AssistantDiag.log("event kind=\(event.kind) watched=\(appVisible && event.sessionKey == selectedID) " +
+                              "notify=\(notified) push=\(routes.push.contains(event))")
+        }
         let newlyUnread = !routes.unread.subtracting(unreadKeys).isEmpty
         unreadKeys.formUnion(routes.unread)
         push.handle(routes.push, rows: rows, presence: presence)
