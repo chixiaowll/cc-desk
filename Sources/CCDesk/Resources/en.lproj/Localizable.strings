@@ -437,3 +437,4 @@
 "settings.general.darkTheme" = "Dark Theme";
 "menu.theme" = "Theme";
 "files.collapse.help" = "Hide panel (⇧⌘F)";
+"action.close" = "Close";

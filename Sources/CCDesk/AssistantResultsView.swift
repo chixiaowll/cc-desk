@@ -47,6 +47,7 @@ struct AssistantResultsSheet: View {
         }
         .padding(20)
         .frame(width: 620)
+        .onExitCommand { work.showResults = false }
         .onAppear {
             // 打开时展开最新一条已完成的结果。
             if let latest = work.consults.jobs.first(where: { $0.state == .done }) { expanded.insert(latest.id) }

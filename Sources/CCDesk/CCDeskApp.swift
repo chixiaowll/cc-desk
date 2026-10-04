@@ -151,6 +151,12 @@ enum CCDeskMain {
 }
 
 struct CCDeskApp: App {
+    /// 主窗口（`Window("CC Desk", id: "main")` 的 NSWindow 标识以 "main" 开头）。
+    static func isMainWindow(_ window: NSWindow) -> Bool {
+        guard let id = window.identifier?.rawValue else { return false }
+        return id == "main" || id.hasPrefix("main-")
+    }
+
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
@@ -172,7 +178,10 @@ struct CCDeskApp: App {
             // 选中内嵌 session 时关闭该 session（沿用原有确认逻辑）；否则按标准行为关闭窗口本身。
             CommandGroup(after: .newItem) {
                 Button(L("menu.closeSession")) {
-                    if let row = delegate.model.selectedRow, row.session.host.isEmbedded {
+                    // 设置等其他窗口在前时 ⌘W 关那个窗口，不能误关侧栏里选中的会话。
+                    if let key = NSApp.keyWindow, !Self.isMainWindow(key) {
+                        key.performClose(nil)
+                    } else if let row = delegate.model.selectedRow, row.session.host.isEmbedded {
                         delegate.model.closeSelected()
                     } else {
                         NSApp.keyWindow?.performClose(nil)

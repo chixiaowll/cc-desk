@@ -165,7 +165,10 @@ struct HistoryPalette: View {
                         if flat.indices.contains(selection) { resume(flat[selection].item) }
                     },
                     onCancel: { close() })
-                KeyCap(text: "esc", theme: theme)
+                // 「esc」键帽也可以点，方便用鼠标关闭。
+                Button { close() } label: { KeyCap(text: "esc", theme: theme) }
+                    .buttonStyle(.plain)
+                    .help(L("action.close"))
             }
             .padding(.horizontal, 16)
             .frame(height: 50)
