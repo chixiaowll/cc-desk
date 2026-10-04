@@ -131,11 +131,11 @@ public enum AssistantAPIPreset: String, CaseIterable, Sendable {
         }
     }
 
-    /// 钥匙串账户：每个服务一个，换服务时不会把一家的密钥发给另一家。
+    /// 这个服务预设地址的钥匙串账户（见 `AssistantAPISettings.keyAccount`）。
     public var keyAccount: String { "assistant.api.key.\(rawValue)" }
 }
 
-/// 接口设置（UserDefaults；密钥在钥匙串，见 `keyAccount`）。
+/// 接口设置（UserDefaults；密钥在钥匙串，按地址分账户，见 `keyAccount`）。
 public struct AssistantAPISettings: Equatable, Sendable {
     public static let presetKey = "assistantAPIPreset"
     public static let baseURLKey = "assistantAPIBaseURL"
@@ -171,6 +171,25 @@ public struct AssistantAPISettings: Equatable, Sendable {
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
               url.host?.isEmpty == false else { return nil }
         return url
+    }
+
+    /// 地址的「来源」：小写的 scheme://主机，非默认端口时带 `:端口`。密钥按它绑定。
+    public static func origin(_ url: URL) -> String? {
+        guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased(), !host.isEmpty else { return nil }
+        let defaultPort = scheme == "https" ? 443 : 80
+        let port = url.port.flatMap { $0 == defaultPort ? nil : $0 }
+        return "\(scheme)://\(host)" + (port.map { ":\($0)" } ?? "")
+    }
+
+    /// 这个地址的密钥存在哪个钥匙串账户：地址的来源与所选服务的预设地址相同时用那个服务的账户
+    /// （`preset.keyAccount`）；否则（改了地址、自定义）按来源单独一个账户。存的密钥因此只会发给存它时的那个地址，
+    /// 改了地址就换成那个地址自己的（多半是空的）密钥。地址无效时 nil。
+    public var keyAccount: String? {
+        guard let url = endpoint, let origin = Self.origin(url) else { return nil }
+        if preset != .custom, let presetURL = URL(string: preset.baseURL), Self.origin(presetURL) == origin {
+            return preset.keyAccount
+        }
+        return "assistant.api.key.origin.\(origin)"
     }
 
     public var trimmedModel: String { model.trimmingCharacters(in: .whitespacesAndNewlines) }

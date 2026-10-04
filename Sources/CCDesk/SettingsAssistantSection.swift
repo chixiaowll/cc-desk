@@ -12,8 +12,9 @@ struct SettingsAssistantSection: View {
     @AppStorage(AssistantAPISettings.modelKey) private var apiModel = ""
     @AppStorage(AssistantAPISettings.consultModelKey) private var consultModel = ""
     @State private var keyDraft = ""
-    /// keyDraft 属于哪个服务（换服务时先读出那个服务的密钥，不能把输入框里的旧密钥存到新服务下）。
-    @State private var keyPreset: AssistantAPIPreset?
+    /// keyDraft 属于哪个钥匙串账户（= 哪个地址，见 `AssistantAPISettings.keyAccount`）。换服务 / 改地址时先把输入框
+    /// 存回原来的账户，再读出新地址的密钥：一个地址的密钥不会被存到 / 发给另一个地址。
+    @State private var keyAccount: String?
     @State private var keyError: String?
     @State private var models: [String] = []
     @State private var fetching = false
@@ -41,6 +42,7 @@ struct SettingsAssistantSection: View {
         .onAppear(perform: load)
         .onDisappear(perform: store)
         .onChange(of: preset) { _, new in presetChanged(new) }
+        .onChange(of: draftSettings.keyAccount) { _, new in keyAccountChanged(new) }
         .task(id: configID) {
             // 每次按键都写钥匙串 / 换后端太频繁：停下来 0.5 秒再做。
             try? await Task.sleep(nanoseconds: 500_000_000)
@@ -165,8 +167,8 @@ struct SettingsAssistantSection: View {
 
     private func load() {
         client.apiKeys.reload()
-        keyPreset = selectedPreset
-        keyDraft = client.apiKeys.key(for: selectedPreset)
+        keyAccount = draftSettings.keyAccount
+        keyDraft = keyAccount.map { client.apiKeys.key(account: $0) } ?? ""
         refreshActive()
         // 选了自动 / Claude Code 时确认一下 claude 在不在（第一次会走一次登录 shell，后台进行）。
         if AssistantBackendSelector.needsClaude(selectedChoice) {
@@ -174,23 +176,30 @@ struct SettingsAssistantSection: View {
         }
     }
 
-    /// 换服务：地址换成预设地址（自定义保留），密钥换成那个服务的，清掉旧的模型列表与测试结果。
+    /// 换服务：地址换成预设地址（自定义保留），清掉旧的模型列表与测试结果；密钥随地址换（`keyAccountChanged`）。
     private func presetChanged(_ raw: String) {
         let new = AssistantAPIPreset(rawValue: raw) ?? .deepseek
         store()
         if new != .custom { baseURL = new.baseURL }
-        keyPreset = new
-        keyDraft = client.apiKeys.key(for: new)
         models = []
         fetchNote = nil
         testResult = nil
     }
 
-    /// 保存密钥（只存到它所属的服务下），通知助手重新选后端。
+    /// 地址（或服务）换了，密钥账户随之变：输入框里的密钥存回原账户，再读出新地址的。
+    private func keyAccountChanged(_ new: String?) {
+        guard new != keyAccount else { return }
+        store()
+        keyAccount = new
+        keyDraft = new.map { client.apiKeys.key(account: $0) } ?? ""
+        testResult = nil
+    }
+
+    /// 保存密钥（只存到它所属的地址的账户下），通知助手重新选后端。
     private func store() {
-        if let owner = keyPreset, !owner.isLocal {
+        if let owner = keyAccount {
             do {
-                try client.apiKeys.save(keyDraft, for: owner)
+                try client.apiKeys.save(keyDraft, account: owner)
                 keyError = nil
             } catch {
                 keyError = error.localizedDescription

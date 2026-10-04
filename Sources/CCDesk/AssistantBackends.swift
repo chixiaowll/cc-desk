@@ -26,21 +26,28 @@ final class LocalAssistantBackend: AssistantBackend {
     func shutdown() {}
 }
 
-/// 接口密钥：钥匙串里每个服务一个账户（`AssistantAPIPreset.keyAccount`），第一次用到时在主线程读出并缓存在内存
-/// （与推送密钥相同的做法：重新签名后钥匙串可能弹授权，不能在后台队列上读）。只在主线程使用。
+/// 接口密钥：钥匙串里按地址分账户（`AssistantAPISettings.keyAccount`：服务预设地址用服务的账户，其他地址按来源），
+/// 第一次用到时在主线程读出并缓存在内存（与推送密钥相同的做法：重新签名后钥匙串可能弹授权，不能在后台队列上读）。
+/// 只在主线程使用。
 final class AssistantAPIKeys {
     private let store: SecretStore
-    private var cache: [AssistantAPIPreset: String] = [:]
+    private var cache: [String: String] = [:]
 
     init(store: SecretStore) {
         self.store = store
     }
 
-    func key(for preset: AssistantAPIPreset) -> String {
-        if let cached = cache[preset] { return cached }
-        let value = store.read(preset.keyAccount) ?? ""
-        cache[preset] = value
+    func key(account: String) -> String {
+        if let cached = cache[account] { return cached }
+        let value = store.read(account) ?? ""
+        cache[account] = value
         return value
+    }
+
+    /// 这套设置要发的密钥（本机服务、地址无效时为空）。
+    func key(for settings: AssistantAPISettings) -> String {
+        guard !settings.preset.isLocal, let account = settings.keyAccount else { return "" }
+        return key(account: account)
     }
 
     /// 设置页打开时重新读一次（可能在别处改过）。
@@ -49,11 +56,11 @@ final class AssistantAPIKeys {
     }
 
     /// 空白 = 删除。值没变时不写钥匙串。
-    func save(_ value: String, for preset: AssistantAPIPreset) throws {
+    func save(_ value: String, account: String) throws {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != key(for: preset) else { return }
-        try store.write(trimmed, account: preset.keyAccount)
-        cache[preset] = trimmed
+        guard trimmed != key(account: account) else { return }
+        try store.write(trimmed, account: account)
+        cache[account] = trimmed
     }
 }
 
@@ -72,7 +79,7 @@ extension AssistantClient {
 
     /// 当前的接口设置与密钥；没配置好时 nil。只在主线程调用（会读钥匙串）。
     func apiEndpoint(settings: AssistantAPISettings = .load(), model override: String? = nil) -> APIEndpoint? {
-        let key = settings.preset.isLocal ? "" : apiKeys.key(for: settings.preset)
+        let key = apiKeys.key(for: settings)
         guard settings.isConfigured(hasKey: !key.isEmpty), let base = settings.endpoint else { return nil }
         let model = override ?? settings.trimmedModel
         return APIEndpoint(base: base, model: model, apiKey: key.isEmpty ? nil : key, label: settings.label)
