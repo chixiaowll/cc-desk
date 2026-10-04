@@ -258,4 +258,19 @@ final class PhonePushTests: ZhHansTestCase {
         XCTAssertEqual(WakeWordRule.Problem.tooShort.message, "唤醒词至少 2 个字")
         XCTAssertEqual(WakeWordRule.Problem.empty.message, "唤醒词不能为空")
     }
+
+    /// 完成 30 秒内只推一次；等批准按次（episode）去重，新的一次请求立即推送。
+    func testPerKindIntervalsAndEpisodes() {
+        var limiter = PushRateLimiter()
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        let done = PushPolicy.dedupeKey(sessionKey: "a", kind: .finished)
+        XCTAssertTrue(limiter.admit(key: done, now: t0, interval: PushPolicy.interval(for: .finished)))
+        XCTAssertFalse(limiter.admit(key: done, now: t0.addingTimeInterval(20), interval: PushPolicy.interval(for: .finished)))
+        XCTAssertTrue(limiter.admit(key: done, now: t0.addingTimeInterval(31), interval: PushPolicy.interval(for: .finished)))
+        let wait1 = PushPolicy.dedupeKey(sessionKey: "a", kind: .needsInput, episode: 1)
+        let wait2 = PushPolicy.dedupeKey(sessionKey: "a", kind: .needsInput, episode: 2)
+        XCTAssertTrue(limiter.admit(key: wait1, now: t0, interval: PushPolicy.interval(for: .needsInput)))
+        XCTAssertFalse(limiter.admit(key: wait1, now: t0.addingTimeInterval(5), interval: PushPolicy.interval(for: .needsInput)))
+        XCTAssertTrue(limiter.admit(key: wait2, now: t0.addingTimeInterval(6), interval: PushPolicy.interval(for: .needsInput)))
+    }
 }

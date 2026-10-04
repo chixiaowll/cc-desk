@@ -84,8 +84,8 @@ final class PhonePushCenter {
         }
         for event in events where PushPolicy.shouldPush(event.kind, settings: settings, presence: presence) {
             guard let row = rows.first(where: { $0.id == event.sessionKey }) else { continue }
-            let key = PushPolicy.dedupeKey(sessionKey: event.sessionKey, kind: event.kind)
-            guard limiter.admit(key: key, now: now) else {
+            let key = PushPolicy.dedupeKey(sessionKey: event.sessionKey, kind: event.kind, episode: event.episode)
+            guard limiter.admit(key: key, now: now, interval: PushPolicy.interval(for: event.kind)) else {
                 AssistantDiag.log("push skipped rate-limited provider=\(settings.provider.rawValue)")
                 continue
             }

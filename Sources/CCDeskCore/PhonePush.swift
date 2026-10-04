@@ -236,9 +236,17 @@ public enum PushPolicy {
         }
     }
 
-    /// 限流去重的键：同一会话的同一种状态。
-    public static func dedupeKey(sessionKey: String, kind: StatusEvent.Kind) -> String {
-        "\(sessionKey)|\(kind == .needsInput ? PushStatus.waiting.rawValue : PushStatus.finished.rawValue)"
+    /// 限流去重的键：同一会话的同一种状态。等批准带上等待编号（episode）：每一次新的批准请求都推送，
+    /// 只去掉同一次请求的重复。
+    public static func dedupeKey(sessionKey: String, kind: StatusEvent.Kind, episode: Int? = nil) -> String {
+        let base = "\(sessionKey)|\(kind == .needsInput ? PushStatus.waiting.rawValue : PushStatus.finished.rawValue)"
+        guard kind == .needsInput, let episode else { return base }
+        return "\(base)|\(episode)"
+    }
+
+    /// 同一键两次推送的最小间隔：完成 30 秒（一问一答的连续几轮不至于全被吞掉），等批准 2 分钟（按次去重）。
+    public static func interval(for kind: StatusEvent.Kind) -> TimeInterval {
+        kind == .finished ? 30 : 120
     }
 }
 
@@ -248,7 +256,7 @@ public struct PushRateLimiter: Sendable {
     public let perKeyInterval: TimeInterval
     public let globalLimit: Int
     public let globalWindow: TimeInterval
-    private var lastByKey: [String: Date] = [:]
+    private var lastByKey: [String: (at: Date, interval: TimeInterval)] = [:]
     private var recent: [Date] = []
 
     public init(perKeyInterval: TimeInterval = 120, globalLimit: Int = 20, globalWindow: TimeInterval = 3600) {
@@ -257,12 +265,12 @@ public struct PushRateLimiter: Sendable {
         self.globalWindow = globalWindow
     }
 
-    /// 允许时记下这次并返回 true。
-    public mutating func admit(key: String, now: Date) -> Bool {
+    /// 允许时记下这次并返回 true。interval 为该键的最小间隔（默认 `perKeyInterval`）。
+    public mutating func admit(key: String, now: Date, interval: TimeInterval? = nil) -> Bool {
         recent.removeAll { now.timeIntervalSince($0) >= globalWindow }
-        lastByKey = lastByKey.filter { now.timeIntervalSince($0.value) < perKeyInterval }
+        lastByKey = lastByKey.filter { now.timeIntervalSince($0.value.at) < $0.value.interval }
         guard lastByKey[key] == nil, recent.count < globalLimit else { return false }
-        lastByKey[key] = now
+        lastByKey[key] = (now, interval ?? perKeyInterval)
         recent.append(now)
         return true
     }
