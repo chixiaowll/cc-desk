@@ -176,4 +176,15 @@ final class WaitingEpisodeTests: XCTestCase {
         // 旧通知没有编号：只比较原因（兼容）。
         XCTAssertEqual(ApprovalNotification.decide(expectedReason: "x", host: host, status: .waiting("x")), .apply)
     }
+
+    /// 推送时机为「总是」时，正看着的会话也交给推送（不用采集 presence）；系统通知仍不发。
+    func testWatchedSessionPushesWhenConditionIsAlways() {
+        let ev = StatusEvent(kind: .finished, sessionKey: "a", title: "t", body: "b")
+        let routes = EventRouting.route(events: [ev], selected: "a", appVisible: true, pushAlways: true) {
+            XCTFail("presence should not be probed")
+            return PushPresence(idleSeconds: 0, screenLocked: false)
+        }
+        XCTAssertEqual(routes.push, [ev])
+        XCTAssertEqual(routes.notify, [])
+    }
 }

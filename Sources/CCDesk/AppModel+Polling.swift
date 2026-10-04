@@ -169,7 +169,9 @@ extension AppModel {
         lastStatuses = statuses
         // 系统通知 / 未读不发给正看着的会话；推送对它只在用户离开 Mac 时发（EventRouting）。
         var presence: PushPresence?
-        let routes = EventRouting.route(events: events, selected: selectedID, appVisible: appVisible) {
+        let pushAlways = PushSettings.load().condition == .always
+        let routes = EventRouting.route(events: events, selected: selectedID, appVisible: appVisible,
+                                        pushAlways: pushAlways) {
             let value = presence ?? PresenceProbe.current()
             presence = value
             return value

@@ -89,9 +89,10 @@ public enum EventRouting {
     }
 
     /// - 系统通知 / 未读：App 可见且正看着的那个会话不发（用户就在看）。
-    /// - 推送：别的会话照常交给推送；正看着的会话只在用户离开 Mac 时推送（App 仍在前台、选中这个会话，但人已走开）。
+    /// - 推送：别的会话照常交给推送；正看着的会话在推送时机为「总是」（pushAlways）时也推，
+    ///   否则只在用户离开 Mac 时推送（App 仍在前台、选中这个会话，但人已走开）。
     ///   presence 只在需要时才取（App 层采集要调系统接口）。
-    public static func route(events: [StatusEvent], selected: String?, appVisible: Bool,
+    public static func route(events: [StatusEvent], selected: String?, appVisible: Bool, pushAlways: Bool = false,
                              presence: () -> PushPresence) -> Routes {
         var notify: [StatusEvent] = []
         var push: [StatusEvent] = []
@@ -105,6 +106,7 @@ public enum EventRouting {
                 if event.kind == .finished { unread.insert(event.sessionKey) }
                 continue
             }
+            if pushAlways { push.append(event); continue }
             if away == nil { away = PushPolicy.isAway(presence()) }
             if away == true { push.append(event) }
         }
