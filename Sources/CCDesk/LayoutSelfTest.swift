@@ -13,7 +13,7 @@ enum LayoutSelfTest {
 
     private static var failures = 0
 
-    private static func check(_ ok: Bool, _ message: String) {
+    static func check(_ ok: Bool, _ message: String) {
         print("\(ok ? "PASS" : "FAIL") \(message)")
         if !ok { failures += 1 }
     }
@@ -23,6 +23,8 @@ enum LayoutSelfTest {
         _ = NSApplication.shared
         checkInvariantsUnderRandomOperations()
         checkHostPlacement()
+        checkRearrange()
+        checkHostMouseAreas()
         print(failures == 0 ? "layout selftest: all passed" : "layout selftest: \(failures) failure(s)")
         return failures == 0
     }

@@ -13,6 +13,8 @@ struct PaneGeometry {
     let showsChrome: Bool
     let paneFrames: [UUID: CGRect]
     let terminalFrames: [UUID: CGRect]
+    /// 多窗格时各窗格顶部的标题条（单窗格时为空）。
+    let headerFrames: [UUID: CGRect]
     let dividers: [PaneDivider]
 
     init(layout: PaneLayout, size: CGSize) {
@@ -26,6 +28,7 @@ struct PaneGeometry {
             dividers = layout.dividers(in: bounds)
         }
         let chrome = showsChrome
+        headerFrames = chrome ? paneFrames.mapValues { CGRect(x: $0.minX, y: $0.minY, width: $0.width, height: Self.headerHeight) } : [:]
         terminalFrames = paneFrames.mapValues { frame in
             let insets = chrome ? Self.paneInsets : Self.singleInsets
             let top = chrome ? Self.headerHeight + insets.top : insets.top
@@ -37,10 +40,33 @@ struct PaneGeometry {
 }
 
 /// 详情区的窗格区域：底下是托管所有终端的 AppKit 容器，上面叠标题条、焦点边框和分隔线（多窗格时）。
+/// 鼠标操作（拖分隔线、点 / 拖标题条、拖放）都由 AppKit 容器处理；上面的 SwiftUI 只有标题条按钮接收点击。
 struct PaneArea: View {
     @ObservedObject var model: AppModel
     @ObservedObject var panes: PaneLayoutModel
     let theme: Theme
+
+    private var actions: PaneHostActions {
+        let model = self.model
+        return PaneHostActions(
+            canDrop: { model.canDrop($0, on: $1, zone: $2) },
+            drop: { model.drop($0, on: $1, zone: $2) },
+            focus: { model.focusPane($0) },
+            toggleZoom: { model.toggleZoom($0) },
+            resize: { model.resizePane($0, by: $1, save: $2) },
+            tearOff: { model.tearOff($0, at: $1, paneSize: $2) })
+    }
+
+    /// 多窗格时各窗格的会话名（拖动预览）或提示文字（标题条的 tooltip）。
+    private func chromeText(_ layout: PaneLayout, tooltip: Bool) -> [UUID: String] {
+        guard layout.isSplit else { return [:] }
+        var result: [UUID: String] = [:]
+        for id in layout.leaves {
+            let row = model.row(forTerminal: id)
+            result[id] = tooltip ? row?.tooltip ?? "" : row?.displayName ?? model.pool.terminal(id)?.title ?? ""
+        }
+        return result
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -51,10 +77,10 @@ struct PaneArea: View {
                 PaneTerminalHost(
                     pool: model.pool, owned: model.pool.terminals.map(\.id).filter { !model.isDetached($0) },
                     terminalFrames: geometry.terminalFrames, paneFrames: geometry.paneFrames,
+                    headerFrames: geometry.headerFrames, dividers: geometry.showsChrome ? geometry.dividers : [],
+                    titles: chromeText(layout, tooltip: false), tooltips: chromeText(layout, tooltip: true),
                     focused: layout.focused, background: theme.terminal.background, accent: NSColor(theme.accent),
-                    canDrop: { model.canDrop($0, on: $1, zone: $2) },
-                    onDrop: { model.drop($0, on: $1, zone: $2) },
-                    onClickPane: { model.focusPane($0) })
+                    actions: actions)
                 if layout.isEmpty {
                     Text(L("detail.empty"))
                         .font(.system(size: 13))
@@ -64,7 +90,7 @@ struct PaneArea: View {
                 }
                 if geometry.showsChrome {
                     ForEach(geometry.dividers, id: \.path) { divider in
-                        PaneDividerHandle(divider: divider, size: size, model: model, panes: panes, theme: theme)
+                        PaneDividerLine(divider: divider, theme: theme)
                     }
                     ForEach(layout.leaves, id: \.self) { id in
                         if let frame = geometry.paneFrames[id] {
@@ -77,7 +103,6 @@ struct PaneArea: View {
                 }
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
-            .coordinateSpace(name: PaneDividerHandle.space)
             .onAppear { panes.areaSize = size }
             .onChange(of: size) { _, new in panes.areaSize = new }
         }
@@ -106,7 +131,8 @@ struct PaneChrome: View {
     }
 }
 
-/// 窗格标题条：状态点、会话名、agent，右侧放大 / 关闭窗格按钮。点标题条选中这个窗格。
+/// 窗格标题条：状态点、会话名、agent，右侧分离 / 放大 / 关闭窗格按钮。除按钮外都不接收鼠标：点、双击、拖动
+/// 标题条由下面的 AppKit 容器处理（选中、放大 / 还原、拖到别的窗格旁边或拖出去分离），提示文字也由它显示。
 struct PaneHeader: View {
     @ObservedObject var model: AppModel
     let terminalID: UUID
@@ -117,20 +143,23 @@ struct PaneHeader: View {
     var body: some View {
         let row = model.row(forTerminal: terminalID)
         HStack(spacing: 7) {
-            PaneStatusDot(row: row, theme: theme)
-            Text(row?.displayName ?? model.pool.terminal(terminalID)?.title ?? "")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(focused ? theme.fg1 : theme.fg2)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            if let row {
-                Text(row.agentLabel.map { "\($0) · \(row.statusLabel)" } ?? row.statusLabel)
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.fg3)
+            HStack(spacing: 7) {
+                PaneStatusDot(row: row, theme: theme)
+                Text(row?.displayName ?? model.pool.terminal(terminalID)?.title ?? "")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(focused ? theme.fg1 : theme.fg2)
                     .lineLimit(1)
-                    .layoutPriority(-1)
+                    .truncationMode(.tail)
+                if let row {
+                    Text(row.agentLabel.map { "\($0) · \(row.statusLabel)" } ?? row.statusLabel)
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.fg3)
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
+                Spacer(minLength: 4)
             }
-            Spacer(minLength: 4)
+            .allowsHitTesting(false)
             SidebarIconButton(systemName: "macwindow.badge.plus", help: L("pane.detach.help"), theme: theme) {
                 model.detach(terminalID)
             }
@@ -145,9 +174,6 @@ struct PaneHeader: View {
         .padding(.leading, 12)
         .padding(.trailing, 6)
         .frame(height: PaneGeometry.headerHeight)
-        .contentShape(Rectangle())
-        .onTapGesture { model.focusPane(terminalID) }
-        .help(row?.tooltip ?? "")
     }
 }
 
@@ -172,41 +198,18 @@ struct PaneStatusDot: View {
     }
 }
 
-/// 窗格之间的分隔线：1pt 细线，两侧各 4pt 的可拖动区域；拖动时按最小窗格尺寸限制比例，松手后保存。
-struct PaneDividerHandle: View {
-    static let space = "paneArea"
+/// 窗格之间的分隔线：1pt 细线，只负责画；拖动与光标由 `PaneTerminalHost.HostView` 处理（两侧各 8pt）。
+struct PaneDividerLine: View {
     let divider: PaneDivider
-    let size: CGSize
-    let model: AppModel
-    let panes: PaneLayoutModel
     let theme: Theme
 
     var body: some View {
-        let horizontal = divider.axis == .horizontal
-        let line = horizontal
+        let line = divider.axis == .horizontal
             ? CGRect(x: divider.position - 0.5, y: divider.rect.minY, width: 1, height: divider.rect.height)
             : CGRect(x: divider.rect.minX, y: divider.position - 0.5, width: divider.rect.width, height: 1)
-        let grab = line.insetBy(dx: horizontal ? -4 : 0, dy: horizontal ? 0 : -4)
-        ZStack {
-            theme.line.frame(width: line.width, height: line.height)
-            Color.clear
-                .frame(width: grab.width, height: grab.height)
-                .contentShape(Rectangle())
-                .background(ResizeCursorArea(cursor: horizontal ? .resizeLeftRight : .resizeUpDown))
-                .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .named(Self.space))
-                    .onChanged { value in update(value.location, save: false) }
-                    .onEnded { value in update(value.location, save: true) })
-        }
-        .frame(width: grab.width, height: grab.height)
-        .position(x: grab.midX, y: grab.midY)
-    }
-
-    private func update(_ location: CGPoint, save: Bool) {
-        let rect = divider.rect
-        let proposed = divider.axis == .horizontal
-            ? Double((location.x - rect.minX) / max(rect.width, 1))
-            : Double((location.y - rect.minY) / max(rect.height, 1))
-        let range = panes.layout.ratioRange(at: divider.path, in: size, minPane: PaneLayoutModel.minPane)
-        model.setPaneRatio(min(max(proposed, range.lowerBound), range.upperBound), at: divider.path, save: save)
+        theme.line
+            .frame(width: line.width, height: line.height)
+            .position(x: line.midX, y: line.midY)
+            .allowsHitTesting(false)
     }
 }

@@ -107,6 +107,22 @@ final class DetachedWindows: NSObject {
         }
     }
 
+    /// 拖出窗格分离时新窗口的位置：标题栏中部偏左落在松手处，大小与窗格相近（限制在合理范围内），
+    /// 并整个放进松手处所在屏幕的可见区域。
+    static func tearOffFrame(at point: CGPoint, paneSize: CGSize) -> CGRect {
+        let width = min(max(paneSize.width, 480), 1400)
+        let height = min(max(paneSize.height + 36, 320), 1000)
+        var frame = CGRect(x: point.x - min(160, width / 2), y: point.y + 14 - height, width: width, height: height)
+        let screen = NSScreen.screens.first { NSMouseInRect(point, $0.frame, false) } ?? NSScreen.main
+        if let visible = screen?.visibleFrame {
+            frame.size.width = min(frame.width, visible.width)
+            frame.size.height = min(frame.height, visible.height)
+            frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
+            frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - frame.height)
+        }
+        return frame
+    }
+
     /// 新窗口的位置：保存的位置仍在某个屏幕上就用它；否则在主窗口旁边错开摆放，没有主窗口时居中。
     private static func placement(_ saved: CGRect?, index: Int) -> CGRect {
         if let saved, NSScreen.screens.contains(where: { $0.visibleFrame.intersects(saved) }) { return saved }

@@ -6,16 +6,23 @@ import CCDeskCore
 extension AppModel {
     func isDetached(_ tid: UUID) -> Bool { detachedWindows.contains(tid) }
 
-    /// 「在新窗口中打开」：从布局里移走并打开独立窗口（已打开时拿到最前）。
-    func detach(_ tid: UUID) {
+    /// 「在新窗口中打开」：从布局里移走并打开独立窗口（已打开时拿到最前）。`frame` 为新窗口的位置（屏幕坐标），
+    /// nil 时在主窗口旁边错开摆放。
+    func detach(_ tid: UUID, frame: CGRect? = nil) {
         guard pool.terminal(tid) != nil else { return }
         if detachedWindows.contains(tid) { return detachedWindows.bringToFront(tid) }
         var layout = panes.layout
         layout.remove(tid)
         commitLayout(layout, save: false)
         // 先记下分离（主窗口的容器随之交出视图），再让窗口成为 key（选中随之指向它）。
-        detachedWindows.open(tid)
+        detachedWindows.open(tid, frame: frame)
         saveWorkspace()
+    }
+
+    /// 窗格标题条拖到窗格区域之外松手：分离到松手处的新窗口（标题栏在鼠标下方，大小与窗格相近）。
+    func tearOff(_ tid: UUID, at screenPoint: CGPoint, paneSize: CGSize) {
+        guard panes.layout.contains(tid) else { return }
+        detach(tid, frame: DetachedWindows.tearOffFrame(at: screenPoint, paneSize: paneSize))
     }
 
     /// 菜单「在新窗口中打开」：焦点窗格的会话。

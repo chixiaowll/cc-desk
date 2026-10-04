@@ -58,6 +58,12 @@ extension AppModel {
         focusSelectedTerminal()
     }
 
+    /// 拖动分隔线（拖动开始时的分隔线 + 位移）：按最小窗格尺寸限制，过程中只发布，松手（save）时保存。
+    func resizePane(_ divider: PaneDivider, by delta: CGFloat, save: Bool) {
+        let ratio = panes.layout.ratio(dragging: divider, by: delta, in: panes.areaSize, minPane: PaneLayoutModel.minPane)
+        setPaneRatio(ratio, at: divider.path, save: save)
+    }
+
     func setPaneRatio(_ ratio: Double, at path: PanePath, save: Bool) {
         var layout = panes.layout
         guard layout.setRatio(ratio, at: path) else { return }
@@ -139,7 +145,8 @@ extension AppModel {
 
     // MARK: 拖放
 
-    /// 侧栏的会话行（拖动内容 "row:term:<uuid>"）能否放到某个窗格的某个落点。
+    /// 侧栏的会话行（"row:term:<uuid>"）或窗格标题条（终端 id）能否放到某个窗格的某个落点。
+    /// 已显示在别的窗格里的：中间为互换，四边为挪过去（按挪走之后的大小判断放不放得下）。
     func canDrop(_ tid: UUID, on target: UUID?, zone: PaneDropZone) -> Bool {
         guard pool.terminal(tid) != nil else { return false }
         guard let target else { return panes.layout.isEmpty }
@@ -147,11 +154,15 @@ extension AppModel {
         case .center: return target != tid
         case .edge(let edge):
             guard target != tid else { return false }
-            return panes.layout.contains(tid) ? panes.layout.count > 1 : panes.canSplit(target, edge: edge)
+            if panes.layout.contains(tid) {
+                return panes.layout.canMove(tid, beside: target, edge: edge, in: panes.areaSize,
+                                            minPane: PaneLayoutModel.minPane)
+            }
+            return panes.canSplit(target, edge: edge)
         }
     }
 
-    /// 把会话放到窗格上：四边分屏，中间替换（已显示在别处时互换）。
+    /// 把会话放到窗格上：四边分屏（已显示在别处时挪过去），中间替换（已显示在别处时互换）。
     @discardableResult
     func drop(_ tid: UUID, on target: UUID?, zone: PaneDropZone) -> Bool {
         guard canDrop(tid, on: target, zone: zone) else { return false }
@@ -161,7 +172,9 @@ extension AppModel {
         case (nil, _): layout.show(tid)
         case (let target?, .center): layout.replace(target, with: tid)
         case (let target?, .edge(let edge)):
-            guard layout.split(target, edge: edge, with: tid) else { return false }
+            let placed = layout.contains(tid) ? layout.move(tid, beside: target, edge: edge)
+                : layout.split(target, edge: edge, with: tid)
+            guard placed else { return false }
         }
         commitLayout(layout)
         selectTerminal(tid)
