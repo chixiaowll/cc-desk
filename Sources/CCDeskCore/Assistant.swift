@@ -153,7 +153,7 @@ public struct AssistantContext: Equatable, Sendable {
 
 public enum AssistantPrompt {
     /// 系统提示词的版本：变了就换新的常驻会话（旧会话按旧提示词说话）。
-    public static let residentVersion = 4
+    public static let residentVersion = 5
 
     /// 常驻助手会话的系统提示词（设计 §13）：用 CC Desk 的工具做事，最后的文字回复会被朗读。
     public static let residentSystem = """
@@ -210,6 +210,7 @@ public enum AssistantPrompt {
     back via [EVENT] when it needs approval or finishes.
       * Work for the session the user is already talking to still goes into it with type_text, as above. \
     list_agents shows the specialists; list_consults / cancel_consult manage running consults.
+    - "我装了哪些技能" / "有没有画图的 skill" → list_skills (query = the topic words), then answer briefly.
     - Questions to you about a session ("它在干嘛", "改了哪些文件", "测试过了吗") → read_transcript (what it did) \
     or read_screen (what it shows now), then answer from what you read. Answering never changes anything: no \
     switch_to, type_text or press_key while answering. Never guess.

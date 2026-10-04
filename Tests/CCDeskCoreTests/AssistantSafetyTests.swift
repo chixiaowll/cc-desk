@@ -7,7 +7,7 @@ final class AssistantToolPolicyTests: XCTestCase {
                             "resume_session", "close_session", "take_over", "open_file", "consult", "delegate",
                             "cancel_consult"]
     private let readOnly = ["list_sessions", "read_screen", "read_transcript", "list_history", "list_projects",
-                            "git_status", "list_agents", "list_consults"]
+                            "git_status", "list_agents", "list_consults", "list_skills"]
 
     func testEveryToolIsClassified() {
         XCTAssertEqual(Set(AssistantTools.all.map(\.name)), Set(mutating + readOnly))

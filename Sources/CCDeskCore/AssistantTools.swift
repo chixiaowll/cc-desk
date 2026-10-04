@@ -161,6 +161,14 @@ public enum AssistantTools {
                 "profiles can be used with consult; any profile can be used with delegate.",
             readOnly: true),
         AssistantToolSpec(
+            name: "list_skills",
+            description: "List the skills installed on this Mac for Claude Code, Codex and pi (personal, claude.ai " +
+                "synced, plugins, project and shared skills, plugin commands / subagents) and the CC Desk specialist " +
+                "agents: name, description, kind, source, enabled (false = plugin disabled), agents, path.",
+            parameters: [.init("query", .string, "Optional words to match in the name or description."),
+                         .init("agent", .string, "Only what this agent can use.", options: ["claude", "codex", "pi"])],
+            readOnly: true),
+        AssistantToolSpec(
             name: "list_consults",
             description: "List recent consult jobs with their state (running / done / failed / cancelled / timedOut) " +
                 "and, when done, the short conclusion.",

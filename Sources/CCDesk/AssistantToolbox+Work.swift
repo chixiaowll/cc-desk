@@ -117,6 +117,20 @@ extension AssistantToolbox {
                        "directory": .string("~/.cc-desk/agents (Claude Code subagent format)")]))
     }
 
+    /// 技能库（设计 §21）：用缓存（30 秒内）或重新扫描；最多返回 60 项。
+    func listSkills(_ args: ToolArgs, _ done: @escaping Completion) {
+        guard let model else { return done(Self.shuttingDown) }
+        show(L("assistant.activity.list"))
+        let agent = args.string("agent").flatMap { AgentKind(rawValue: $0.lowercased()) }
+        let query = args.string("query")
+        model.skills.current { entries in
+            let matched = SkillCatalog.filter(entries, query: query, agent: agent)
+            let home = NSHomeDirectory()
+            done(.success(["skills": .array(matched.prefix(60).map { $0.json(home: home) }),
+                           "total": .number(Double(matched.count)), "truncated": .bool(matched.count > 60)]))
+        }
+    }
+
     func listConsults(_ done: @escaping Completion) {
         guard let model else { return done(Self.shuttingDown) }
         show(L("assistant.activity.list"))
