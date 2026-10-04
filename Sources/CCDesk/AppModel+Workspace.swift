@@ -17,6 +17,8 @@ extension AppModel {
             }
         }
         saveWorkspace()
+        // 退出时窗口可能被逐个关闭：不再把独立窗口里的终端放回主窗口，保留记录供下次恢复。
+        detachedWindows.isTerminating = true
         return true
     }
 
@@ -30,7 +32,9 @@ extension AppModel {
             return WorkspaceEntry(terminalID: terminal.id, cwd: cwd, sessionID: sessionID,
                                   name: terminal.title, kind: kind)
         }
-        try? WorkspaceStore.save(WorkspaceFile(entries: embedded + missing, layout: panes.layout))
+        let detached = detachedWindows.entries
+        try? WorkspaceStore.save(WorkspaceFile(entries: embedded + missing, layout: panes.layout,
+                                               detached: detached.isEmpty ? nil : detached))
     }
 
     func restore() {
@@ -57,10 +61,12 @@ extension AppModel {
         // 收养了没有记录的会话：立即写进 workspace。
         if !restore.plan.adopted.isEmpty { saveWorkspace() }
         restoreLayout(restore.layout)
+        restoreDetached(restore.detached)
         // 选回分屏的焦点窗格（没有分屏记录时为上次选中的终端）；它没能恢复时选第一个。
         let last = panes.layout.focused
             ?? UserDefaults.standard.string(forKey: Self.lastSelectedTerminalKey).flatMap(UUID.init(uuidString:))
-        if let terminal = pool.terminals.first(where: { $0.id == last }) ?? pool.terminals.first {
+        if let terminal = pool.terminals.first(where: { $0.id == last })
+            ?? pool.terminals.first(where: { !detachedWindows.owns($0.id) }) {
             selectedID = "term:\(terminal.id.uuidString)"
         }
     }

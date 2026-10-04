@@ -9,9 +9,11 @@ extension AppModel {
         groups.lazy.flatMap(\.rows).first { $0.session.host == .embedded(terminalID: tid) }
     }
 
-    /// 选中变化时调用（selectedID 的 didSet）：选中的内嵌终端显示在布局里并成为焦点。
+    /// 选中变化时调用（selectedID 的 didSet）：选中的内嵌终端显示在布局里并成为焦点；
+    /// 分离到独立窗口的终端不进布局，改为把它的窗口拿到最前（设计 §20.3）。
     func layoutFollowSelection() {
         guard let tid = selectedTerminalID, pool.terminal(tid) != nil else { return }
+        if detachedWindows.owns(tid) { return detachedWindows.bringToFront(tid) }
         var layout = panes.layout
         layout.show(tid)
         commitLayout(layout)
@@ -25,7 +27,7 @@ extension AppModel {
     }
 
     /// 选中某个终端（焦点跟过去）；nil 时清除选中。
-    private func select(terminal tid: UUID?) {
+    func selectTerminal(_ tid: UUID?) {
         let id = tid.map { "term:\($0.uuidString)" }
         if selectedID != id { selectedID = id }
     }
@@ -35,7 +37,7 @@ extension AppModel {
     /// 点了某个窗格（终端本身、留白或标题条）：选中它。
     func focusPane(_ tid: UUID) {
         guard panes.layout.contains(tid) else { return }
-        select(terminal: tid)
+        selectTerminal(tid)
     }
 
     /// ⌥⌘←/→/↑/↓：把焦点移到相邻的窗格。
@@ -43,7 +45,7 @@ extension AppModel {
         var layout = panes.layout
         guard let target = layout.moveFocus(edge) else { return NSSound.beep() }
         commitLayout(layout)
-        select(terminal: target)
+        selectTerminal(target)
         focusSelectedTerminal()
     }
 
@@ -52,7 +54,7 @@ extension AppModel {
         var layout = panes.layout
         layout.toggleZoom(tid)
         commitLayout(layout)
-        if let focused = layout.focused { select(terminal: focused) }
+        if let focused = layout.focused { selectTerminal(focused) }
         focusSelectedTerminal()
     }
 
@@ -78,17 +80,18 @@ extension AppModel {
     /// 在 `target`（默认焦点窗格）的 `edge` 一侧分屏显示已有会话，并选中它。
     func openInSplit(_ tid: UUID, edge: PaneEdge, beside target: UUID? = nil) {
         guard pool.terminal(tid) != nil else { return }
+        undockIfDetached(tid)
         var layout = panes.layout
         guard let target = target ?? layout.focused else {
             layout.show(tid)
             commitLayout(layout)
-            return select(terminal: tid)
+            return selectTerminal(tid)
         }
-        guard target != tid else { return select(terminal: tid) }
+        guard target != tid else { return selectTerminal(tid) }
         guard layout.contains(tid) || panes.canSplit(target, edge: edge),
               layout.split(target, edge: edge, with: tid) else { return NSSound.beep() }
         commitLayout(layout)
-        select(terminal: tid)
+        selectTerminal(tid)
     }
 
     /// ⌘D / ⇧⌘D：在焦点窗格旁边分屏，弹出面板选择放什么（已有会话或新建）。
@@ -101,7 +104,9 @@ extension AppModel {
 
     /// 分屏面板里能选的会话：侧栏顺序里还没显示在窗格里的内嵌会话。
     var splitCandidates: [SidebarRow] {
-        embeddedRowsInOrder.filter { row in row.session.host.terminalID.map { !panes.layout.contains($0) } ?? false }
+        embeddedRowsInOrder.filter { row in
+            row.session.host.terminalID.map { !panes.layout.contains($0) && !detachedWindows.owns($0) } ?? false
+        }
     }
 
     /// 分屏面板选了一个已有会话。
@@ -150,6 +155,7 @@ extension AppModel {
     @discardableResult
     func drop(_ tid: UUID, on target: UUID?, zone: PaneDropZone) -> Bool {
         guard canDrop(tid, on: target, zone: zone) else { return false }
+        undockIfDetached(tid)
         var layout = panes.layout
         switch (target, zone) {
         case (nil, _): layout.show(tid)
@@ -158,7 +164,7 @@ extension AppModel {
             guard layout.split(target, edge: edge, with: tid) else { return false }
         }
         commitLayout(layout)
-        select(terminal: tid)
+        selectTerminal(tid)
         focusSelectedTerminal()
         return true
     }
@@ -178,17 +184,18 @@ extension AppModel {
         var layout = panes.layout
         layout.remove(tid)
         commitLayout(layout)
-        if selectedTerminalID == tid || selectedTerminalID == nil { select(terminal: layout.focused) }
+        if selectedTerminalID == tid || selectedTerminalID == nil { selectTerminal(layout.focused) }
         focusSelectedTerminal()
     }
 
     /// 终端被移除（会话关闭 / 结束）：窗格收拢；选中的是它时选中接替的窗格。
     func layoutTerminalRemoved(_ tid: UUID) {
         let wasSelected = selectedTerminalID == tid
+        detachedTerminalRemoved(tid)
         var layout = panes.layout
         layout.remove(tid)
         commitLayout(layout, save: false)
-        if wasSelected { select(terminal: layout.focused) }
+        if wasSelected { selectTerminal(layout.focused) }
     }
 
     /// 启动恢复：用保存的布局（去掉没能恢复的终端）。

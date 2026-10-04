@@ -371,3 +371,27 @@ final class PaneDropZoneTests: XCTestCase {
         XCTAssertEqual(PaneDropZone.edge(.bottom).highlight(in: rect), CGRect(x: 100, y: 50, width: 200, height: 50))
     }
 }
+
+final class DetachedWindowEntryTests: XCTestCase {
+    func testRoundTripWithAndWithoutFrame() throws {
+        let file = WorkspaceFile(entries: [], detached: [
+            DetachedWindowEntry(terminalID: UUID(), frame: CGRect(x: 10, y: 20, width: 800, height: 500)),
+            DetachedWindowEntry(terminalID: UUID()),
+        ])
+        let decoded = try JSONDecoder().decode(WorkspaceFile.self, from: try JSONEncoder().encode(file))
+        XCTAssertEqual(decoded, file)
+    }
+
+    func testInvalidFrameIsDropped() throws {
+        let id = UUID()
+        let json = #"{"terminalID": "\#(id.uuidString)", "x": 1, "y": 2, "width": 0, "height": 300}"#
+        let entry = try JSONDecoder().decode(DetachedWindowEntry.self, from: Data(json.utf8))
+        XCTAssertEqual(entry.terminalID, id)
+        XCTAssertNil(entry.frame)
+    }
+
+    func testOldWorkspaceHasNoDetachedWindows() throws {
+        let old = #"{"version": 1, "entries": []}"#
+        XCTAssertNil(try JSONDecoder().decode(WorkspaceFile.self, from: Data(old.utf8)).detached)
+    }
+}

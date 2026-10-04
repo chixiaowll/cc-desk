@@ -51,6 +51,12 @@ final class AppModel: ObservableObject {
     let pool = TerminalPool()
     /// 详情区的分屏布局（设计 §20）。
     let panes = PaneLayoutModel()
+    /// 分离到独立窗口的终端（设计 §20.3）。
+    private(set) lazy var detachedWindows: DetachedWindows = {
+        let windows = DetachedWindows()
+        windows.model = self
+        return windows
+    }()
     let notifier = Notifier()
     /// 推送到手机（设置 › 通知），与系统通知在同一处触发。
     let push = PhonePushCenter()

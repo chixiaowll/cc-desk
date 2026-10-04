@@ -466,3 +466,11 @@
 "pane.picker.searchDown" = "Open in split below…";
 "pane.picker.newSession" = "New session…";
 "pane.picker.hint.open" = "Open";
+
+/* 独立窗口（设计 §20.3） */
+"menu.detachPane" = "Open in New Window";
+"row.menu.openInWindow" = "Open in New Window";
+"row.menu.showWindow" = "Show Window";
+"pane.detach.help" = "Open in a new window";
+"detached.reattach.help" = "Move back to the main window (the session keeps running)";
+"row.detached.help" = "Shown in its own window";

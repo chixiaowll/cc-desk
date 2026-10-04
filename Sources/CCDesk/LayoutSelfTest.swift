@@ -116,6 +116,37 @@ enum LayoutSelfTest {
         let allViews = Set((main.subviews + other.subviews).filter { $0 is DetectingTerminalView }.map(ObjectIdentifier.init))
         check(allViews.count == ids.count, "every terminal view has exactly one host")
 
+        // 独立窗口：放进屏幕外窗口里的单终端容器，主容器交出；独立窗口先交出、主容器后接回（以及反过来的顺序）。
+        let detachedWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560),
+                                      styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: true)
+        let single = SingleTerminalHostView(frame: NSRect(x: 0, y: 0, width: 820, height: 560))
+        detachedWindow.contentView = single
+        if let view = views[ids[2]] {
+            var remaining = views
+            remaining[ids[2]] = nil
+            single.host(view)
+            main.adopt(remaining)
+            single.layout()
+            check(view.superview === single && view.window === detachedWindow && !view.isHidden,
+                  "detached window hosts the terminal")
+            check(view.frame.width > 700 && view.frame.height > 450, "detached terminal fills its window")
+            single.host(nil)
+            main.adopt(views)
+            check(view.superview === main && single.subviews.isEmpty, "closing the window returns the view (window first)")
+            main.adopt(remaining)
+            single.host(view)
+            main.adopt(remaining)
+            single.host(nil)
+            single.host(nil)
+            main.adopt(views)
+            check(view.superview === main, "returning works when the window releases twice")
+            single.host(view)
+            main.adopt(views)       // 主容器先接回
+            single.host(nil)        // 独立窗口后交出：不能把已经回到主容器的视图拿走
+            check(view.superview === main, "returning works when the main container takes the view first")
+        }
+        detachedWindow.contentView = nil
+
         if let view = views[ids[0]] {
             layout.toggleZoom(ids[0])
             main.terminalFrames = PaneGeometry(layout: layout, size: size).terminalFrames

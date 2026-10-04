@@ -466,3 +466,11 @@
 "pane.picker.searchDown" = "在下方分屏打开…";
 "pane.picker.newSession" = "新建会话…";
 "pane.picker.hint.open" = "打开";
+
+/* 独立窗口（设计 §20.3） */
+"menu.detachPane" = "在新窗口中打开";
+"row.menu.openInWindow" = "在新窗口中打开";
+"row.menu.showWindow" = "显示独立窗口";
+"pane.detach.help" = "在新窗口中打开";
+"detached.reattach.help" = "放回主窗口（会话继续运行）";
+"row.detached.help" = "显示在独立窗口中";

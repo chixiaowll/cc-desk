@@ -13,6 +13,8 @@ struct SessionRowView: View {
     var onResume: (() -> Void)? = nil
     /// 是否在第二行显示 agent 名；由调用方按 `AgentLabelPolicy` 决定。
     var showAgentLabel: Bool = AgentLabelPolicy.showAgentLabel
+    /// 显示在独立窗口里（设计 §20.3）：名字后面一个小窗口图标。
+    var detached: Bool = false
     @State private var hovering = false
 
     private var isWaiting: Bool { row.session.status.isWaiting }
@@ -49,7 +51,14 @@ struct SessionRowView: View {
                         .foregroundStyle(theme.fg1)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: detached ? nil : .infinity, alignment: .leading)
+                    if detached {
+                        Image(systemName: "macwindow")
+                            .font(.system(size: 10))
+                            .foregroundStyle(theme.fg3)
+                            .help(L("row.detached.help"))
+                        Spacer(minLength: 0)
+                    }
                     if hovering, let onResume {
                         Button(action: onResume) {
                             HStack(spacing: 3) {
@@ -245,6 +254,7 @@ struct RowMenu: View {
                     .disabled(!model.canOpenInSplit(tid, edge: .right))
                 Button(L("row.menu.openBelow")) { model.openInSplit(tid, edge: .bottom) }
                     .disabled(!model.canOpenInSplit(tid, edge: .bottom))
+                Button(model.isDetached(tid) ? L("row.menu.showWindow") : L("row.menu.openInWindow")) { model.detach(tid) }
                 Divider()
             }
             Button(L("row.menu.revealInFinder")) { model.revealInFinder(row) }

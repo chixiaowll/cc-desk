@@ -23,6 +23,8 @@ struct PaneCommands: View {
         Button(L("menu.closePane")) { inMainWindow { model.closePane() } }
             .keyboardShortcut("w", modifiers: [.command, .option])
             .disabled(!layout.isSplit)
+        Button(L("menu.detachPane")) { inMainWindow { model.detachFocused() } }
+            .disabled(layout.focused == nil)
         Menu(L("menu.focusPane")) {
             focusButton(L("menu.focusLeft"), .left, key: .leftArrow)
             focusButton(L("menu.focusRight"), .right, key: .rightArrow)

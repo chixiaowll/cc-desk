@@ -49,7 +49,7 @@ struct PaneArea: View {
             let geometry = PaneGeometry(layout: layout, size: size)
             ZStack(alignment: .topLeading) {
                 PaneTerminalHost(
-                    pool: model.pool, owned: model.pool.terminals.map(\.id),
+                    pool: model.pool, owned: model.pool.terminals.map(\.id).filter { !model.isDetached($0) },
                     terminalFrames: geometry.terminalFrames, paneFrames: geometry.paneFrames,
                     focused: layout.focused, background: theme.terminal.background, accent: NSColor(theme.accent),
                     canDrop: { model.canDrop($0, on: $1, zone: $2) },
@@ -131,6 +131,9 @@ struct PaneHeader: View {
                     .layoutPriority(-1)
             }
             Spacer(minLength: 4)
+            SidebarIconButton(systemName: "macwindow.badge.plus", help: L("pane.detach.help"), theme: theme) {
+                model.detach(terminalID)
+            }
             SidebarIconButton(systemName: zoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
                               help: zoomed ? L("pane.unzoom.help") : L("pane.zoom.help"), on: zoomed, theme: theme) {
                 model.toggleZoom(terminalID)

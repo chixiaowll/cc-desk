@@ -66,6 +66,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ThemeStore.shared.pool = model.pool
         AppearancePreference.stored.apply(pool: model.pool)
         model.start()
+        // 上次分离的独立窗口：登录启动时等用户打开主窗口再显示（showMainWindow）。
+        if !launchedAtLogin { model.openPendingDetachedWindows() }
         desktop.start()
     }
 
@@ -108,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 主窗口还在（被关闭 / 最小化 / 登录启动时收起）就拿到最前；已经销毁则重新打开。
     func showMainWindow() {
         desktop?.endLaunchSuppression()
+        model.openPendingDetachedWindows()
         if NSApp.isHidden { NSApp.unhide(nil) }
         if let main = mainWindow {
             if main.isMiniaturized { main.deminiaturize(nil) }

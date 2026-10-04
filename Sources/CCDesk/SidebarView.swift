@@ -78,7 +78,8 @@ struct GroupSectionView: View {
                                        theme: theme,
                                        onResume: row.session.host.isEmbedded && row.session.status == .ended
                                            && !model.isResumingEnded(row) ? { model.resumeEnded(row) } : nil,
-                                       showAgentLabel: showAgentLabel)
+                                       showAgentLabel: showAgentLabel,
+                                       detached: row.session.host.terminalID.map(model.isDetached) ?? false)
                             .onTapGesture { model.activate(row) }
                             .contextMenu {
                                 RowMenu(model: model, row: row)
