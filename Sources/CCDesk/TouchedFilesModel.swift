@@ -52,7 +52,11 @@ final class TouchedFilesModel: ObservableObject {
     private var locating = false
     private var refreshing = false
     /// 切换会话时加一，丢弃过时的后台结果。
-    private var generation = 0
+    private var generation = 0 {
+        didSet { latestGeneration.set(generation) }
+    }
+    /// `generation` 的线程安全副本：后台读取大文件时据此提前停下（用户已切到别的会话）。
+    private let latestGeneration = LockedValue(0)
     /// 快速查看正在显示面板列表（而不是终端里 ⌘-点击的单个文件）：列表变化时才同步过去。
     private var previewFromList = false
     /// 会话 -> 上次打开面板时（或第一次加载时）已有的新建文档；之后多出来的才算「新」。
@@ -127,7 +131,8 @@ final class TouchedFilesModel: ObservableObject {
             let tracker = self.tracker.flatMap { $0.url == url ? $0 : nil }
                 ?? TouchedFilesTracker(url: url, kind: target.kind, cwd: target.cwd)
             self.tracker = tracker
-            let changed = tracker.refresh()
+            let latest = self.latestGeneration
+            let changed = tracker.refresh { latest.get() == generation }
             // 面板显示时每次都检查文件是否还在（用户可能删掉了）；隐藏时只在记录变化后重算。
             let snapshot: [TouchedFile]? = changed || force || visible ? tracker.log.files() : nil
             DispatchQueue.main.async { [weak self] in
@@ -251,5 +256,27 @@ final class TouchedFilesModel: ObservableObject {
         let matched = q.isEmpty ? existing : existing.filter { $0.path.lowercased().contains(q) }
         let byTime = matched.sorted { ($0.lastTouched ?? .distantPast) > ($1.lastTouched ?? .distantPast) }
         return byTime.first(where: \.isDocument) ?? byTime.first
+    }
+}
+
+/// 加锁的小值（主线程写、后台读）。
+final class LockedValue<Value> {
+    private let lock = NSLock()
+    private var value: Value
+
+    init(_ value: Value) {
+        self.value = value
+    }
+
+    func get() -> Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
+    }
+
+    func set(_ newValue: Value) {
+        lock.lock()
+        value = newValue
+        lock.unlock()
     }
 }

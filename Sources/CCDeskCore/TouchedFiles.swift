@@ -355,8 +355,9 @@ public final class TouchedFilesTracker {
     }
 
     /// 文件大小 / 修改时间变了才读新增部分；返回记录是否可能有变化。
+    /// `shouldContinue` 在每块之间检查：返回 false 时停下（已读的部分保留，下次从停下处继续）。
     @discardableResult
-    public func refresh() -> Bool {
+    public func refresh(shouldContinue: () -> Bool = { true }) -> Bool {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
               let size = (attrs[.size] as? NSNumber)?.uint64Value else { return false }
         let modified = attrs[.modificationDate] as? Date
@@ -372,6 +373,7 @@ public final class TouchedFilesTracker {
         do {
             try handle.seek(toOffset: offset)
             while offset < size {
+                guard shouldContinue() else { return false }
                 let want = Int(min(UInt64(Self.chunkSize), size - offset))
                 guard let data = try handle.read(upToCount: want), !data.isEmpty else { break }
                 offset += UInt64(data.count)
