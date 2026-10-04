@@ -13,7 +13,11 @@ struct AssistantResultsSheet: View {
     var body: some View {
         let theme = themes.theme(for: colorScheme)
         VStack(alignment: .leading, spacing: 12) {
-            Text(L("results.title")).font(.headline)
+            HStack {
+                Text(L("results.title")).font(.headline)
+                Spacer()
+                CloseButton { work.showResults = false }
+            }
             Text(L("results.intro"))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)

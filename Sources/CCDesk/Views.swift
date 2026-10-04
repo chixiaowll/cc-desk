@@ -291,7 +291,11 @@ struct NewSessionSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(L("newSession.title", kind.displayName)).font(.headline)
+            HStack {
+                Text(L("newSession.title", kind.displayName)).font(.headline)
+                Spacer()
+                CloseButton { model.showNewSession = false }
+            }
             AgentPicker(model: model, selection: $kind)
             if model.recentDirs.isEmpty {
                 Text(L("newSession.noRecent")).foregroundStyle(.secondary)
