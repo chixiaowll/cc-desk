@@ -7,7 +7,8 @@ import CCDeskCore
 /// 2. [EVENT] 里模型要 type_text → 被拒绝、没有执行，拒绝说明交回模型；
 /// 3. 参数不是 JSON → 错误结果交回模型；4. HTTP 500 → `.api("HTTP 500")`，历史不变；5. 超时后队列继续；
 /// 6. 历史写盘（0600）、新实例读回、重置清空；7. Bearer 密钥；8. 测试连接与模型列表；9. 接口版顾问（项目外的文件读不到）；
-/// 10. 没配置 → `.notInstalled`；11. 诊断日志里没有密钥与消息内容。最后（可选）本机 Ollama 有模型时测一次真实的工具调用。
+/// 10. 没配置 → `.notInstalled`；11. 诊断日志里没有密钥与消息内容；12. 健壮性（`AssistantAPISelfTestRobustness`）：
+/// 离谱的数字、按时超时、失败的一轮保留已执行的工具、FIFO、输出上限。最后（可选）本机 Ollama 有模型时测一次真实的工具调用。
 enum AssistantAPISelfTest {
     static func runIfRequested() {
         guard CommandLine.arguments.dropFirst().first == "--assistant-api-selftest" else { return }
@@ -49,7 +50,12 @@ enum AssistantAPISelfTest {
         let tools = messages[lastUser...].filter { $0["role"] == "tool" }.compactMap { $0["content"]?.stringValue }
         let toolNames = body["tools"]?.arrayValue?.compactMap { $0["function"]?["name"]?.stringValue } ?? []
         if toolNames == [AssistantAPIProbe.toolName] { return MockChatServer.toolCalls([("ping", #"{"value":"ok"}"#)]) }
-        if messages.first?["content"]?.stringValue?.contains("senior advisor") == true { return consult(tools) }
+        if messages.first?["content"]?.stringValue?.contains("senior advisor") == true {
+            return AssistantAPISelfTestRobustness.consult(user: user, tools: tools) ?? consult(tools)
+        }
+        if let scripted = AssistantAPISelfTestRobustness.respond(user: user, tools: tools, messages: messages) {
+            return scripted
+        }
         if user.contains("SCENARIO http500") { return .init(status: 500, body: #"{"error":{"message":"boom"}}"#) }
         if user.contains("SCENARIO slow") { return .init(status: 200, body: MockChatServer.text("late").body, delay: 3) }
         if user.contains("SCENARIO auth") {

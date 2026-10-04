@@ -114,6 +114,9 @@ enum AssistantAPISelfTestFlows {
         check(!diag.contains(AssistantAPISelfTest.key) && !diag.contains("SCENARIO") && !diag.contains("LIST_OK"),
               "diagnostics contain no key and no message contents")
 
+        // 12. 健壮性。
+        AssistantAPISelfTestRobustness.run(base: base, root: root, check: check, wait: wait)
+
         liveOllama(wait: wait)
     }
 
