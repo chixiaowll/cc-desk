@@ -14,7 +14,7 @@ final class TerminalAppearanceTests: XCTestCase {
         for scheme in TerminalColorScheme.allCases {
             XCTAssertEqual(scheme.palette.ansi.count, 16, scheme.rawValue)
         }
-        XCTAssertEqual(TerminalPalette.light.background, 0xF4EFE6)
+        XCTAssertEqual(TerminalPalette.light.background, 0xF4F7F4)
         XCTAssertEqual(TerminalPalette.dark.background, 0x1B1A18)
     }
 
