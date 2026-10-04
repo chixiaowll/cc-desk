@@ -45,7 +45,7 @@ struct SettingsView: View {
                 .tag(SettingsTab.usage.rawValue)
         }
         .frame(width: 600, height: 560)
-        .background(WindowChrome(color: NSColor(themes.theme(for: colorScheme).main), transparentTitlebar: false))
+        .background(WindowChrome(color: NSColor(themes.theme(for: colorScheme).main)))
     }
 }
 
