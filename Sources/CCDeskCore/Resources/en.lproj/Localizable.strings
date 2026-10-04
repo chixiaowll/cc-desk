@@ -8,6 +8,8 @@
 "status.ended" = "Ended";
 "status.unknown" = "Unknown";
 "status.done" = "Done";
+"status.idleBackground" = "Idle · background task";
+"status.doneBackground" = "Done · background task";
 "status.terminal" = "Terminal";
 "status.waitingForInput" = "Waiting for input";
 "availability.checking" = "Checking…";

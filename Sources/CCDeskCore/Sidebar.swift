@@ -44,8 +44,9 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
 
     /// 状态文字：内嵌终端里没有运行 agent 的普通 shell 显示「终端」，其余取状态本身的文字。
     public var statusLabel: String {
-        if showsUnread { return L("status.done") }
+        if showsUnread { return session.showsBackgroundWork ? L("status.doneBackground") : L("status.done") }
         if session.status == .unknown, session.host.isEmbedded, !session.kind.isAgent { return L("status.terminal") }
+        if session.showsBackgroundWork { return L("status.idleBackground") }
         return session.status.label
     }
 

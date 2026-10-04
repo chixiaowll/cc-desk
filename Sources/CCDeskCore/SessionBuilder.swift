@@ -110,7 +110,8 @@ public enum SessionBuilder {
             result.append(AgentSession(
                 id: id, kind: .claude, sessionID: entry.sessionID, pid: entry.pid, tty: tty,
                 cwd: entry.cwd, name: entry.name ?? "", nameIsDerived: entry.nameIsDerived,
-                host: host, status: entry.status, statusChangedAt: entry.statusUpdatedAt))
+                host: host, status: entry.status, statusChangedAt: entry.statusUpdatedAt,
+                backgroundWork: entry.backgroundWork))
         }
 
         // Codex / pi：外部会话 id 为 "<kind>-pid:<pid>"。

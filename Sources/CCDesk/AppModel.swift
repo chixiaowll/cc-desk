@@ -11,6 +11,8 @@ final class AppModel: ObservableObject {
     var now: Date { clock.now }
     /// 每个会话当前这次等批准的编号与开始时刻（通知按钮 / 语音批准核对仍是同一次等待）。
     var waitingEpisodes = WaitingEpisodes(base: Int(Date().timeIntervalSince1970) * 1000)
+    /// 注册表出现未知 / 缺失 status 时沿用该会话上一次的已知状态。
+    var registryStatus = RegistryStatusMemory()
     @Published var selectedID: String? {
         didSet {
             if let id = selectedID { clearUnread(id) }

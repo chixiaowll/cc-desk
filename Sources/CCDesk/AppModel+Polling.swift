@@ -126,9 +126,10 @@ extension AppModel {
         UserDefaults.standard.set(notified, forKey: Self.usageAlertsKey)
     }
 
-    private func apply(registry: [RegistryEntry], processes: ProcessTable, agents snapshots: [AgentProcessSnapshot],
+    private func apply(registry raw: [RegistryEntry], processes: ProcessTable, agents snapshots: [AgentProcessSnapshot],
                        projects: [String: ProjectRef], titles: [String: TranscriptMeta]) {
         polling = false
+        let registry = registryStatus.resolve(raw)
         clock.now = Date()
         lastProcesses = processes
         let agents = mergeAgentStatus(snapshots, processes: processes)
