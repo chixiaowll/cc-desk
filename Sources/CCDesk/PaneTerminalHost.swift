@@ -143,7 +143,9 @@ struct PaneTerminalHost: NSViewRepresentable {
         }
 
         private func applyFrames() {
-            for (id, view) in views {
+            // 只动确实还在这里的视图：刚被独立窗口接走的终端还留在旧名单里（下一次 adopt 前），
+            // 不能按「布局里没有它」把它隐藏，否则独立窗口一片空白。
+            for (id, view) in views where view.superview === self {
                 if let frame = terminalFrames[id] {
                     if view.frame != frame { view.frame = frame }
                     if view.isHidden { view.isHidden = false }

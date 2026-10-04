@@ -144,6 +144,8 @@ final class SingleTerminalHostView: NSView {
         super.layout()
         syncWithProvider()
         let insets = Self.insets
+        // 托管着的终端始终可见（别的容器不该再动它；这里兜底）。
+        if let view = terminalView, view.superview === self, view.isHidden { view.isHidden = false }
         terminalView?.frame = NSRect(x: insets.left, y: insets.bottom,
                                      width: max(0, bounds.width - insets.left - insets.right),
                                      height: max(0, bounds.height - insets.top - insets.bottom))

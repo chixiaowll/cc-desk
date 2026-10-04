@@ -132,6 +132,18 @@ enum LayoutSelfTest {
             check(view.superview === single && view.window === detachedWindow && !view.isHidden,
                   "detached window hosts the terminal")
             check(view.frame.width > 700 && view.frame.height > 450, "detached terminal fills its window")
+            // 真实顺序：独立窗口先接走视图，主容器随后先更新布局（旧名单里还有它、布局里已没有它）再 adopt。
+            main.adopt(views)
+            var framesWith = main.terminalFrames
+            framesWith[ids[2]] = NSRect(x: 0, y: 0, width: 400, height: 300)
+            main.terminalFrames = framesWith            // 分离前：它在主窗口布局里、可见
+            single.host(view)                           // 独立窗口接走
+            var framesWithout = framesWith
+            framesWithout[ids[2]] = nil
+            main.terminalFrames = framesWithout         // 主窗口随后更新布局（旧名单里还有它）
+            check(view.superview === single && !view.isHidden,
+                  "main container's layout update does not hide a terminal a detached window just took")
+            main.adopt(remaining)
             single.host(nil)
             main.adopt(views)
             check(view.superview === main && single.subviews.isEmpty, "closing the window returns the view (window first)")
