@@ -384,3 +384,28 @@
 "settings.usage.alertNote" = "任一额度达到 %d%% 时，每个重置周期提醒一次。";
 "statusMenu.settings" = "设置…";
 "action.done" = "完成";
+
+/* 改动的文件（§17） */
+"menu.touchedFiles" = "改动的文件";
+"files.title" = "改动的文件";
+"files.section.documents" = "文档与产出";
+"files.section.code" = "代码";
+"files.quickLook.help" = "快速查看（空格）";
+"files.filter.placeholder" = "筛选";
+"files.empty.filtered" = "没有匹配的文件";
+"files.empty.noSession" = "选中一个 agent 会话，查看它改动的文件";
+"files.empty.loading" = "正在读取会话记录…";
+"files.empty.notFound" = "还没有找到会话记录";
+"files.empty.none" = "这个会话还没有改动文件";
+"files.badge.new" = "新";
+"files.badge.modified" = "已改";
+"files.badge.deleted" = "已删除";
+"files.badge.missing" = "不存在";
+"files.menu.quickLook" = "快速查看";
+"files.menu.open" = "用默认 App 打开";
+"files.menu.reveal" = "在访达中显示";
+"files.menu.vscode" = "用 VS Code 打开";
+"files.menu.copyPath" = "复制路径";
+"files.menu.copyRelativePath" = "复制相对路径";
+"files.toggle.help" = "改动的文件（⇧⌘F）";
+"files.toggle.newHelp" = "改动的文件：有你还没看过的新文档（⇧⌘F）";

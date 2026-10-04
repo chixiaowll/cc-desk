@@ -1,0 +1,318 @@
+import SwiftUI
+import AppKit
+import CCDeskCore
+
+/// 详情区右侧的「改动的文件」面板（设计 §17）：文档与产出在前、代码在后，各自按最后改动时间倒序。
+/// 单击选中；空格 / 眼睛按钮快速查看；双击 / 回车用默认 App 打开；右键更多动作。查看都交给系统（快速查看、默认 App）。
+struct TouchedFilesPanel: View {
+    @ObservedObject var files: TouchedFilesModel
+    let now: Date
+    let theme: Theme
+    @FocusState private var focused: Bool
+    /// 宿主窗口（快速查看要插到它的响应链里）。
+    @State private var window: NSWindow?
+
+    static let width: CGFloat = 300
+    static let filterThreshold = 15
+
+    var body: some View {
+        let list = files.visibleFiles
+        let documents = list.filter(\.isDocument)
+        let code = list.filter { !$0.isDocument }
+        VStack(spacing: 0) {
+            header
+            if files.files.count > Self.filterThreshold { filterField }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 1) {
+                        if !documents.isEmpty {
+                            sectionTitle(L("files.section.documents"), count: documents.count)
+                            ForEach(documents) { row($0) }
+                        }
+                        if !code.isEmpty {
+                            sectionTitle(L("files.section.code"), count: code.count)
+                                .padding(.top, documents.isEmpty ? 0 : 8)
+                            ForEach(code) { row($0) }
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 10)
+                }
+                .overlay { emptyState(list: list) }
+                .onChange(of: files.selection) { _, selection in
+                    if let selection { proxy.scrollTo(selection) }
+                }
+            }
+            .focusable()
+            .focused($focused)
+            .focusEffectDisabled()
+            .onKeyPress(.upArrow) { files.moveSelection(by: -1); return .handled }
+            .onKeyPress(.downArrow) { files.moveSelection(by: 1); return .handled }
+            .onKeyPress(.space) {
+                guard files.selection != nil else { return .ignored }
+                files.toggleQuickLook(window: window)
+                return .handled
+            }
+            .onKeyPress(.return) {
+                guard let path = files.selection, let file = files.files.first(where: { $0.path == path }), file.exists
+                else { return .ignored }
+                FileActions.open(path)
+                return .handled
+            }
+        }
+        .frame(width: Self.width)
+        .background(theme.side)
+        .background(WindowReader(window: $window))
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Text(L("files.title"))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(theme.fg1)
+            if !files.files.isEmpty {
+                Text("\(files.files.count)")
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(theme.fg2)
+                    .padding(.horizontal, 6)
+                    .frame(height: 16)
+                    .background(Capsule().fill(theme.chip))
+            }
+            Spacer(minLength: 0)
+            Button {
+                files.toggleQuickLook(window: window)
+            } label: {
+                Image(systemName: "eye").font(.system(size: 12))
+                    .foregroundStyle(files.selection == nil ? theme.fg3 : theme.fg2)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(files.selection == nil)
+            .help(L("files.quickLook.help"))
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .frame(height: 36)
+    }
+
+    private var filterField: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "line.3.horizontal.decrease").font(.system(size: 10)).foregroundStyle(theme.fg3)
+            TextField(L("files.filter.placeholder"), text: $files.filter)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11.5))
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 24)
+        .background(RoundedRectangle(cornerRadius: 6).fill(theme.main))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.line, lineWidth: 1))
+        .padding(.horizontal, 10)
+        .padding(.bottom, 6)
+    }
+
+    private func sectionTitle(_ title: String, count: Int) -> some View {
+        Text("\(title) · \(count)")
+            .font(.system(size: 10.5, weight: .semibold))
+            .foregroundStyle(theme.fg3)
+            .padding(.leading, 6)
+            .padding(.vertical, 4)
+    }
+
+    private func row(_ file: TouchedFile) -> some View {
+        TouchedFileRow(file: file, relativePath: files.relativePath(file), selected: files.selection == file.path,
+                       now: now, theme: theme,
+                       onQuickLook: { files.toggleQuickLook(file.path, window: window) })
+            .id(file.path)
+            .onTapGesture(count: 2) {
+                files.selection = file.path
+                if file.exists { FileActions.open(file.path) }
+            }
+            .simultaneousGesture(TapGesture().onEnded {
+                files.selection = file.path
+                focused = true
+            })
+            .contextMenu { TouchedFileMenu(file: file, relativePath: files.relativePath(file),
+                                           quickLook: { files.toggleQuickLook(file.path, window: window) }) }
+    }
+
+    @ViewBuilder
+    private func emptyState(list: [TouchedFile]) -> some View {
+        if list.isEmpty {
+            let text: String = {
+                if !files.files.isEmpty { return L("files.empty.filtered") }
+                switch files.phase {
+                case .noSession: return L("files.empty.noSession")
+                case .locating: return L("files.empty.loading")
+                case .notFound: return L("files.empty.notFound")
+                case .loaded: return L("files.empty.none")
+                }
+            }()
+            Text(text)
+                .font(.system(size: 12))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(theme.fg3)
+                .padding(.horizontal, 24)
+        }
+    }
+}
+
+/// 一行：图标 + 文件名 + 徽标 + 时间；第二行是相对项目根目录的位置（淡色）。
+struct TouchedFileRow: View {
+    let file: TouchedFile
+    let relativePath: String
+    let selected: Bool
+    let now: Date
+    let theme: Theme
+    let onQuickLook: () -> Void
+    @State private var hovering = false
+
+    private var background: Color {
+        if selected { return theme.sel }
+        if hovering { return theme.hover }
+        return .clear
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(nsImage: FileActions.icon(for: file.path, exists: file.exists))
+                .resizable()
+                .frame(width: 20, height: 20)
+                .opacity(file.exists ? 1 : 0.45)
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 6) {
+                    Text(file.name)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(file.exists ? theme.fg1 : theme.fg3)
+                        .strikethrough(file.action == .deleted, color: theme.fg3)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    badge
+                    Spacer(minLength: 0)
+                    if (hovering || selected) && file.exists {
+                        Button(action: onQuickLook) {
+                            Image(systemName: "eye").font(.system(size: 11)).foregroundStyle(theme.fg2)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(L("files.quickLook.help"))
+                    } else if let last = file.lastTouched {
+                        Text(RelativeTime.short(from: last, now: now))
+                            .font(.system(size: 10.5).monospacedDigit())
+                            .foregroundStyle(theme.fg3)
+                    }
+                }
+                .frame(height: 16)
+                Text(directory)
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.fg3)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(height: 14)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(RoundedRectangle(cornerRadius: 7).fill(background))
+        .overlay {
+            if selected { RoundedRectangle(cornerRadius: 7).strokeBorder(theme.selLine, lineWidth: 1) }
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .help(file.path)
+    }
+
+    /// 文件所在目录（相对项目根目录；就在根目录下时显示「./」）。
+    private var directory: String {
+        let dir = (relativePath as NSString).deletingLastPathComponent
+        return dir.isEmpty ? "./" : dir + "/"
+    }
+
+    /// 徽标：新 / 已改 / 已删除；文件已不在时显示「不存在」。
+    private var badgeStyle: (text: String, bg: Color, fg: Color) {
+        if file.action == .deleted { return (L("files.badge.deleted"), theme.pillMissBg, theme.pillMissFg) }
+        if !file.exists { return (L("files.badge.missing"), theme.pillMissBg, theme.pillMissFg) }
+        if file.action == .created { return (L("files.badge.new"), theme.chipUnreadBg.opacity(0.16), theme.unread) }
+        return (L("files.badge.modified"), theme.pillIdleBg, theme.pillIdleFg)
+    }
+
+    private var badge: some View {
+        let style = badgeStyle
+        return Text(style.text)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(style.fg)
+            .padding(.horizontal, 5)
+            .frame(height: 15)
+            .background(Capsule().fill(style.bg))
+            .fixedSize()
+    }
+}
+
+/// 右键菜单。已删除 / 不存在的文件只能复制路径。
+struct TouchedFileMenu: View {
+    let file: TouchedFile
+    let relativePath: String
+    let quickLook: () -> Void
+
+    var body: some View {
+        if file.exists {
+            Button(L("files.menu.quickLook"), action: quickLook)
+            Button(L("files.menu.open")) { FileActions.open(file.path) }
+            Button(L("files.menu.reveal")) { FileActions.reveal(file.path) }
+            if Jumper.vsCodeURL != nil {
+                Button(L("files.menu.vscode")) { Jumper.openInVSCode(file: file.path) }
+            }
+            Divider()
+        }
+        Button(L("files.menu.copyPath")) { FileActions.copy(file.path) }
+        if file.exists {
+            Button(L("files.menu.copyRelativePath")) { FileActions.copy(relativePath) }
+        }
+    }
+}
+
+/// 标题栏里的面板开关；选中会话新建了没看过的文档时右上角显示小圆点。
+struct TouchedFilesToggle: View {
+    @ObservedObject var files: TouchedFilesModel
+    let theme: Theme
+
+    var body: some View {
+        Button {
+            files.isShown.toggle()
+        } label: {
+            Image(systemName: files.isShown ? "doc.text.fill" : "doc.text")
+                .font(.system(size: 13))
+                .foregroundStyle(files.isShown ? theme.fg1 : theme.fg2)
+                .frame(width: 26, height: 22)
+                .overlay(alignment: .topTrailing) {
+                    if files.hasUnseenDocument && !files.isShown {
+                        Circle().fill(theme.accent).frame(width: 6, height: 6).offset(x: -3, y: 2)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(files.hasUnseenDocument ? L("files.toggle.newHelp") : L("files.toggle.help"))
+    }
+}
+
+/// 取得 SwiftUI 视图所在的 NSWindow。
+struct WindowReader: NSViewRepresentable {
+    @Binding var window: NSWindow?
+
+    final class Probe: NSView {
+        var onWindow: ((NSWindow?) -> Void)?
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            onWindow?(window)
+        }
+    }
+
+    func makeNSView(context: Context) -> Probe {
+        let view = Probe()
+        view.onWindow = { w in DispatchQueue.main.async { if window !== w { window = w } } }
+        return view
+    }
+
+    func updateNSView(_ nsView: Probe, context: Context) {}
+}

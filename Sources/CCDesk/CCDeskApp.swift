@@ -190,6 +190,7 @@ struct CCDeskApp: App {
                     delegate.model.showHistoryPalette = true
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
+                TouchedFilesMenuItem(files: delegate.model.touchedFiles)
             }
             // 偏好开关都在设置窗口（⌘,）里；这里只留常用动作。
             CommandMenu(L("menu.session")) {
@@ -211,6 +212,16 @@ struct CCDeskApp: App {
         Settings {
             SettingsView(model: delegate.model, selectLanguage: { delegate.selectLanguage($0) })
         }
+    }
+}
+
+/// 菜单「显示 → 改动的文件」（⇧⌘F）：开关详情区右侧的面板（设计 §17）。
+private struct TouchedFilesMenuItem: View {
+    @ObservedObject var files: TouchedFilesModel
+
+    var body: some View {
+        Toggle(L("menu.touchedFiles"), isOn: $files.isShown)
+            .keyboardShortcut("f", modifiers: [.command, .shift])
     }
 }
 

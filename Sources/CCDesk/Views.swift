@@ -42,19 +42,24 @@ struct DetailView: View {
         let row = model.selectedRow.flatMap { $0.session.host.isEmbedded ? $0 : nil }
         VStack(spacing: 0) {
             theme.line.frame(height: 1)
-            ZStack {
-                TerminalContainer(pool: model.pool, terminalIDs: model.pool.terminals.map(\.id),
-                                  selected: model.selectedTerminalID, background: theme.terminal.background)
-                if model.selectedTerminalID == nil {
-                    Text(L("detail.empty"))
-                        .font(.system(size: 13))
-                        .foregroundStyle(theme.fg3)
+            HStack(spacing: 0) {
+                ZStack {
+                    TerminalContainer(pool: model.pool, terminalIDs: model.pool.terminals.map(\.id),
+                                      selected: model.selectedTerminalID, background: theme.terminal.background)
+                    if model.selectedTerminalID == nil {
+                        Text(L("detail.empty"))
+                            .font(.system(size: 13))
+                            .foregroundStyle(theme.fg3)
+                    }
+                    VoiceOverlay(voice: model.voice, theme: theme)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .padding(.bottom, 16)
                 }
-                VoiceOverlay(voice: model.voice, theme: theme)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 16)
+                .background(Color(nsColor: theme.terminal.background))
+                if row?.session.kind.isAgent == true {
+                    TouchedFilesSlot(files: model.touchedFiles, now: model.now, theme: theme)
+                }
             }
-            .background(Color(nsColor: theme.terminal.background))
             if row != nil {
                 VoiceBar(voice: model.voice, conversation: model.conversation, theme: theme)
             }
@@ -65,6 +70,7 @@ struct DetailView: View {
                 .onAppear { width = proxy.size.width }
                 .onChange(of: proxy.size.width) { _, new in width = new }
         })
+        .onChange(of: Self.touchedKey(row), initial: true) { _, _ in model.touchedFiles.select(row: row) }
         .toolbarBackground(.hidden, for: .windowToolbar)
         .toolbar {
             // 标题在左（navigation）；状态胶囊用 .automatic 放在工具栏最右侧。
@@ -75,12 +81,40 @@ struct DetailView: View {
             ToolbarItem(placement: .automatic) {
                 if let row {
                     HStack(spacing: 6) {
+                        if row.session.kind.isAgent {
+                            TouchedFilesToggle(files: model.touchedFiles, theme: theme)
+                        }
                         ConversationBadge(conversation: model.conversation, theme: theme)
                         StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
                                    unread: row.showsUnread, theme: theme)
                     }
                 }
             }
+        }
+    }
+}
+
+extension DetailView {
+    /// 「改动的文件」跟踪的会话标识：种类 + sessionId + cwd 任一变化就重新加载。
+    static func touchedKey(_ row: SidebarRow?) -> String {
+        guard let row else { return "" }
+        return "\(row.session.kind.rawValue)|\(row.session.sessionID ?? "")|\(row.session.cwd)"
+    }
+}
+
+/// 面板的显示 / 隐藏（单独观察 TouchedFilesModel，开关时不重绘整个详情区）。
+struct TouchedFilesSlot: View {
+    @ObservedObject var files: TouchedFilesModel
+    let now: Date
+    let theme: Theme
+
+    var body: some View {
+        if files.isShown {
+            HStack(spacing: 0) {
+                theme.line.frame(width: 1)
+                TouchedFilesPanel(files: files, now: now, theme: theme)
+            }
+            .transition(.move(edge: .trailing))
         }
     }
 }

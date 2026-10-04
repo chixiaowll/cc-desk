@@ -384,3 +384,28 @@
 "settings.usage.alertNote" = "You get one alert per reset period when any limit reaches %d%%.";
 "statusMenu.settings" = "Settings…";
 "action.done" = "Done";
+
+/* Files the agent touched (§17) */
+"menu.touchedFiles" = "Changed Files";
+"files.title" = "Changed Files";
+"files.section.documents" = "Documents & outputs";
+"files.section.code" = "Code";
+"files.quickLook.help" = "Quick Look (Space)";
+"files.filter.placeholder" = "Filter";
+"files.empty.filtered" = "No matching files";
+"files.empty.noSession" = "Select an agent session to see the files it changed";
+"files.empty.loading" = "Reading the transcript…";
+"files.empty.notFound" = "Transcript not found yet";
+"files.empty.none" = "This session has not changed any files yet";
+"files.badge.new" = "New";
+"files.badge.modified" = "Edited";
+"files.badge.deleted" = "Deleted";
+"files.badge.missing" = "Missing";
+"files.menu.quickLook" = "Quick Look";
+"files.menu.open" = "Open with Default App";
+"files.menu.reveal" = "Show in Finder";
+"files.menu.vscode" = "Open in VS Code";
+"files.menu.copyPath" = "Copy Path";
+"files.menu.copyRelativePath" = "Copy Relative Path";
+"files.toggle.help" = "Changed files (⇧⌘F)";
+"files.toggle.newHelp" = "Changed files: new documents since you last looked (⇧⌘F)";

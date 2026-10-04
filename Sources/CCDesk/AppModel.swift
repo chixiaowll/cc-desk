@@ -61,6 +61,8 @@ final class AppModel: ObservableObject {
     private(set) lazy var toolbox = AssistantToolbox(model: self)
     /// 顾问、派活、专业 agent 与主动提醒（设计 §14）。
     private(set) lazy var work = AssistantWork(model: self)
+    /// 「改动的文件」面板（设计 §17）。
+    private(set) lazy var touchedFiles = TouchedFilesModel(model: self)
     private var controlServer: ControlServer?
     private let resolver = ProjectResolver(git: SystemProbe.git)
     private let queue = DispatchQueue(label: "cc-desk.poll")
@@ -784,12 +786,8 @@ final class AppModel: ObservableObject {
         let kind = row.session.kind
         let title = row.displayName
         let status = row.session.status
-        let transcripts = self.transcripts
-        let agentIndex = self.agentIndex
-        queue.async {
-            let url: URL? = kind == .claude
-                ? transcripts.path(forSession: sid)
-                : agentIndex.locate(kind: kind, sessionID: sid).map { URL(fileURLWithPath: $0) }
+        queue.async { [weak self] in
+            let url = self?.transcriptURL(kind: kind, sessionID: sid)
             let digest = url.map { url -> String in
                 let tail = TranscriptReader.readTail(url, bytes: TurnDigest.tailBytes)
                 return turns > 0 ? TurnDigest.digest(kind: kind, tail: tail, turns: turns) : TurnDigest.digest(kind: kind, tail: tail)
@@ -798,6 +796,26 @@ final class AppModel: ObservableObject {
                 completion(digest.map { AssistantDigest(title: title, status: status, digest: $0) })
             }
         }
+    }
+
+    /// 会话记录文件：Claude 查 TranscriptIndex，Codex / pi 查 AgentSessionIndex；只在 `queue` 上调用。
+    private func transcriptURL(kind: AgentKind, sessionID: String) -> URL? {
+        kind == .claude
+            ? transcripts.path(forSession: sessionID)
+            : agentIndex.locate(kind: kind, sessionID: sessionID).map { URL(fileURLWithPath: $0) }
+    }
+
+    /// 在后台定位会话记录文件（找不到时为 nil）；completion 在主线程。
+    func locateTranscript(kind: AgentKind, sessionID: String, completion: @escaping (URL?) -> Void) {
+        queue.async { [weak self] in
+            let url = self?.transcriptURL(kind: kind, sessionID: sessionID)
+            DispatchQueue.main.async { completion(url) }
+        }
+    }
+
+    /// 某个 cwd 所属项目的根目录（最近一次轮询的解析结果；未解析过时为 nil）。
+    func projectRoot(forCwd cwd: String) -> String? {
+        lastProjects[cwd]?.root
     }
 
     // MARK: 状态集成

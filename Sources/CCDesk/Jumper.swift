@@ -11,12 +11,22 @@ enum Jumper {
         return result.booleanValue
     }
 
+    /// 本机安装的 VS Code（未安装时为 nil）。
+    static var vsCodeURL: URL? {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.VSCode")
+    }
+
     static func openInVSCode(cwd: String) {
         let url = URL(fileURLWithPath: cwd)
-        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.microsoft.VSCode") else {
+        guard let app = vsCodeURL else {
             NSWorkspace.shared.open(url)
             return
         }
         NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    /// 用 VS Code 打开一个文件（未安装时用默认 App）。
+    static func openInVSCode(file path: String) {
+        openInVSCode(cwd: path)
     }
 }
