@@ -77,6 +77,11 @@ final class PhonePushCenter {
         guard settings.provider != .none else { return }
         let presence = known ?? PresenceProbe.current()
         let now = Date()
+        for event in events where !PushPolicy.shouldPush(event.kind, settings: settings, presence: presence) {
+            // 记下没推的原因，方便排查「为什么手机没收到」（不含会话标题与内容）。
+            AssistantDiag.log("push skipped kind=\(event.kind) provider=\(settings.provider.rawValue) " +
+                              "condition=\(settings.condition.rawValue) idle=\(Int(presence.idleSeconds))s locked=\(presence.screenLocked)")
+        }
         for event in events where PushPolicy.shouldPush(event.kind, settings: settings, presence: presence) {
             guard let row = rows.first(where: { $0.id == event.sessionKey }) else { continue }
             let key = PushPolicy.dedupeKey(sessionKey: event.sessionKey, kind: event.kind)
