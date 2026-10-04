@@ -106,6 +106,39 @@ public enum TouchedFiles {
         return path
     }
 
+    /// 面板第二行显示的所在目录（以 "/" 结尾）：在 root 下时相对 root（就在根目录时为 "./"）；
+    /// 否则在家目录下时为 "~/…"，再不然是绝对路径。超过 `maxLength` 个字符时从中间省略整段目录，
+    /// 保留开头（"~/Documents"）与结尾（离文件最近的几层），如 "~/Documents/…/cc-desk/docs/design/"。
+    public static func displayDirectory(_ path: String, root: String?, home: String = NSHomeDirectory(),
+                                        maxLength: Int = 36) -> String {
+        let relative = relativePath(path, root: root, home: home)
+        let dir = (relative as NSString).deletingLastPathComponent
+        if dir.isEmpty { return "./" }
+        if dir == "/" { return "/" }
+        return middleTruncated(dir, maxLength: maxLength) + "/"
+    }
+
+    /// 按路径段从中间省略：保留开头两段（"~" + 第一层，或绝对路径的前两层），从末尾往前尽量多留几段。
+    /// 最后一段本身就放不下时仍保留它，由界面再截断。
+    static func middleTruncated(_ dir: String, maxLength: Int) -> String {
+        guard dir.count > maxLength else { return dir }
+        let absolute = dir.hasPrefix("/")
+        let parts = dir.split(separator: "/", omittingEmptySubsequences: true).map(String.init)
+        let headCount = (parts.first == "~" || absolute) ? 2 : 1
+        let headParts = Array(parts.prefix(headCount))
+        guard parts.count > headCount + 1 else { return dir }
+        let head = (absolute ? "/" : "") + headParts.joined(separator: "/")
+        var tail: [String] = [parts[parts.count - 1]]
+        var index = parts.count - 2
+        while index >= headCount {
+            let candidate = [parts[index]] + tail
+            if head.count + "/…/".count + candidate.joined(separator: "/").count > maxLength { break }
+            tail = candidate
+            index -= 1
+        }
+        return head + "/…/" + tail.joined(separator: "/")
+    }
+
     // MARK: 抽取
 
     /// 一行里可能有写文件动作的特征字节；不含这些的行不做 JSON 解析（会话记录可能几十 MB）。

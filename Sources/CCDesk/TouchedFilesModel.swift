@@ -190,6 +190,11 @@ final class TouchedFilesModel: ObservableObject {
         file.relativePath(root: root)
     }
 
+    /// 行里第二行显示的所在目录（项目内相对根目录，项目外 "~/…" 并从中间省略）。
+    func displayDirectory(_ file: TouchedFile) -> String {
+        TouchedFiles.displayDirectory(file.path, root: root)
+    }
+
     /// ↑ / ↓ 移动选中（没有选中时从第一个 / 最后一个开始）。
     func moveSelection(by delta: Int) {
         let list = visibleFiles

@@ -154,6 +154,34 @@ final class TouchedFilesTests: XCTestCase {
         XCTAssertEqual(TouchedFiles.relativePath("/etc/hosts", root: nil, home: "/h"), "/etc/hosts")
     }
 
+    func testDisplayDirectoryInsideRootIsRelative() {
+        XCTAssertEqual(TouchedFiles.displayDirectory("/p/root/docs/design/a.md", root: "/p/root", home: "/h"), "docs/design/")
+        XCTAssertEqual(TouchedFiles.displayDirectory("/p/root/a.md", root: "/p/root", home: "/h"), "./")
+    }
+
+    func testDisplayDirectoryOutsideRootUsesHomeAndMiddleTruncation() {
+        let home = "/Users/me"
+        let path = home + "/Documents/work/research/cc-desk/docs/design/mockup.html"
+        XCTAssertEqual(TouchedFiles.displayDirectory(path, root: "/elsewhere", home: home),
+                       "~/Documents/…/cc-desk/docs/design/")
+        // 放得下时不省略。
+        XCTAssertEqual(TouchedFiles.displayDirectory(home + "/notes/a.md", root: "/elsewhere", home: home), "~/notes/")
+        // 家目录外的绝对路径：保留前两层。
+        XCTAssertEqual(TouchedFiles.displayDirectory("/opt/homebrew/Cellar/tmux/3.7c/share/man/man1/tmux.1", root: nil,
+                                                     home: home), "/opt/homebrew/…/3.7c/share/man/man1/")
+        XCTAssertEqual(TouchedFiles.displayDirectory("/etc/hosts", root: nil, home: home), "/etc/")
+    }
+
+    func testMiddleTruncationKeepsHeadAndLastComponent() {
+        // 最后一段本身就超长：仍保留开头与最后一段，交给界面再截断。
+        let long = String(repeating: "x", count: 50)
+        XCTAssertEqual(TouchedFiles.middleTruncated("~/a/b/c/\(long)", maxLength: 20), "~/a/…/\(long)")
+        XCTAssertEqual(TouchedFiles.middleTruncated("~/aaaa/bbbbbbbbbb/cccccccccccccccc", maxLength: 30),
+                       "~/aaaa/…/cccccccccccccccc")
+        // 只有开头两段 + 一段时没有可省略的。
+        XCTAssertEqual(TouchedFiles.middleTruncated("~/aaaa/\(long)", maxLength: 20), "~/aaaa/\(long)")
+    }
+
     // MARK: 增量读取
 
     func testTrackerReadsIncrementallyAndKeepsPartialLines() throws {

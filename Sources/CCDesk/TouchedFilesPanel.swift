@@ -22,6 +22,7 @@ struct TouchedFilesPanel: View {
         VStack(spacing: 0) {
             header
             if files.files.count > Self.filterThreshold { filterField }
+            theme.line.opacity(0.7).frame(height: 1)
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 1) {
@@ -120,7 +121,7 @@ struct TouchedFilesPanel: View {
     }
 
     private func row(_ file: TouchedFile) -> some View {
-        TouchedFileRow(file: file, relativePath: files.relativePath(file), selected: files.selection == file.path,
+        TouchedFileRow(file: file, directory: files.displayDirectory(file), selected: files.selection == file.path,
                        now: now, theme: theme,
                        onQuickLook: { files.toggleQuickLook(file.path, window: window) })
             .id(file.path)
@@ -157,10 +158,10 @@ struct TouchedFilesPanel: View {
     }
 }
 
-/// 一行：图标 + 文件名 + 徽标 + 时间；第二行是相对项目根目录的位置（淡色）。
+/// 一行：图标 + 文件名 + 徽标 + 时间；第二行是所在目录（淡色，见 `TouchedFiles.displayDirectory`）。
 struct TouchedFileRow: View {
     let file: TouchedFile
-    let relativePath: String
+    let directory: String
     let selected: Bool
     let now: Date
     let theme: Theme
@@ -207,7 +208,7 @@ struct TouchedFileRow: View {
                     .font(.system(size: 11))
                     .foregroundStyle(theme.fg3)
                     .lineLimit(1)
-                    .truncationMode(.head)
+                    .truncationMode(.middle)
                     .frame(height: 14)
             }
         }
@@ -220,12 +221,6 @@ struct TouchedFileRow: View {
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .help(file.path)
-    }
-
-    /// 文件所在目录（相对项目根目录；就在根目录下时显示「./」）。
-    private var directory: String {
-        let dir = (relativePath as NSString).deletingLastPathComponent
-        return dir.isEmpty ? "./" : dir + "/"
     }
 
     /// 徽标：新 / 已改 / 已删除；文件已不在时显示「不存在」。
@@ -271,19 +266,22 @@ struct TouchedFileMenu: View {
     }
 }
 
-/// 标题栏里的面板开关；选中会话新建了没看过的文档时右上角显示小圆点。
+/// 标题栏里的面板开关：线条图标（与标题栏其他控件同一字重 / 字号，fg2），打开时加一层浅底表示选中；
+/// 选中会话新建了没看过的文档时右上角显示陶土色小圆点。
 struct TouchedFilesToggle: View {
     @ObservedObject var files: TouchedFilesModel
     let theme: Theme
+    @State private var hovering = false
 
     var body: some View {
         Button {
             files.isShown.toggle()
         } label: {
-            Image(systemName: files.isShown ? "doc.text.fill" : "doc.text")
-                .font(.system(size: 13))
-                .foregroundStyle(files.isShown ? theme.fg1 : theme.fg2)
-                .frame(width: 26, height: 22)
+            Image(systemName: "sidebar.right")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(files.isShown || hovering ? theme.fg1 : theme.fg2)
+                .frame(width: 28, height: 22)
+                .background(RoundedRectangle(cornerRadius: 6).fill(background))
                 .overlay(alignment: .topTrailing) {
                     if files.hasUnseenDocument && !files.isShown {
                         Circle().fill(theme.accent).frame(width: 6, height: 6).offset(x: -3, y: 2)
@@ -292,7 +290,13 @@ struct TouchedFilesToggle: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering = $0 }
         .help(files.hasUnseenDocument ? L("files.toggle.newHelp") : L("files.toggle.help"))
+    }
+
+    private var background: Color {
+        if files.isShown { return theme.chip }
+        return hovering ? theme.hover : .clear
     }
 }
 
