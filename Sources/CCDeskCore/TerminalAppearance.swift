@@ -21,13 +21,13 @@ public struct TerminalPalette: Equatable, Sendable {
     public let foreground: UInt32
     public let ansi: [UInt32]
 
-    /// 浅色：为 #F4F7F4 淡青灰底设计。普通色（含 0 黑、7 白）对底色 ≥ 4.5:1，明亮色 ≥ 3:1；
+    /// 浅色：为 #E3E8E4 柔和青灰底设计。普通色（含 0 黑、7 白）对底色 ≥ 4.5:1，明亮色 ≥ 3:1；
     /// 色相取自 App 的陶土红 / 雾蓝 / 鼠尾草绿，「白」是暖灰（浅底上纯白看不见）。
     public static let light = TerminalPalette(
-        background: 0xF4F7F4, foreground: 0x26302A,
+        background: 0xE3E8E4, foreground: 0x2C3530,
         ansi: [
-            0x26302A, 0xB23A2B, 0x3F7348, 0x8A6200, 0x2F5F8F, 0x8E4A84, 0x2A6F73, 0x5F6963,
-            0x737D77, 0xC5502F, 0x4E8A5C, 0xA07A1A, 0x4A7BAD, 0xA35F98, 0x3A878B, 0x86908A,
+            0x2C3530, 0xA8352A, 0x37663F, 0x7A5600, 0x2A5683, 0x7F4276, 0x245F63, 0x535D57,
+            0x66706A, 0xB5472B, 0x437A50, 0x8C6A12, 0x3F6E9E, 0x92558A, 0x337A7E, 0x77817B,
         ])
 
     /// 深色：为 #1B1A18 设计。普通色 1–7 与明亮色 9–15 对底色 ≥ 4.5:1，8（亮黑，常用作注释）≥ 3:1；
