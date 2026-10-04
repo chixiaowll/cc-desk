@@ -145,6 +145,9 @@ extension AppModel {
         sessions = built
         let previousLive = liveSessionIDs
         liveSessionIDs = Set(sessions.compactMap(\.sessionID))
+        // 新出现的会话：记下 FSEvents 位置，第一次选中时从这里回放项目里生成的文件（只在集合变化时）。
+        let addedLive = liveSessionIDs.subtracting(previousLive)
+        if !addedLive.isEmpty { touchedFiles.noteNewSessions(addedLive) }
         for (sid, meta) in titles { titleCache[sid] = meta }
         titleCache = titleCache.filter { liveSessionIDs.contains($0.key) }
         var hostApps: [String: String] = [:]

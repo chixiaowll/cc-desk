@@ -179,9 +179,10 @@ public enum AssistantTools {
             parameters: [.init("job", .string, "Job id from consult / list_consults (e.g. c2); omit for the latest running.")]),
         AssistantToolSpec(
             name: "open_file",
-            description: "Show a file a session's agent wrote or edited: the most recent document-like one (md, html, " +
-                "pdf, image, csv, office document…), optionally matching words from its name or path. Opens it in the " +
-                "system Quick Look panel (default) or in its default app.",
+            description: "Show a file a session's agent wrote, edited, generated with a command or mentioned in its " +
+                "replies: the most recent document-like one (md, html, pdf, image, video, csv, office document…), " +
+                "optionally matching words from its name or path. Opens it in the system Quick Look panel (default) " +
+                "or in its default app.",
             parameters: [.init("session", .string, sessionRef),
                          .init("query", .string, "Optional words from the file name or path (e.g. report, README)."),
                          .init("app", .boolean, "true = open in the default app instead of Quick Look, default false.")]),

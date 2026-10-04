@@ -2,7 +2,8 @@ import SwiftUI
 import AppKit
 import CCDeskCore
 
-/// 详情区右侧的「改动的文件」面板（设计 §17）：文档与产出在前、代码在后，各自按最后改动时间倒序。
+/// 详情区右侧的「改动的文件」面板（设计 §17）：文档与产出在前、代码在后，各自按最后改动时间倒序；
+/// 最后是「提到 / 生成的文件」（agent 回复里提到的、命令在项目目录里生成的；文档与图片 / 视频在前）。
 /// 单击选中；空格 / 眼睛按钮快速查看；双击 / 回车用默认 App 打开；右键更多动作。查看都交给系统（快速查看、默认 App）。
 struct TouchedFilesPanel: View {
     @ObservedObject var files: TouchedFilesModel
@@ -17,11 +18,12 @@ struct TouchedFilesPanel: View {
 
     var body: some View {
         let list = files.visibleFiles
-        let documents = list.filter(\.isDocument)
-        let code = list.filter { !$0.isDocument }
+        let documents = list.filter { $0.origin == .tool && $0.isDocument }
+        let code = list.filter { $0.origin == .tool && !$0.isDocument }
+        let extra = list.filter { $0.origin != .tool }
         VStack(spacing: 0) {
             header
-            if files.files.count > Self.filterThreshold { filterField }
+            if files.allFiles.count > Self.filterThreshold { filterField }
             theme.line.opacity(0.7).frame(height: 1)
             ScrollViewReader { proxy in
                 ScrollView {
@@ -35,6 +37,12 @@ struct TouchedFilesPanel: View {
                                 .padding(.top, documents.isEmpty ? 0 : 8)
                             ForEach(code) { row($0) }
                         }
+                        if !extra.isEmpty {
+                            sectionTitle(L("files.section.extra"), count: extra.count)
+                                .padding(.top, documents.isEmpty && code.isEmpty ? 0 : 8)
+                            ForEach(extra) { row($0) }
+                        }
+                        if let note = files.watchNote { watchNote(note) }
                     }
                     .padding(.horizontal, 8)
                     .padding(.bottom, 10)
@@ -55,7 +63,7 @@ struct TouchedFilesPanel: View {
                 return .handled
             }
             .onKeyPress(.return) {
-                guard let path = files.selection, let file = files.files.first(where: { $0.path == path }), file.exists
+                guard let path = files.selection, let file = files.allFiles.first(where: { $0.path == path }), file.exists
                 else { return .ignored }
                 FileActions.open(path)
                 return .handled
@@ -71,8 +79,8 @@ struct TouchedFilesPanel: View {
             Text(L("files.title"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(theme.fg1)
-            if !files.files.isEmpty {
-                Text("\(files.files.count)")
+            if !files.allFiles.isEmpty {
+                Text("\(files.allFiles.count)")
                     .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
                     .foregroundStyle(theme.fg2)
                     .padding(.horizontal, 6)
@@ -130,6 +138,16 @@ struct TouchedFilesPanel: View {
             .padding(.vertical, 4)
     }
 
+    /// 项目监视没开时的说明（列表末尾的小字）。
+    private func watchNote(_ note: TouchedFilesModel.WatchNote) -> some View {
+        Text(note == .tooBroad ? L("files.watch.tooBroad") : L("files.watch.failed"))
+            .font(.system(size: 10.5))
+            .foregroundStyle(theme.fg3)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 6)
+            .padding(.top, 10)
+    }
+
     private func row(_ file: TouchedFile) -> some View {
         TouchedFileRow(file: file, directory: files.displayDirectory(file), selected: files.selection == file.path,
                        now: now, theme: theme,
@@ -151,7 +169,7 @@ struct TouchedFilesPanel: View {
     private func emptyState(list: [TouchedFile]) -> some View {
         if list.isEmpty {
             let text: String = {
-                if !files.files.isEmpty { return L("files.empty.filtered") }
+                if !files.allFiles.isEmpty { return L("files.empty.filtered") }
                 switch files.phase {
                 case .noSession: return L("files.empty.noSession")
                 case .locating: return L("files.empty.loading")
@@ -233,10 +251,14 @@ struct TouchedFileRow: View {
         .help(file.path)
     }
 
-    /// 徽标：新 / 已改 / 已删除；文件已不在时显示「不存在」。
+    /// 徽标：新 / 已改 / 已删除；生成的新文件「生成」，提到的「提到」；文件已不在时显示「不存在」。
     private var badgeStyle: (text: String, bg: Color, fg: Color) {
         if file.action == .deleted { return (L("files.badge.deleted"), theme.pillMissBg, theme.pillMissFg) }
         if !file.exists { return (L("files.badge.missing"), theme.pillMissBg, theme.pillMissFg) }
+        if file.origin == .mentioned { return (L("files.badge.mentioned"), theme.pillIdleBg, theme.pillIdleFg) }
+        if file.origin == .generated, file.action == .created {
+            return (L("files.badge.generated"), theme.chipUnreadBg.opacity(0.16), theme.unread)
+        }
         if file.action == .created { return (L("files.badge.new"), theme.chipUnreadBg.opacity(0.16), theme.unread) }
         return (L("files.badge.modified"), theme.pillIdleBg, theme.pillIdleFg)
     }

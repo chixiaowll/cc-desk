@@ -4,6 +4,8 @@ import CCDeskCore
 
 /// 「改动的文件」面板的状态（设计 §17）：只跟踪选中的会话，在后台串行队列上增量读它的会话记录。
 /// 面板显示时每 2 秒、隐藏时每 6 秒看一次文件大小 / 修改时间，变了才读新增部分；隐藏时只为「有新文档」的小圆点服务。
+/// 三个来源：工具写入（`files`）、agent 回复里提到的、选中期间项目目录里生成的（合并后只在两者之一的进 `extraFiles`）；
+/// 项目监视见 `TouchedFilesModel+Watch`。
 /// 只在主线程访问；`tracker` 只在 `queue` 上访问。
 final class TouchedFilesModel: ObservableObject {
     static let shownKey = "touchedFilesPanelShown"
@@ -33,7 +35,12 @@ final class TouchedFilesModel: ObservableObject {
             if isShown { refresh(force: true) }
         }
     }
+    /// 工具写入的文件（文档在前、代码在后）。
     @Published private(set) var files: [TouchedFile] = []
+    /// 只被提到 / 生成的文件（不与 `files` 重复；文档与图片 / 视频在前）。
+    @Published private(set) var extraFiles: [TouchedFile] = []
+    /// 项目监视没开的原因（目录太宽 / 启动失败）；nil 表示正常监视或没有会话。
+    @Published var watchNote: WatchNote?
     /// 当前会话的状态：没有 agent 会话 / 正在找记录 / 找不到记录 / 已加载。
     @Published private(set) var phase: Phase = .noSession
     /// 选中会话的 agent 新建了你上次打开面板之后没见过的文档。
@@ -45,6 +52,10 @@ final class TouchedFilesModel: ObservableObject {
 
     enum Phase: Equatable {
         case noSession, locating, notFound, loaded
+    }
+
+    enum WatchNote: Equatable {
+        case tooBroad, failed
     }
 
     struct Target: Equatable {
@@ -74,6 +85,16 @@ final class TouchedFilesModel: ObservableObject {
     private var previewFromList = false
     /// 会话 -> 上次打开面板时（或第一次加载时）已有的新建文档；之后多出来的才算「新」。
     private var seenDocuments: [String: Set<String>] = [:]
+    /// 各来源最近一次的快照（主线程），合并成 `files` / `extraFiles`。
+    private var toolSnapshot: [TouchedFile] = []
+    private var mentionSnapshot: [TouchedFile] = []
+    var generatedSnapshot: [TouchedFile] = []
+    /// 当前的项目监视（一次只有一个）与各会话停下时的记录 / 回放位置，见 `TouchedFilesModel+Watch`。
+    var watcher: ProjectWatcher?
+    var watchMemory: [String: WatchMemory] = [:]
+    var watchMemoryOrder: [String] = []
+    /// 会话 id -> 第一次在侧栏看到它时的事件编号与时刻：第一次选中时从这里回放。
+    var firstSeen: [String: WatchMemory.Start] = [:]
 
     init(model: AppModel) {
         self.model = model
@@ -89,9 +110,14 @@ final class TouchedFilesModel: ObservableObject {
         }
         root = row.flatMap { model?.projectRoot(forCwd: $0.session.cwd) } ?? row?.session.cwd
         guard next != target else { return }
+        stopWatcher()  // 先按旧会话存下监视记录
         target = next
         generation += 1
         files = []
+        extraFiles = []
+        toolSnapshot = []
+        mentionSnapshot = []
+        generatedSnapshot = []
         selection = nil
         filter = ""
         hasUnseenDocument = false
@@ -100,9 +126,13 @@ final class TouchedFilesModel: ObservableObject {
         refreshing = false
         phase = next == nil ? .noSession : .locating
         queue.async { [weak self] in self?.tracker = nil }
+        restartWatcher(root: root)
         reschedule()
         refresh(force: true)
     }
+
+    /// 当前代号（监视回调据此丢弃切换会话之前的结果）。
+    var currentGeneration: Int { generation }
 
     // MARK: 刷新
 
@@ -147,27 +177,41 @@ final class TouchedFilesModel: ObservableObject {
             let latest = self.latestGeneration
             let changed = tracker.refresh { latest.get() == generation }
             // 面板显示时每次都检查文件是否还在（用户可能删掉了）；隐藏时只在记录变化后重算。
-            let snapshot: [TouchedFile]? = changed || force || visible ? tracker.log.files() : nil
+            let recompute = changed || force || visible
+            let snapshot: [TouchedFile]? = recompute ? tracker.log.files() : nil
+            let mentions: [TouchedFile]? = recompute ? tracker.log.mentions.files() : nil
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.generation == generation else { return }
                 self.refreshing = false
                 self.phase = .loaded
-                if let snapshot, snapshot != self.files { self.apply(snapshot) }
+                guard let snapshot, let mentions,
+                      snapshot != self.toolSnapshot || mentions != self.mentionSnapshot else { return }
+                self.toolSnapshot = snapshot
+                self.mentionSnapshot = mentions
+                self.recomputeFiles()
             }
         }
     }
 
-    private func apply(_ snapshot: [TouchedFile]) {
-        files = snapshot
-        if let selection, !snapshot.contains(where: { $0.path == selection }) { self.selection = nil }
+    /// 合并三个来源；有变化才发布（每次赋值都会让面板重绘）。
+    func recomputeFiles() {
+        let merged = TouchedFilesMerge.merge(tool: toolSnapshot, generated: generatedSnapshot, mentioned: mentionSnapshot)
+        guard merged.tool != files || merged.extra != extraFiles else { return }
+        files = merged.tool
+        extraFiles = merged.extra
+        if let selection, !allFiles.contains(where: { $0.path == selection }) { self.selection = nil }
         updateUnseen()
         syncPreview()
     }
 
+    /// 面板里的全部文件，按显示顺序：工具写入的文档、代码，再是提到 / 生成的。
+    var allFiles: [TouchedFile] { files + extraFiles }
+
     // MARK: 新文档提示
 
+    /// 算「新文档」的：工具新建的文档，生成的新文档 / 图片 / 视频，提到的文档。
     private var createdDocuments: Set<String> {
-        Set(files.filter { $0.isDocument && $0.action == .created }.map(\.path))
+        Set(allFiles.filter { $0.isDocument && ($0.action == .created || $0.origin == .mentioned) }.map(\.path))
     }
 
     private func updateUnseen() {
@@ -195,8 +239,8 @@ final class TouchedFilesModel: ObservableObject {
     /// 按筛选词过滤后的文件（文件名或相对路径包含筛选词，不区分大小写）。
     var visibleFiles: [TouchedFile] {
         let query = filter.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return files }
-        return files.filter { $0.relativePath(root: root).lowercased().contains(query) }
+        guard !query.isEmpty else { return allFiles }
+        return allFiles.filter { $0.relativePath(root: root).lowercased().contains(query) }
     }
 
     func relativePath(_ file: TouchedFile) -> String {
@@ -255,24 +299,31 @@ final class TouchedFilesModel: ObservableObject {
     func files(for row: SidebarRow, completion: @escaping ([TouchedFile]?) -> Void) {
         guard row.session.kind.isAgent, let sid = row.session.sessionID, let model else { return completion(nil) }
         let target = Target(kind: row.session.kind, sessionID: sid, cwd: row.session.cwd)
-        if target == self.target, phase == .loaded { return completion(files) }
+        if target == self.target, phase == .loaded { return completion(allFiles) }
         model.locateTranscript(kind: target.kind, sessionID: sid) { [weak self] url in
             guard let url, let self else { return completion(nil) }
             self.queue.async {
                 let tracker = TouchedFilesTracker(url: url, kind: target.kind, cwd: target.cwd)
                 tracker.refresh()
-                let files = tracker.log.files()
+                let merged = TouchedFilesMerge.merge(tool: tracker.log.files(), generated: [],
+                                                     mentioned: tracker.log.mentions.files())
+                let files = merged.tool + merged.extra
                 DispatchQueue.main.async { completion(files) }
             }
         }
     }
 
-    /// 语音助手 `open_file`：选中会话的最近一个文档（可按名字筛选）；没有文档时退回最近的任意文件。
+    /// 语音助手 `open_file`：最近的一个文档（含图片 / 视频；工具写入、生成、提到的都算，可按名字筛选）；
+    /// 没有文档时退回最近的任意文件。时间相同时生成 / 提到的优先（「打开它刚生成的图片」）。
     static func latestFile(in files: [TouchedFile], matching query: String?) -> TouchedFile? {
         let existing = files.filter(\.exists)
         let q = query?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
         let matched = q.isEmpty ? existing : existing.filter { $0.path.lowercased().contains(q) }
-        let byTime = matched.sorted { ($0.lastTouched ?? .distantPast) > ($1.lastTouched ?? .distantPast) }
+        let byTime = matched.sorted { a, b in
+            let ta = a.lastTouched ?? .distantPast, tb = b.lastTouched ?? .distantPast
+            if ta != tb { return ta > tb }
+            return a.origin > b.origin
+        }
         return byTime.first(where: \.isDocument) ?? byTime.first
     }
 }

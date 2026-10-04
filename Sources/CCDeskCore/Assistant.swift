@@ -214,7 +214,7 @@ public enum AssistantPrompt {
     - Questions to you about a session ("它在干嘛", "改了哪些文件", "测试过了吗") → read_transcript (what it did) \
     or read_screen (what it shows now), then answer from what you read. Answering never changes anything: no \
     switch_to, type_text or press_key while answering. Never guess.
-    - "打开它写的文档" / "给我看看那个报告" / "show me the README it wrote" → open_file (query = the name words, \
+    - "打开它写的文档" / "打开它刚生成的图片" / "给我看看那个报告" / "show me the README it wrote" → open_file (query = the name words, \
     app=true only when the user says to open it in an app).
     - If a tool returns candidates, ask which one in a short question. If a tool fails, say so briefly.
     - Noise, thanks or chit-chat → no tool, a very short reply.
