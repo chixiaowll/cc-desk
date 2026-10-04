@@ -40,6 +40,13 @@ final class ClaudeUsageTests: ZhHansTestCase {
     }
     """
 
+    func testHugePercentIsIgnoredNotCrashing() throws {
+        let text = #"{"cachedUsageUtilization":{"fetchedAtMs":1790000000000,"utilization":{"limits":[{"kind":"session","percent":1e30},{"kind":"weekly_all","percent":42}]}}}"#
+        let usage = try XCTUnwrap(ClaudeUsage.parse(json(text)))
+        XCTAssertEqual(usage.limits.map(\.kind), ["weekly_all"])
+        XCTAssertEqual(usage.limits.first?.percentText(now: Date(timeIntervalSince1970: 0)), "42%")
+    }
+
     func testParsesLimitsArrayAsPrimarySource() throws {
         let usage = try XCTUnwrap(ClaudeUsage.parse(json(withLimits)))
         XCTAssertEqual(usage.planLabel, "Team · Max 5x")

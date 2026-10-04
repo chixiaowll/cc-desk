@@ -70,6 +70,14 @@ final class ChatCompletionsTests: XCTestCase {
         XCTAssertEqual(reply.model, "deepseek-chat")
     }
 
+    func testHugeUsageNumbersDoNotCrash() throws {
+        let body = #"{"choices":[{"message":{"content":"hi"}}],"usage":{"prompt_tokens":1e20,"completion_tokens":-1e30}}"#
+        let parsed = try ChatAPI.parse(status: 200, data: Data(body.utf8)).get()
+        XCTAssertEqual(parsed.content, "hi")
+        XCTAssertEqual(parsed.promptTokens, 0)
+        XCTAssertEqual(parsed.completionTokens, 0)
+    }
+
     func testParsesMultipleToolCallsObjectArgumentsAndMissingIDs() throws {
         let json = """
         {"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[

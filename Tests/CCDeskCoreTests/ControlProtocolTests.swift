@@ -22,6 +22,27 @@ final class JSONValueTests: XCTestCase {
         XCTAssertNil(JSONValue.parse("{broken"))
     }
 
+    /// 模型 / 服务端给的数字不可信：超大、负的超大、小数、写成字符串的科学计数法都不能让 Int 转换崩溃。
+    func testIntValueRejectsUnrepresentableNumbers() throws {
+        XCTAssertNil(JSONValue.number(1e30).intValue)
+        XCTAssertNil(JSONValue.number(-1e30).intValue)
+        XCTAssertNil(JSONValue.number(.nan).intValue)
+        XCTAssertNil(JSONValue.number(.infinity).intValue)
+        XCTAssertNil(JSONValue.number(9.2e18).intValue)
+        XCTAssertEqual(JSONValue.number(1.5).intValue, 1)
+        XCTAssertEqual(JSONValue.number(-1.5).intValue, -1)
+        XCTAssertEqual(JSONValue.number(8.9e15).intValue, 8_900_000_000_000_000)
+        XCTAssertNil(JSONValue.string("1e30").intValue)
+        XCTAssertNil(JSONValue.string("1.5").intValue)
+        XCTAssertNil(JSONValue.string("9223372036854775807").intValue)
+        XCTAssertEqual(JSONValue.string(" 42 ").intValue, 42)
+        // 经 JSON 解析来的同样安全。
+        let parsed = try XCTUnwrap(JSONValue.parse(#"{"count":1e30,"neg":-1e30,"big":"1e30"}"#))
+        XCTAssertNil(parsed["count"]?.intValue)
+        XCTAssertNil(parsed["neg"]?.intValue)
+        XCTAssertNil(parsed["big"]?.intValue)
+    }
+
     func testSlashesAndUnicodeAreNotEscaped() {
         XCTAssertEqual(JSONValue.object(["p": "/Users/u/诗"]).compact, #"{"p":"/Users/u/诗"}"#)
     }

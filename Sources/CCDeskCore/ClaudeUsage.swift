@@ -205,10 +205,12 @@ public struct ClaudeUsage: Equatable {
         return formatter.date(from: base).map { $0.addingTimeInterval(fraction) }
     }
 
-    /// 数字（Int / Double）；布尔与字符串不算。
+    /// 数字（Int / Double）；布尔与字符串不算。来自服务端 / 缓存文件，不可信：非有限值或超出 ±1e15 时 nil
+    /// （之后会 `Int(percent.rounded())`，不能因为一个离谱的数崩溃）。
     private static func number(_ value: Any?) -> Double? {
         guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() else { return nil }
-        return n.doubleValue
+        let d = n.doubleValue
+        return d.isFinite && abs(d) < 1e15 ? d : nil
     }
 
     private static func nonEmpty(_ value: Any?) -> String? {

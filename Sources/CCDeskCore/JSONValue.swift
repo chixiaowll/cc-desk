@@ -21,13 +21,22 @@ public enum JSONValue: Equatable, Sendable {
         return nil
     }
 
-    /// 数字，或能解析成数字的字符串（模型偶尔把数字写成字符串）。
+    /// 数字（向零取整），或能解析成整数的字符串（模型偶尔把数字写成字符串）。数字来自模型 / 服务端，不可信：
+    /// 非有限值或绝对值超出 ±9e15（Double 能精确表示整数的范围内）时 nil，不会因 `Int(1e30)` 崩溃。
     public var intValue: Int? {
         switch self {
-        case .number(let d): return d.isFinite ? Int(d) : nil
-        case .string(let s): return Int(s.trimmingCharacters(in: .whitespaces))
+        case .number(let d): return Self.int(d)
+        case .string(let s):
+            // 同样的范围：调用方会把几个值相加（token 数），不能接近 Int.max。
+            return Int(s.trimmingCharacters(in: .whitespaces)).flatMap { abs($0) < 9_000_000_000_000_000 ? $0 : nil }
         default: return nil
         }
+    }
+
+    /// 不可信的 Double → Int：非有限值、超出 ±9e15 时 nil；小数向零取整。
+    public static func int(_ d: Double) -> Int? {
+        guard d.isFinite, abs(d) < 9.0e15 else { return nil }
+        return Int(exactly: d.rounded(.towardZero))
     }
 
     /// 布尔，或 "true" / "false" 字符串。
