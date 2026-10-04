@@ -1,6 +1,6 @@
 CC Desk
 Uses SwiftTerm (MIT License) by Miguel de Icaza and contributors: https://github.com/migueldeicaza/SwiftTerm
-Uses WhisperKit (MIT License) by Argmax, Inc.: https://github.com/argmaxinc/WhisperKit
+Uses WhisperKit (MIT License) by Argmax, Inc.: https://github.com/argmaxinc/argmax-oss-swift
 
 Screen detection rules (Sources/CCDeskCore/BundledManifests.swift: codex.toml, pi.toml) and the
 event mapping of the Codex hook / pi extension are derived from herdr (https://github.com/herdrdev/herdr),

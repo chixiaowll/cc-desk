@@ -48,7 +48,7 @@
 ## 系统要求
 
 - macOS 14 或更高，Apple 芯片或 Intel。
-- 至少装了一个 agent：[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、[Codex CLI](https://github.com/openai/codex) 或 [pi](https://github.com/badlogic/pi-mono)。
+- 至少装了一个 agent：[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、[Codex CLI](https://github.com/openai/codex) 或 [pi](https://github.com/earendil-works/pi)。
 - 语音助手需要 Claude Code（使用你自己的 Claude 订阅）。
 
 ## 安装
@@ -115,7 +115,7 @@ swift test                   # 纯逻辑都在 CCDeskCore，可脱离界面测�
 ## 致谢
 
 - [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)（MIT）—— 终端模拟
-- [WhisperKit](https://github.com/argmaxinc/WhisperKit)（MIT）—— 本地语音识别
+- [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift)（MIT）—— 本地语音识别
 - [herdr](https://github.com/herdrdev/herdr)（Apache-2.0）—— Codex / pi 屏幕状态规则
 - [tmux](https://github.com/tmux/tmux)（ISC）—— 会话托管
 - [mlx-audio](https://github.com/Blaizzy/mlx-audio)（MIT）与 Qwen3-TTS（Apache-2.0）—— 可选自然语音
