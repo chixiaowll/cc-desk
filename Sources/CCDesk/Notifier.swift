@@ -5,8 +5,8 @@ import CCDeskCore
 
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     var onOpen: ((String) -> Void)?
-    /// 等批准通知上的按钮：(会话 key, 发通知时的等待原因, true = 批准 / false = 拒绝)，在主线程回调。
-    var onApproval: ((String, String?, Bool) -> Void)?
+    /// 等批准通知上的按钮：(会话 key, 发通知时的等待原因, 这次等待的编号, true = 批准 / false = 拒绝)，在主线程回调。
+    var onApproval: ((String, String?, Int?, Bool) -> Void)?
     /// 内嵌会话等批准通知的类别（带「批准 / 拒绝」按钮）；外部终端的通知不设类别，没有按钮。
     static let approvalCategory = "approval"
     static let approveAction = "approve"
@@ -19,7 +19,9 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         // 按钮不带 .foreground：点击后不激活 App、不把窗口带到前台；拒绝用破坏性样式。
-        let approve = UNNotificationAction(identifier: Self.approveAction, title: L("notify.action.approve"), options: [])
+        // 批准要求先解锁 Mac（锁屏时通知上点「批准」不能直接放行命令）。
+        let approve = UNNotificationAction(identifier: Self.approveAction, title: L("notify.action.approve"),
+                                           options: [.authenticationRequired])
         let deny = UNNotificationAction(identifier: Self.denyAction, title: L("notify.action.deny"), options: [.destructive])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: Self.approvalCategory, actions: [approve, deny], intentIdentifiers: [], options: [])
@@ -50,6 +52,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         if event.kind == .needsInput, event.actionable {
             content.categoryIdentifier = Self.approvalCategory
             if let reason = event.reason { info["reason"] = reason }
+            if let episode = event.episode { info["episode"] = episode }
         }
         content.userInfo = info
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
@@ -133,10 +136,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         let info = response.notification.request.content.userInfo
         guard let key = info["sessionKey"] as? String else { return completionHandler() }
         let reason = info["reason"] as? String
+        let episode = info["episode"] as? Int
         switch response.actionIdentifier {
         case Self.approveAction, Self.denyAction:
             let approve = response.actionIdentifier == Self.approveAction
-            DispatchQueue.main.async { self.onApproval?(key, reason, approve) }
+            DispatchQueue.main.async { self.onApproval?(key, reason, episode, approve) }
         case UNNotificationDefaultActionIdentifier:
             DispatchQueue.main.async { self.onOpen?(key) }
         default:

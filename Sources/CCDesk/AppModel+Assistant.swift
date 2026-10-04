@@ -44,10 +44,12 @@ extension AppModel: AssistantHost {
         if let row = sidebarRow(rowID) { closeWithoutConfirmation(row) }
     }
 
-    func assistantRespondApproval(rowID: String, expectedReason: String?, approve: Bool) -> ApprovalNotification.Decision {
+    func assistantRespondApproval(rowID: String, expectedReason: String?, expectedEpisode: Int?,
+                                  approve: Bool) -> ApprovalNotification.Decision {
         let row = sidebarRow(rowID)
-        var decision = ApprovalNotification.decide(expectedReason: expectedReason, host: row?.session.host,
-                                                   status: row?.session.status)
+        var decision = ApprovalNotification.decide(expectedReason: expectedReason, expectedEpisode: expectedEpisode,
+                                                   host: row?.session.host, status: row?.session.status,
+                                                   currentEpisode: waitingEpisodes.episode(rowID)?.id)
         let terminal = row?.session.host.terminalID.flatMap(pool.terminal)
         if decision == .apply, terminal == nil { decision = .gone }
         guard decision == .apply, let terminal else { return decision }

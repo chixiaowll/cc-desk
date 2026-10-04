@@ -58,15 +58,20 @@ final class AssistantSession: @unchecked Sendable {
     /// 每启动一个新进程加一（接回 / 新会话都算）。
     var generation: Int { queue.sync { _generation } }
 
-    /// 发一条用户消息；completion 在主线程，恰好调用一次。
-    func ask(_ message: String, timeout: TimeInterval, completion: @escaping (Result<AssistantReply, AssistantError>) -> Void) {
+    /// 发一条用户消息；completion 在主线程，恰好调用一次。turn：这条消息的种类（决定这一轮能调用哪些工具）。
+    func ask(_ message: String, turn: AssistantTurn, timeout: TimeInterval,
+             completion: @escaping (Result<AssistantReply, AssistantError>) -> Void) {
         queue.async { [self] in
-            requests.enqueue(Self.userLine(message), timeout: timeout) { result in
+            requests.enqueue(Self.userLine(message), turn: turn, timeout: timeout) { result in
                 let mapped = result.mapError(Self.map)
                 DispatchQueue.main.async { completion(mapped) }
             }
         }
     }
+
+    /// 正在等回复的那条消息的种类（工具调用权限据此判断，见 `AssistantToolPolicy`）；没有时 nil。
+    /// 工具调用只会在一条消息等回复期间到达（进程一次只处理一条），所以这就是发起调用的那一轮。
+    var currentTurn: AssistantTurn? { queue.sync { requests.currentTurn } }
 
     /// 预先启动进程（打开对话模式时调用，省掉第一句的启动时间）。
     func warmUp() {

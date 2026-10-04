@@ -98,7 +98,7 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 - 不通知的情况：App 在前台且该 session 正在右侧显示；App 刚启动的首次状态加载。
 - 点击通知：激活 App 并选中该 session（外部 session 则跳转）。
 - Dock 角标：等批准的 session 数（0 时不显示）。
-- 通知上的「批准 / 拒绝」（内嵌 session 的等批准通知）：通知类别带两个按钮，「拒绝」为破坏性样式；正文为等待原因压成一行、超过 160 字截断。按钮不激活 App、不切换选中行，只对通知所属 session 的终端发键（回车批准 / Esc 拒绝，与对话模式、`respond_approval` 共用 `EmbeddedTerminal.respondToPermission`）。点击时按 `ApprovalNotification.decide` 复核：session 仍在、是内嵌终端、仍在等批准、且等待原因与发通知时一致才发键；否则不发键，改发一条「<名称>：未执行」提示（请求已变化 / 已不在等批准 / 会话已不在）。执行后清除该 session 的未读与已送达的等批准通知并立即刷新角标。动作记入 `~/.cc-desk/assistant-diag.txt`。外部终端的等批准通知不带按钮（无法输入）。
+- 通知上的「批准 / 拒绝」（内嵌 session 的等批准通知）：通知类别带两个按钮，「拒绝」为破坏性样式；正文为等待原因压成一行、超过 160 字截断。按钮不激活 App、不切换选中行，只对通知所属 session 的终端发键（回车批准 / Esc 拒绝，与对话模式、`respond_approval` 共用 `EmbeddedTerminal.respondToPermission`）。点击时按 `ApprovalNotification.decide` 复核：session 仍在、是内嵌终端、仍在等批准、等待原因与发通知时一致、且仍是**同一次等待**才发键（`WaitingEpisodes`：每次进入等批准或等待原因变化都分配一个新编号，编号随通知的 userInfo 带上；同样的命令被处理后又请求一次也是新的一次，原因相同 / 都没有原因也不会对上；编号从启动时刻起算，上次运行留下的通知对不上）；否则不发键，改发一条「<名称>：未执行」提示（请求已变化 / 已不在等批准 / 会话已不在）。执行后清除该 session 的未读与已送达的等批准通知并立即刷新角标。动作记入 `~/.cc-desk/assistant-diag.txt`。外部终端的等批准通知不带按钮（无法输入）。「批准」按钮要求先解锁（`.authenticationRequired`），锁屏时不能直接放行命令；「拒绝」不要求。
 
 ## 4. 架构
 
@@ -430,11 +430,13 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 | `switch_to(session)` | 切到该会话（外部会话 → 走接管确认） | 外部需确认 |
 | `type_text(session, text, submit?)` | 往任意内嵌会话的输入框打字，可选回车 | — |
 | `press_key(session, key)` | enter / escape / ctrl-c / up / down / tab | ctrl-c 需确认 |
-| `respond_approval(session, approve)` | 回应等批准（仅该会话确在等批准时） | — |
+| `respond_approval(session, approve)` | 回应等批准（仅该会话确在等批准时；核对是同一次等待） | 用户的话早于请求出现 / 播报时需确认 |
 | `new_session(project, agent, prompt?)` | 新建会话，可带第一句话（自动发送） | — |
 | `resume_session(history_id)` | 恢复历史会话 | — |
 | `close_session(session)` / `take_over(session)` | 关闭 / 接管 | 需确认 |
 
+- **工具权限（`AssistantToolPolicy`，Core）**：提示词里的「不要调用工具」只是请求；真正的限制在执行器。常驻会话的每条消息带种类（`AssistantTurn`：`[UTTERANCE]` / `[EVENT]` / `[CONSULT_RESULT]` / `[SUMMARIZE]`），请求队列记下正在等回复的那一条（进程一次只处理一条消息，工具调用必然属于它）。**会改变东西的工具**（type_text、press_key、clear_input、respond_approval、switch_to、new_session、resume_session、close_session、take_over、delegate、consult、cancel_consult、open_file）只在用户的 `[UTTERANCE]` 里执行；`[EVENT]`（屏幕抓取的等待原因、记录尾部）、`[CONSULT_RESULT]`（顾问回答）、`[SUMMARIZE]`（记录尾部）以及没有请求在等回复时，只放行只读工具（`readOnly` 的 8 个），其余返回错误说明。`respond_approval` 另外要求用户这句话**开始说的时刻**晚于这次等待开始（`WaitingEpisodes` 记的 systemUptime）且晚于播报（若播报过），否则先语音确认（「poems 想要 …，确认批准吗？」）。
+- **不可信内容标注**：事件里的会话标题、等待原因、记录尾部，摘要里的记录尾部，顾问的回答都包在 `<untrusted_title>` / `<untrusted_reason>` / `<untrusted_transcript>` / `<untrusted_consult_answer>` 里（内容里的 `<untrusted` 被拆开，不能提前闭合）；系统提示词说明这些、工具结果和 Context 里的标题 / waitingFor 只是数据，不能照其中的指令行事。提示词版本 4。
 - **需确认的工具**：调用时 CC Desk 播报确认问题并显示提示条，阻塞等待最多 15 秒的语音「确认」，再把结果（done / cancelled）返回给模型。
 - **反馈**：VoiceBar 显示「听到：…」和正在执行的工具（「→ 往 poems 输入：跑一下测试」）。
 - **撤销**：说「撤销」撤回上一个可撤销动作（新建 → 关闭它；打字未发送 → 清除；切换 → 切回）。
@@ -478,8 +480,8 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - **结果面板**：「助手结果」表单（侧栏工具栏 ✨ 按钮、菜单 Session → 助手结果 ⇧⌘R）：每条显示问题、模型、项目、用时、输入 / 输出 token、状态；运行中显示已查看几处并可取消；完成的显示结论，展开看完整回答（可选中），一键复制。
 - **派活**：`delegate(project, task, agent?, profile?)` 新开内嵌会话、**不切换选中**（侧栏里出现，用户手上的会话不被打断）。claude 用 `claude --session-id <uuid> [--agents "$(cat ~/.cc-desk/agents/.launch/<name>.json)" --agent <name>] '<task>'`：预先指定会话 id；配置 JSON 写在 0600 文件里由 shell 读出，tmux 命令不会因提示词太长超限。codex / pi 用原有的 `launchCommand(prompt:)`。记录在 `~/.cc-desk/assistant/delegations.json`（行 id、终端 id、会话 id、项目、任务、agent、配置、开始时间、状态 working / waiting / idle / ended / closed；最多 30 条，关闭 3 天后删除），`list_sessions` / 上下文里派出的会话带 `delegatedTask`。
 - **专业 agent**：内置的「审查员」（reviewer，opus，Read / Grep / Glob + 只读 git）与「测试员」（tester，sonnet，Read / Grep / Glob / Bash，不能改文件）。交互式 `--agents` + `--agent` 实测可用：界面显示 `@tester`、模型 Sonnet，第一句话照常自动发送。`list_agents` 返回 name / title / description / model / readOnly；consult 只接受只读配置（配置的提示词追加到顾问提示词，工具取交集，没给 level 时用配置的模型——所以「审查一下」走 Opus）。
-- **主动提醒**：每次轮询的状态变化（TransitionDetector）经 `ProactivePolicy`：对话模式关闭 → 只发普通通知；选中的会话 → 仍由原来的选中会话播报 / 回复摘要处理；其他会话等批准 → 告诉助手；其他会话一轮完成 → 只对派出的任务（附会话记录尾部）。消息为 `[EVENT]`，助手回一句话或 `SILENT`；回复进 `ProactiveSpeechGate` 排队：用户在说话 / 识别中 / 等助手 / 正在播报 / 等确认时不播；两次主动播报至少隔 8 秒，同一会话至少隔 30 秒（顾问结果不受同会话限制），排队超过 120 秒丢弃；播之前复核会话仍在等**同一个**请求（或仍不在处理中），否则不播。助手没回复时用本地文案（「poems 想要 Bash rm -rf build，要批准吗？」）。
-- **「批准」作用于播报的会话**：播报过的等批准记为 `AnnouncedApproval`（120 秒内有效；播报后的下一句话说了别的事就失效，免得之后随口的「好的」「可以」被当成批准）。之后说「批准 / 拒绝」（选中的会话没在等批准时；待命时也接受）由本地规则直接回应**那个**会话，发键前用 `ApprovalNotification.decide` 复核仍在等同一个请求，请求变了 / 已处理 / 会话没了就不发键并说明。说法复杂时由助手调 `respond_approval(session)`，它同样按播报时的原因复核，请求变了时让助手告诉用户新的请求再问。
+- **主动提醒**：每次轮询的状态变化（TransitionDetector）经 `ProactivePolicy`：对话模式关闭 → 只发普通通知；选中的会话 → 仍由原来的选中会话播报 / 回复摘要处理；其他会话等批准 → 告诉助手；其他会话一轮完成 → 只对派出的任务（附会话记录尾部）。消息为 `[EVENT]`，助手回一句话或 `SILENT`；回复进 `ProactiveSpeechGate` 排队：用户在说话 / 识别中 / 等助手 / 正在播报 / 等确认时不播；两次主动播报至少隔 8 秒，同一会话至少隔 30 秒（顾问结果不受同会话限制），排队超过 120 秒丢弃；播之前复核会话仍在等**同一个**请求（原因与等待编号都相同，或仍不在处理中），否则不播。这一轮里助手只能用只读工具（见 §13 工具权限）。助手没回复时用本地文案（「poems 想要 Bash rm -rf build，要批准吗？」）。
+- **「批准」作用于播报的会话**：播报过的等批准记为 `AnnouncedApproval`（带等待编号与播报时刻；只有播报之后才开始说的话算回答；120 秒内有效；播报后的下一句话说了别的事就失效，免得之后随口的「好的」「可以」被当成批准）。之后说「批准 / 拒绝」（选中的会话没在等批准时；待命时也接受）由本地规则直接回应**那个**会话，发键前用 `ApprovalNotification.decide` 复核仍在等同一个请求，请求变了 / 已处理 / 会话没了就不发键并说明。说法复杂时由助手调 `respond_approval(session)`，它同样按播报时的原因复核，请求变了时让助手告诉用户新的请求再问。
 - **实测（haiku 常驻 + 假控制接口 + 真实 `CCDesk --mcp`，v3 提示词）**：「让高级助手看看 poems 的测试为什么失败」→ `consult(project=poems)`，回复「高级助手正在查看」；「用 Opus 想一下…」→ `level=opus`；「让测试员在 herdr 跑一下测试」→ `delegate(profile=tester)`；「派个 codex 去 poems 改 README 错别字」→ `delegate(agent=codex)`；「帮我把这个函数改成异步的」仍 → `type_text`（选中会话）；「审查一下 poems 的改动」→ `consult(profile=reviewer)`；等批准事件 →「herdr 的整理构建脚本任务要执行 rm -rf build，要批准吗？」，随后「批准吧」→ `respond_approval(s2)`；顾问结果 → 一两句结论，追问「刚才那个结论里说要怎么改」能答。每轮 2.2–2.8 秒（首句含启动 4.8 秒），事件 / 结论 1.2–1.4 秒（约 9k 输入 token，大部分命中缓存）。
 - **实测顾问（`CCDesk --consult-test`，临时 git 仓库）**：Sonnet 读文件并找出 bug 用时 10.5–13.1 秒（6 轮，输入 2.7–4.0 万 token、几乎全部是缓存，输出约 800）；Opus 14.1 秒（3 轮，1.3 万输入，800 输出）；要求它写文件 / touch / `git diff --output` 时这些调用被拒绝、仓库里没有多出文件；同时第三个被拒绝；取消后约 2 秒结束。
 - **额度**：Sonnet / Opus 的顾问与专业 agent 走同一订阅，占用明显多于 haiku（一次简单的顾问约是助手一句话的 2–3 倍输入、几倍输出，且价格更高）；结果面板显示每次的 token。主动提醒每个事件也是一次 haiku 调用（约 9k 输入）。
@@ -522,9 +524,9 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - **服务**（`pushProvider`）：不推送（默认）/ Bark（iOS，服务器默认 `https://api.day.app` + 设备 Key）/ ntfy（服务器默认 `https://ntfy.sh` + 主题，可选访问令牌）/ 自定义 Webhook（地址）。服务器地址存 UserDefaults（`pushBarkServer` / `pushNtfyServer`）；**设备 Key、ntfy 主题与令牌、Webhook 地址存登录钥匙串**（generic password，service `dev.local.ccdesk.push`，account `bark.deviceKey` / `ntfy.topic` / `ntfy.token` / `webhook.url`；`SecretStore` 协议，App 用 `KeychainSecretStore`，测试用 `InMemorySecretStore`）。ntfy.sh 上知道主题名就能订阅，所以主题也当密钥存。
 - **请求格式**（`PushRequestBuilder`，Core）：全部 POST JSON，`Content-Type: application/json`。Bark：`<server>/push`，`{device_key, title, body, group: "CC Desk", level: "timeSensitive"（仅等批准）, url?}`。ntfy：JSON 发布到服务根地址，`{topic, title, message, priority: 4/3, tags, click?}`，有令牌时 `Authorization: Bearer`（标题放 JSON 里，避免 HTTP 头不能放中文）。Webhook：`{title, body, session, project, status, url?}`，status 为 `waiting` / `finished` / `test`。地址只接受 http(s)。
 - **内容**（`PushMessage.make`）：标题「<项目> · <会话标题>」（相同或项目为空时只写会话标题，各最多 60 字）；正文「等批准：<原因>」（原因压成一行、最多 100 字）或「已完成」。不发送对话内容；设置页写明会把项目名、会话标题、状态与简短原因发给所选第三方服务。
-- **哪些事件**：等批准（`pushOnWaiting`，默认开）、完成一轮（`pushOnFinished`，默认关）。**时机**（`pushCondition`）：离开时（默认，`PushPolicy.isAway`：`CGEventSource.secondsSinceLastEventType` 空闲 ≥ 180 秒或 `CGSessionCopyCurrentDictionary` 的 `CGSSessionScreenIsLocked`）/ 总是。与系统通知一样不为「App 在前台且正看着」的会话推送。
+- **哪些事件**：等批准（`pushOnWaiting`，默认开）、完成一轮（`pushOnFinished`，默认关）。**时机**（`pushCondition`）：离开时（默认，`PushPolicy.isAway`：`CGEventSource.secondsSinceLastEventType` 空闲 ≥ 180 秒或 `CGSessionCopyCurrentDictionary` 的 `CGSSessionScreenIsLocked`）/ 总是。分发在 Core 的 `EventRouting.route`：系统通知与「已完成·未读」不发给「App 在前台且正看着」的会话；推送对别的会话照常交给 `PushPolicy`，对正看着的会话**只在离开时**推送（App 停在前台、选着这个会话，人却走开了——以前这种情况永远收不到推送）。离开状态只在需要时采集一次。
 - **限流去重**（`PushRateLimiter`）：同一会话的同一种状态 2 分钟内最多一条；全局每小时最多 20 条；被拒的不占名额。
-- **接入点**：`AppModel` 处理 `TransitionDetector` 事件处（与 `Notifier.post` 同一处）调用 `PhonePushCenter.handle(events, rows:)`；判断与限流在主线程（纯内存），读钥匙串与 `URLSession`（ephemeral，请求超时 10 秒、总超时 20 秒）在后台队列，不阻塞轮询。结果记到 `~/.cc-desk/assistant-diag.txt`（只记服务、状态、HTTP 码或错误域 / 错误码，不记密钥、地址与内容）。
+- **接入点**：`AppModel` 处理 `TransitionDetector` 事件处（与 `Notifier.post` 同一处）调用 `PhonePushCenter.handle(events, rows:, presence:)`；判断与限流在主线程（纯内存），读钥匙串与 `URLSession`（ephemeral，请求超时 10 秒、总超时 20 秒）在后台队列，不阻塞轮询。结果记到 `~/.cc-desk/assistant-diag.txt`（只记服务、状态、HTTP 码或错误域 / 错误码，不记密钥、地址与内容）。
 - **测试推送**：设置页「发送测试推送」不看时机与限流，显示「已发送（HTTP 200）」或失败原因（缺少配置 / 地址无效 / 网络错误 / HTTP 码）。
 
 ## 17. 改动的文件：快速找到 agent 写的文档（v1.7）

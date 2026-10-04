@@ -44,7 +44,14 @@ final class AssistantToolbox {
     }
 
     private func dispatch(_ method: String, _ args: ToolArgs, _ done: @escaping Completion) {
-        guard model != nil else { return done(Self.shuttingDown) }
+        guard let model else { return done(Self.shuttingDown) }
+        // 只有用户自己的一句话（[UTTERANCE]）能调用会改变东西的工具；[EVENT] / [CONSULT_RESULT] / [SUMMARIZE]
+        // 里的文字来自屏幕、记录与顾问，不可信（设计 §13 工具权限）。
+        let turn = model.conversation.assistantTurn
+        if AssistantTools.spec(named: method) != nil, !AssistantToolPolicy.isAllowed(method, turn: turn?.kind) {
+            AssistantDiag.log("tool \(method) denied (turn \(turn?.kind.rawValue ?? "none"))")
+            return done(.failure(ControlError(.failed, AssistantToolPolicy.denial(method, turn: turn?.kind))))
+        }
         switch method {
         case "list_sessions": listSessions(done)
         case "read_screen": readScreen(args, done)

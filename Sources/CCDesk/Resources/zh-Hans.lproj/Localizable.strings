@@ -212,6 +212,11 @@
 "assistant.confirm.takeOver" = "把 %@ 移到 CC Desk 里吗？";
 "assistant.confirm.interrupt" = "确认中断 %@ 吗？";
 "assistant.toast.confirmInterrupt" = "说「确认」中断：%@";
+"assistant.confirm.approve" = "确认批准 %@ 的请求吗？";
+"assistant.confirm.approveReason" = "%1$@ 想要 %2$@，确认批准吗？";
+"assistant.confirm.deny" = "确认拒绝 %@ 的请求吗？";
+"assistant.toast.confirmApprove" = "说「确认」批准：%@";
+"assistant.toast.confirmDeny" = "说「确认」拒绝：%@";
 "assistant.undo.none" = "没有可撤销的操作";
 "assistant.undo.created" = "已关闭刚新建的 %@";
 "assistant.undo.typed" = "已删掉刚输入的内容";

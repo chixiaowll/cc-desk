@@ -17,8 +17,10 @@ protocol AssistantHost: AnyObject {
     func assistantSwitch(to rowID: String)
     /// 关闭内嵌会话（不再弹确认框）。
     func assistantClose(_ rowID: String)
-    /// 回应某个会话的等批准：仍是内嵌终端、仍在等批准且等待原因与 expectedReason 相同时才发键（设计 §14）。
-    func assistantRespondApproval(rowID: String, expectedReason: String?, approve: Bool) -> ApprovalNotification.Decision
+    /// 回应某个会话的等批准：仍是内嵌终端、仍在等批准、等待原因与 expectedReason 相同且仍是同一次等待
+    /// （expectedEpisode，nil 时不比较）时才发键（设计 §14）。
+    func assistantRespondApproval(rowID: String, expectedReason: String?, expectedEpisode: Int?,
+                                  approve: Bool) -> ApprovalNotification.Decision
     /// 读会话记录尾部（后台），completion 在主线程。rowID 为 nil 时取选中的会话；turns > 0 时只取最近几轮。
     func assistantDigest(rowID: String?, turns: Int, completion: @escaping (AssistantDigest?) -> Void)
 }
@@ -62,8 +64,12 @@ final class VoiceAssistant {
         session.reset()
     }
 
-    /// 一句话交给常驻会话：模型用工具做事，返回最后的文字回复（要朗读的内容）。
-    func handle(utterance: String, context: AssistantContext, completion: @escaping (Result<AssistantReply, AssistantError>) -> Void) {
+    /// 正在等回复的那条消息的种类（助手工具据此决定放不放行，见 `AssistantToolPolicy`）。
+    var currentTurn: AssistantTurn? { session.currentTurn }
+
+    /// 一句话交给常驻会话：模型用工具做事，返回最后的文字回复（要朗读的内容）。spokenAt：用户开始说这句话的时刻（systemUptime）。
+    func handle(utterance: String, spokenAt: TimeInterval?, context: AssistantContext,
+                completion: @escaping (Result<AssistantReply, AssistantError>) -> Void) {
         let json = context.json()
         let generation = session.generation
         let unchanged = json == lastContextJSON && generation == lastGeneration
@@ -72,7 +78,8 @@ final class VoiceAssistant {
         events = []
         AssistantDiag.log("ask \"\(utterance)\" context=\(unchanged ? "unchanged" : "full") events=\(sentEvents.count) sessions=" +
                           context.sessions.map { "\($0.shortID):\($0.dir)\($0.isSelected ? "*" : "")" }.joined(separator: " "))
-        session.ask(message, timeout: AssistantClient.turnTimeout) { [weak self] result in
+        session.ask(message, turn: AssistantTurn(kind: .utterance, spokenAt: spokenAt),
+                    timeout: AssistantClient.turnTimeout) { [weak self] result in
             switch result {
             case .success(let reply):
                 self?.lastContextJSON = json
@@ -94,7 +101,7 @@ final class VoiceAssistant {
         let message = AssistantPrompt.residentEvent(description, language: context.language,
                                                     contextJSON: unchanged ? nil : json)
         AssistantDiag.log("event \(AssistantContext.clip(description, 200)) context=\(unchanged ? "unchanged" : "full")")
-        session.ask(message, timeout: AssistantClient.timeout) { [weak self] result in
+        session.ask(message, turn: AssistantTurn(kind: .event), timeout: AssistantClient.timeout) { [weak self] result in
             switch result {
             case .success(let reply):
                 self?.lastContextJSON = json
@@ -114,7 +121,7 @@ final class VoiceAssistant {
     func consultResult(job: ConsultJob, answer: String, language: String, completion: @escaping (String?) -> Void) {
         let message = AssistantPrompt.residentConsultResult(job: job.id, question: job.question, model: job.model,
                                                             answer: answer, language: language)
-        session.ask(message, timeout: AssistantClient.timeout) { result in
+        session.ask(message, turn: AssistantTurn(kind: .consultResult), timeout: AssistantClient.timeout) { result in
             switch result {
             case .success(let reply):
                 AssistantDiag.log(String(format: "consult result reply %.2fs: %@", reply.latency, reply.text))
@@ -130,7 +137,7 @@ final class VoiceAssistant {
     func summarize(digest: AssistantDigest?, language: String, completion: @escaping (String?) -> Void) {
         guard let digest, !digest.digest.isEmpty else { return completion(nil) }
         let message = AssistantPrompt.residentSummary(title: digest.title, digest: digest.digest, language: language)
-        session.ask(message, timeout: AssistantClient.timeout) { result in
+        session.ask(message, turn: AssistantTurn(kind: .summarize), timeout: AssistantClient.timeout) { result in
             if case .success(let reply) = result { completion(AssistantSpeech.clean(reply.text)) } else { completion(nil) }
         }
     }

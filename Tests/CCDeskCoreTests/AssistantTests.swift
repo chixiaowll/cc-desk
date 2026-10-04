@@ -90,7 +90,7 @@ final class AssistantTests: ZhHansTestCase {
         XCTAssertFalse(withContext.contains("Events"))
         let summary = AssistantPrompt.residentSummary(title: "t", digest: "RUN: swift test", language: "en")
         XCTAssertTrue(summary.hasPrefix("[SUMMARIZE] uiLanguage=en\n"))
-        XCTAssertTrue(summary.hasSuffix("RUN: swift test"))
+        XCTAssertTrue(summary.hasSuffix("RUN: swift test\n</untrusted_transcript>"))
     }
 
     func testResidentSystemPromptMentionsToolsNotJSONActions() {

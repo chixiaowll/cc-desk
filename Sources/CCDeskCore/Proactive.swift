@@ -27,8 +27,8 @@ public enum ProactivePolicy {
 public struct ProactiveSpeechGate: Equatable, Sendable {
     public struct Item: Equatable, Sendable {
         public enum Kind: Equatable, Sendable {
-            /// 会话等批准（reason 为当时的等待原因，播报前复核）。
-            case approval(reason: String?)
+            /// 会话等批准（reason / episode 为当时的等待原因与这次等待的编号，播报前复核）。
+            case approval(reason: String?, episode: Int? = nil)
             case finished
             /// 顾问结果：用户主动要的，不受同一会话间隔限制。
             case consult
@@ -111,12 +111,16 @@ public struct AnnouncedApproval: Equatable, Sendable {
     public let rowID: String
     public let name: String
     public let reason: String?
+    /// 这次等批准的编号（`WaitingEpisodes`）；批准前核对仍是同一次等待。
+    public let episode: Int?
+    /// 播报的时刻（systemUptime）：之后才开始说的「批准」才算对它的回答。
     public let at: TimeInterval
 
-    public init(rowID: String, name: String, reason: String?, at: TimeInterval) {
+    public init(rowID: String, name: String, reason: String?, episode: Int? = nil, at: TimeInterval) {
         self.rowID = rowID
         self.name = name
         self.reason = reason
+        self.episode = episode
         self.at = at
     }
 

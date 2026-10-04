@@ -27,12 +27,13 @@ final class PhonePushCenter {
         session = URLSession(configuration: configuration)
     }
 
-    /// 本轮要发系统通知的事件（已排除「App 在前台且正看着该会话」）；rows 用来取项目名与会话标题。
-    func handle(_ events: [StatusEvent], rows: [SidebarRow]) {
+    /// 本轮交给推送的事件（EventRouting 已决定：别的会话照常；正看着的会话只在离开时）；rows 用来取项目名与会话标题。
+    /// presence：调用方已采集过时传入，否则这里采集。
+    func handle(_ events: [StatusEvent], rows: [SidebarRow], presence known: PushPresence? = nil) {
         guard !events.isEmpty else { return }
         let settings = PushSettings.load()
         guard settings.provider != .none else { return }
-        let presence = PresenceProbe.current()
+        let presence = known ?? PresenceProbe.current()
         let now = Date()
         for event in events where PushPolicy.shouldPush(event.kind, settings: settings, presence: presence) {
             guard let row = rows.first(where: { $0.id == event.sessionKey }) else { continue }

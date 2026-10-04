@@ -212,6 +212,11 @@
 "assistant.confirm.takeOver" = "Move %@ into CC Desk?";
 "assistant.confirm.interrupt" = "Interrupt %@?";
 "assistant.toast.confirmInterrupt" = "Say “confirm” to interrupt: %@";
+"assistant.confirm.approve" = "Approve the request in %@?";
+"assistant.confirm.approveReason" = "%1$@ wants to %2$@. Approve it?";
+"assistant.confirm.deny" = "Deny the request in %@?";
+"assistant.toast.confirmApprove" = "Say “confirm” to approve: %@";
+"assistant.toast.confirmDeny" = "Say “confirm” to deny: %@";
 "assistant.undo.none" = "Nothing to undo";
 "assistant.undo.created" = "Closed the new %@ session";
 "assistant.undo.typed" = "Removed what was just typed";

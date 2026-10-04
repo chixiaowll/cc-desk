@@ -6,6 +6,8 @@ import CCDeskCore
 final class AppModel: ObservableObject {
     @Published private(set) var groups: [SessionGroup] = []
     @Published private(set) var now = Date()
+    /// 每个会话当前这次等批准的编号与开始时刻（通知按钮 / 语音批准核对仍是同一次等待）。
+    private(set) var waitingEpisodes = WaitingEpisodes(base: Int(Date().timeIntervalSince1970) * 1000)
     @Published var selectedID: String? {
         didSet {
             if let id = selectedID { clearUnread(id) }
@@ -142,8 +144,8 @@ final class AppModel: ObservableObject {
         startControlServer()
         installTerminalPathClicks()
         notifier.onOpen = { [weak self] key in self?.openFromNotification(key) }
-        notifier.onApproval = { [weak self] key, reason, approve in
-            self?.respondFromNotification(key, expectedReason: reason, approve: approve)
+        notifier.onApproval = { [weak self] key, reason, episode, approve in
+            self?.respondFromNotification(key, expectedReason: reason, expectedEpisode: episode, approve: approve)
         }
         notifier.setup()
         pool.tmux = TmuxHost.shared
@@ -324,15 +326,21 @@ final class AppModel: ObservableObject {
         rebuildGroups()
 
         let rows = groups.flatMap(\.rows)
-        let events = TransitionDetector.events(previous: lastStatuses, rows: rows)
-        lastStatuses = Dictionary(rows.map { ($0.id, $0.session.status) }, uniquingKeysWith: { a, _ in a })
-        var newlyUnread = false
-        let notifiable = events.filter { !(appVisible && $0.sessionKey == selectedID) }
-        for event in notifiable {
-            if NotificationPreferences.allows(event.kind) { notifier.post(event) }
-            if event.kind == .finished, unreadKeys.insert(event.sessionKey).inserted { newlyUnread = true }
+        let statuses = Dictionary(rows.map { ($0.id, $0.session.status) }, uniquingKeysWith: { a, _ in a })
+        waitingEpisodes.update(statuses: statuses, now: ProcessInfo.processInfo.systemUptime)
+        let events = waitingEpisodes.stamp(TransitionDetector.events(previous: lastStatuses, rows: rows))
+        lastStatuses = statuses
+        // 系统通知 / 未读不发给正看着的会话；推送对它只在用户离开 Mac 时发（EventRouting）。
+        var presence: PushPresence?
+        let routes = EventRouting.route(events: events, selected: selectedID, appVisible: appVisible) {
+            let value = presence ?? PresenceProbe.current()
+            presence = value
+            return value
         }
-        push.handle(notifiable, rows: rows)
+        for event in routes.notify where NotificationPreferences.allows(event.kind) { notifier.post(event) }
+        let newlyUnread = !routes.unread.subtracting(unreadKeys).isEmpty
+        unreadKeys.formUnion(routes.unread)
+        push.handle(routes.push, rows: rows, presence: presence)
         if newlyUnread { rebuildGroups() }
         work.observe(events: events, rows: rows)
         if events.contains(where: { $0.kind == .finished }) {
@@ -1032,10 +1040,11 @@ final class AppModel: ObservableObject {
 
     /// 通知上的「批准 / 拒绝」按钮：不激活 App、不切换选中行，只对通知所属会话的终端发键。
     /// 点击时复核：会话仍在、是内嵌终端、仍在等批准且等待原因与通知时一致，否则不发键并发一条简短提示。
-    private func respondFromNotification(_ key: String, expectedReason: String?, approve: Bool) {
+    private func respondFromNotification(_ key: String, expectedReason: String?, expectedEpisode: Int?, approve: Bool) {
         let row = groups.lazy.flatMap(\.rows).first { $0.id == key }
-        var decision = ApprovalNotification.decide(expectedReason: expectedReason, host: row?.session.host,
-                                                   status: row?.session.status)
+        var decision = ApprovalNotification.decide(expectedReason: expectedReason, expectedEpisode: expectedEpisode,
+                                                   host: row?.session.host, status: row?.session.status,
+                                                   currentEpisode: waitingEpisodes.episode(key)?.id)
         let terminal = row?.session.host.terminalID.flatMap(pool.terminal)
         if decision == .apply, terminal == nil { decision = .gone }
         let verb = approve ? "approve" : "deny"

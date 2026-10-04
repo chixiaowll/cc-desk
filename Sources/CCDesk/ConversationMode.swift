@@ -60,6 +60,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private var turnQuiet: Bool?
     /// 刚主动播报过的「某个后台会话要批准」（设计 §14）：之后的「批准 / 拒绝」作用于它，而不是选中的会话。
     private var announcedApproval: AnnouncedApproval?
+    /// 正在处理的这句话开始说的时刻（systemUptime），随这一轮交给助手（respond_approval 据此判断用户是否在请求出现后才说）。
+    private var utteranceStartedAt: TimeInterval?
 
     private var session = ConversationSession()
     /// 等待识别的片段（与说话时选中的终端、开始说话的时刻 systemUptime）。
@@ -334,9 +336,11 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
             return answerConfirmation(text)
         }
         let now = ProcessInfo.processInfo.systemUptime
+        utteranceStartedAt = startedAt
         let waiting = target.flatMap(statusOf)?.isWaiting ?? false
         // 选中的会话没在等批准、但刚播报过某个后台会话要批准：「批准 / 拒绝」作用于那个会话。
-        let announced = waiting ? nil : announcedApproval.flatMap { $0.isFresh(now: now) ? $0 : nil }
+        // 播报之前就开始说的话不算对它的回答。
+        let announced = waiting ? nil : announcedApproval.flatMap { $0.isFresh(now: now) && startedAt >= $0.at ? $0 : nil }
         session.persistent = Self.persistentEnabled
         let before = session.state
         let actions = session.handle(transcript: text, waiting: waiting || announced != nil, now: now)
@@ -360,7 +364,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     private func respondAnnounced(_ announced: AnnouncedApproval, approve: Bool) {
         announcedApproval = nil
         guard let host else { return }
-        let decision = host.assistantRespondApproval(rowID: announced.rowID, expectedReason: announced.reason, approve: approve)
+        let decision = host.assistantRespondApproval(rowID: announced.rowID, expectedReason: announced.reason,
+                                                     expectedEpisode: announced.episode, approve: approve)
         AssistantDiag.log("announced \(approve ? "approve" : "deny") \(announced.rowID) -> \(decision)")
         switch decision {
         case .apply:
@@ -490,7 +495,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         }
         let current = generation
         let turn = beginThinking(heard: text)
-        assistant.handle(utterance: text, context: context) { [weak self] result in
+        assistant.handle(utterance: text, spokenAt: utteranceStartedAt, context: context) { [weak self] result in
             // 看门狗已经结束了这一轮时忽略迟到的回复。
             guard let self, self.isOn, self.generation == current, self.thinkingTurn == turn, self.thinking else { return }
             let quiet = self.turnQuiet == true
@@ -547,6 +552,9 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     }
 
     // MARK: 助手工具的反馈与确认（由 AssistantToolbox 调用）
+
+    /// 常驻助手正在处理的那条消息的种类（工具调用权限，见 `AssistantToolPolicy`）；没有时 nil。
+    var assistantTurn: AssistantTurn? { assistant.currentTurn }
 
     /// 工具开始执行：VoiceBar 显示「→ …」。quiet：只是往输入框打字。
     func toolStarted(_ text: String, quiet: Bool) {

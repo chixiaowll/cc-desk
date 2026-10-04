@@ -45,13 +45,14 @@ public final class AssistantRequestQueue<Reply> {
 
     private struct Pending {
         let message: String
+        let turn: AssistantTurn?
         let timeout: TimeInterval
         let completion: Completion
     }
 
     private var driver: Driver
     private var pending: [Pending] = []
-    private var current: (completion: Completion, started: Date, token: Int)?
+    private var current: (completion: Completion, started: Date, token: Int, turn: AssistantTurn?)?
     private var token = 0
     private let now: () -> Date
 
@@ -65,9 +66,13 @@ public final class AssistantRequestQueue<Reply> {
     public var pendingCount: Int { pending.count }
     /// 当前请求的开始时间（算延迟用）。
     public var currentStartedAt: Date? { current?.started }
+    /// 当前请求的种类（工具调用权限据此判断，见 `AssistantToolPolicy`）；没有请求在等回复时 nil。
+    public var currentTurn: AssistantTurn? { current?.turn }
 
-    public func enqueue(_ message: String, timeout: TimeInterval, completion: @escaping Completion) {
-        pending.append(Pending(message: message, timeout: timeout, completion: completion))
+    /// turn：这条请求的种类；不给时按最严格的处理（会改变东西的工具一律拒绝）。
+    public func enqueue(_ message: String, turn: AssistantTurn? = nil, timeout: TimeInterval,
+                        completion: @escaping Completion) {
+        pending.append(Pending(message: message, turn: turn, timeout: timeout, completion: completion))
         pump()
     }
 
@@ -122,7 +127,7 @@ public final class AssistantRequestQueue<Reply> {
             let next = pending.removeFirst()
             token += 1
             let mine = token
-            current = (next.completion, now(), mine)
+            current = (next.completion, now(), mine, next.turn)
             guard driver.send(next.message) else {
                 driver.stopProcess()
                 failCurrent(.writeFailed)

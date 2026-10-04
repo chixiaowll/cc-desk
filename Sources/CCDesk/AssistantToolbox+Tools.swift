@@ -177,40 +177,68 @@ extension AssistantToolbox {
     }
 
     func respondApproval(_ args: ToolArgs, _ done: @escaping Completion) {
+        guard let model else { return done(Self.shuttingDown) }
         guard let approve = args.bool("approve") else {
             return done(.failure(ControlError(.invalidParams, "approve (true/false) is required")))
         }
         switch resolveEmbedded(args.string("session")) {
         case .failure(let error): done(.failure(error))
-        case .success(let (target, terminal)):
+        case .success(let (target, _)):
             // 不在等批准时回车会把输入框里的内容发出去，Esc 会打断 agent：一律不执行。
-            guard target.row.session.status.isWaiting else {
+            guard case .waiting(let reason) = target.row.session.status,
+                  let episode = model.waitingEpisodes.episode(target.row.id) else {
                 return done(Self.failure("\(target.info.shortID) is not waiting for approval " +
                                          "(status \(AssistantContext.statusCode(target.row.session.status)))"))
             }
-            // 刚主动播报过这个会话的等批准（设计 §14）：只批准用户听到的那个请求，请求已变就不执行。
-            if let model, let announced = model.work.announcement(rowID: target.row.id) {
-                let decision = model.assistantRespondApproval(rowID: target.row.id, expectedReason: announced.reason,
-                                                              approve: approve)
-                switch decision {
-                case .apply: break
-                case .reasonChanged:
-                    var current = ""
-                    if case .waiting(let reason?) = model.sidebarRow(target.row.id)?.session.status { current = reason }
-                    return done(Self.failure("\(target.info.shortID): the permission request changed since it was " +
-                                             "announced (now it wants: \(AssistantContext.clip(current, 120))); tell the " +
-                                             "user what it wants now and ask again"))
-                case .notWaiting:
-                    return done(Self.failure("\(target.info.shortID) is no longer waiting for approval"))
-                case .gone, .notEmbedded:
-                    return done(Self.failure("\(target.info.shortID) is gone"))
-                }
-                show(approve ? L("assistant.activity.approve", target.name) : L("assistant.activity.deny", target.name))
-                return done(Self.text(approve ? "approved in \(target.info.shortID)" : "denied in \(target.info.shortID)"))
+            // 刚主动播报过这个会话的等批准（设计 §14）：只批准用户听到的那个请求（同一次等待），请求已变就不执行。
+            let announced = model.work.announcement(rowID: target.row.id)
+            let expectedReason = announced?.reason ?? reason
+            let expectedEpisode = announced?.episode ?? episode.id
+            let apply = { [weak self] in
+                guard let self else { return done(Self.shuttingDown) }
+                done(self.applyApproval(target, approve: approve, expectedReason: expectedReason,
+                                        expectedEpisode: expectedEpisode))
             }
+            // 用户这句话要在请求出现（和播报）之后才开始说，否则先语音确认：说「批准」时可能还没听到 / 看到这个请求。
+            let spokenAt = model.conversation.assistantTurn?.spokenAt
+            guard AssistantToolPolicy.approvalNeedsConfirmation(spokenAt: spokenAt, waitingSince: episode.since,
+                                                                announcedAt: announced?.at) else { return apply() }
+            let question: String
+            if !approve {
+                question = L("assistant.confirm.deny", target.name)
+            } else if let what = SpokenStatus.shorten(reason) {
+                question = L("assistant.confirm.approveReason", target.name, what)
+            } else {
+                question = L("assistant.confirm.approve", target.name)
+            }
+            let toast = approve ? L("assistant.toast.confirmApprove", target.name)
+                                : L("assistant.toast.confirmDeny", target.name)
+            confirm(question: question, toast: toast) { ok in
+                ok ? apply() : done(Self.text("cancelled by the user"))
+            }
+        }
+    }
+
+    /// 复核后发键（ApprovalNotification.decide：仍在等同一次请求）。
+    private func applyApproval(_ target: Target, approve: Bool, expectedReason: String?,
+                               expectedEpisode: Int) -> Result<JSONValue, ControlError> {
+        guard let model else { return Self.shuttingDown }
+        let decision = model.assistantRespondApproval(rowID: target.row.id, expectedReason: expectedReason,
+                                                      expectedEpisode: expectedEpisode, approve: approve)
+        switch decision {
+        case .apply:
             show(approve ? L("assistant.activity.approve", target.name) : L("assistant.activity.deny", target.name))
-            terminal.respondToPermission(approve: approve)
-            done(Self.text(approve ? "approved in \(target.info.shortID)" : "denied in \(target.info.shortID)"))
+            return Self.text(approve ? "approved in \(target.info.shortID)" : "denied in \(target.info.shortID)")
+        case .reasonChanged:
+            var current = ""
+            if case .waiting(let reason?) = model.sidebarRow(target.row.id)?.session.status { current = reason }
+            return Self.failure("\(target.info.shortID): the permission request changed since the user heard about " +
+                                "it (now it wants: \(AssistantContext.clip(current, 120))); tell the user what it wants " +
+                                "now and ask again")
+        case .notWaiting:
+            return Self.failure("\(target.info.shortID) is no longer waiting for approval")
+        case .gone, .notEmbedded:
+            return Self.failure("\(target.info.shortID) is gone")
         }
     }
 
