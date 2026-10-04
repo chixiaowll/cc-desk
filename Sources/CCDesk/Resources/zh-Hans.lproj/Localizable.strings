@@ -517,6 +517,7 @@
 "skills.action.copyPath" = "复制路径";
 "skills.action.quickLook" = "快速查看";
 "assistant.backend.local" = "仅本地规则";
+"assistant.backend.resolving" = "正在检测 Claude Code…";
 "assistant.toast.apiError" = "助手接口出错（%@）";
 "settings.assistant.title" = "助手模型";
 "settings.assistant.choice" = "助手模型";

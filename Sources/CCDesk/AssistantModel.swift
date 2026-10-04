@@ -39,9 +39,15 @@ final class AssistantClient: @unchecked Sendable {
     var toolExecutor: AssistantToolExecutor?
     /// 接口密钥（钥匙串，内存缓存；只在主线程读写）。
     let apiKeys = AssistantAPIKeys(store: KeychainSecretStore.assistant)
-    /// 上一次选出的后端（只在主线程读写）；变了就停掉不再用的那个。
-    var lastKind: AssistantBackendKind?
+    /// 选出的后端与退役中的后端（只在主线程读写）：换了后端时等不再用的那个空闲了再停掉。
+    var backendSwitch = AssistantBackendSwitch()
+    /// 已经安排了一次退役检查（只在主线程读写）。
+    var retireCheckScheduled = false
     let localBackend = LocalAssistantBackend()
+    /// claude 还在解析时先攒着请求（只在主线程使用）。
+    lazy var pendingBackend = PendingAssistantBackend(
+        prepare: { [weak self] done in self?.prepare { _ in done() } },
+        decide: { [weak self] in self?.decidedBackend() ?? LocalAssistantBackend() })
 
     /// OpenAI 兼容接口后端（历史存在 api-history.json）。只在主线程使用。
     lazy var apiBackend = APIAssistantBackend(

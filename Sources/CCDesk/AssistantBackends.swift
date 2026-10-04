@@ -87,23 +87,36 @@ extension AssistantClient {
 
     var apiConfigured: Bool { apiEndpoint() != nil }
 
-    /// 按设置与当前情况选出的后端（claude 还没解析过时按「不可用」算，`prepare` 解析后再选一次）。只在主线程调用。
-    var activeKind: AssistantBackendKind {
-        AssistantBackendSelector.resolve(choice, claudeAvailable: isAvailable == true, apiConfigured: apiConfigured)
+    /// 按设置与当前情况选出的后端；nil = 需要 claude 而它还在解析（`prepare` 解析后再选）。只在主线程调用。
+    var activeKind: AssistantBackendKind? {
+        AssistantBackendSelector.resolve(choice, claudeAvailable: isAvailable, apiConfigured: apiConfigured)
     }
 
-    /// 当前后端。换了后端时停掉不再用的那个（Claude 进程不白白常驻）。只在主线程调用。
+    /// 当前后端；claude 还在解析时是 `pendingBackend`（请求攒着，解析完再交给选出的后端）。只在主线程调用。
     var backend: AssistantBackend {
-        let kind = activeKind
-        if let last = lastKind, last != kind {
-            AssistantDiag.log("assistant backend \(last.rawValue) -> \(kind.rawValue)")
-            switch last {
-            case .claude: session.shutdown()
-            case .api: apiBackend.shutdown()
-            case .local: break
-            }
+        guard let kind = activeKind else { return pendingBackend }
+        return activate(kind)
+    }
+
+    /// 等待解析结束（或等够了）之后选后端：仍不知道 claude 在不在时按不可用算。只在主线程调用。
+    func decidedBackend() -> AssistantBackend {
+        let kind = activeKind ?? AssistantBackendSelector.resolve(choice, claudeAvailable: false,
+                                                                    apiConfigured: apiConfigured) ?? .local
+        return activate(kind)
+    }
+
+    /// 选用 kind 的后端。换了后端时不再用的那个等它空闲了再停（不打断正在进行的一轮，见 `AssistantBackendSwitch`）。
+    private func activate(_ kind: AssistantBackendKind) -> AssistantBackend {
+        if let previous = backendSwitch.active, previous != kind {
+            AssistantDiag.log("assistant backend \(previous.rawValue) -> \(kind.rawValue)")
         }
-        lastKind = kind
+        let idle = backendSwitch.activate(kind, busy: isBusy)
+        idle.forEach(shutdownBackend)
+        scheduleRetireCheck()
+        return object(for: kind)
+    }
+
+    private func object(for kind: AssistantBackendKind) -> AssistantBackend {
         switch kind {
         case .claude: return session
         case .api: return apiBackend
@@ -111,29 +124,50 @@ extension AssistantClient {
         }
     }
 
+    private func isBusy(_ kind: AssistantBackendKind) -> Bool {
+        object(for: kind).currentTurn != nil
+    }
+
+    private func shutdownBackend(_ kind: AssistantBackendKind) {
+        AssistantDiag.log("assistant backend \(kind.rawValue) stopped (no longer selected)")
+        object(for: kind).shutdown()
+    }
+
+    /// 还有退役中（正忙）的后端时每秒看一次，空闲了就停掉。
+    private func scheduleRetireCheck() {
+        guard !backendSwitch.retiring.isEmpty, !retireCheckScheduled else { return }
+        retireCheckScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self else { return }
+            self.retireCheckScheduled = false
+            self.backendSwitch.sweep(busy: self.isBusy).forEach(self.shutdownBackend)
+            self.scheduleRetireCheck()
+        }
+    }
+
     /// 有没有可用的模型：true / false；nil = 还要先解析 claude 才知道。只在主线程调用。
     var assistantAvailable: Bool? {
         if choice == .local { return false }
-        if activeKind != .local { return true }
-        if AssistantBackendSelector.needsClaude(choice), isAvailable == nil { return nil }
-        return false
+        guard let kind = activeKind else { return nil }
+        return kind != .local
     }
 
-    /// 顾问用哪个引擎：跟着当前后端走（仅本地规则时没有顾问）。只在主线程调用。
+    /// 顾问用哪个引擎：跟着当前后端走（仅本地规则、还在解析 claude 时没有顾问）。只在主线程调用。
     var consultEngine: AssistantWork.ConsultEngine? {
         switch activeKind {
-        case .claude: return .claude
-        case .api: return .api
-        case .local: return nil
+        case .claude?: return .claude
+        case .api?: return .api
+        case .local?, nil: return nil
         }
     }
 
     /// 设置页 / 结果面板里显示的当前后端。只在主线程调用。
     var activeLabel: String {
         switch activeKind {
-        case .claude: return "Claude Code (\(Self.model))"
-        case .api: return AssistantAPISettings.load().label
-        case .local: return L("assistant.backend.local")
+        case .claude?: return "Claude Code (\(Self.model))"
+        case .api?: return AssistantAPISettings.load().label
+        case .local?: return L("assistant.backend.local")
+        case nil: return L("assistant.backend.resolving")
         }
     }
 
@@ -150,5 +184,75 @@ extension AssistantClient {
         }
         guard AssistantBackendSelector.needsClaude(choice) else { return finish() }
         prepare { _ in finish() }
+    }
+}
+
+/// 需要 claude 而它还在解析时（登录 shell 最多约 6 秒）的后端（设计 §22）：请求先攒着，解析完再交给选出的后端；
+/// 最多等 `maxHold` 秒，仍不知道就按 claude 不可用来选。这样自动模式不会先把话发给第三方接口、等 claude 解析出来
+/// 再中止那一轮。等待的时间从请求的超时里扣掉。只在主线程使用；completion 恰好一次（由接手的后端保证）。
+final class PendingAssistantBackend: AssistantBackend {
+    static let maxHold: TimeInterval = 8
+
+    /// 不会真正处理请求；按「没有模型」报告种类（调用方据此重发完整上下文）。
+    let kind = AssistantBackendKind.local
+    let generation = 0
+    var currentTurn: AssistantTurn? { nil }
+
+    private struct Held {
+        let message: String
+        let turn: AssistantTurn
+        let timeout: TimeInterval
+        let heldAt: Date
+        let completion: (Result<AssistantReply, AssistantError>) -> Void
+    }
+
+    private let prepare: (@escaping () -> Void) -> Void
+    private let decide: () -> AssistantBackend
+    private var held: [Held] = []
+    private var waitID = 0
+    private var waiting = false
+
+    init(prepare: @escaping (@escaping () -> Void) -> Void, decide: @escaping () -> AssistantBackend) {
+        self.prepare = prepare
+        self.decide = decide
+    }
+
+    /// 攒着的请求数（自检用）。
+    var heldCount: Int { held.count }
+
+    func ask(_ message: String, turn: AssistantTurn, timeout: TimeInterval,
+             completion: @escaping (Result<AssistantReply, AssistantError>) -> Void) {
+        held.append(Held(message: message, turn: turn, timeout: timeout, heldAt: Date(), completion: completion))
+        guard !waiting else { return }
+        waiting = true
+        waitID += 1
+        let id = waitID
+        AssistantDiag.log("assistant backend undecided: holding requests until claude is resolved")
+        prepare { [weak self] in self?.release(id) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.maxHold) { [weak self] in self?.release(id) }
+    }
+
+    private func release(_ id: Int) {
+        guard waiting, id == waitID else { return }
+        waiting = false
+        let items = held
+        held = []
+        let target = decide()
+        AssistantDiag.log("assistant backend decided: \(target.kind.rawValue), releasing \(items.count) held request(s)")
+        for item in items {
+            let left = item.timeout - Date().timeIntervalSince(item.heldAt)
+            target.ask(item.message, turn: item.turn, timeout: max(5, left), completion: item.completion)
+        }
+    }
+
+    func warmUp() {}
+    func reset() {}
+
+    func shutdown() {
+        waiting = false
+        waitID += 1
+        let items = held
+        held = []
+        items.forEach { item in DispatchQueue.main.async { item.completion(.failure(.failed("stopped"))) } }
     }
 }

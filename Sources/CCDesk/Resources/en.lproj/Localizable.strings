@@ -517,6 +517,7 @@
 "skills.action.copyPath" = "Copy Path";
 "skills.action.quickLook" = "Quick Look";
 "assistant.backend.local" = "Local rules only";
+"assistant.backend.resolving" = "Detecting Claude Code…";
 "assistant.toast.apiError" = "Assistant API error (%@)";
 "settings.assistant.title" = "Assistant model";
 "settings.assistant.choice" = "Assistant model";

@@ -79,7 +79,11 @@ final class AssistantWork: ObservableObject {
         switch engine ?? AssistantClient.shared.consultEngine {
         case .claude?: return startClaudeConsult(question: question, level: level, profile: profile, project: project)
         case .api?: return startAPIConsult(question: question, profile: profile, project: project)
-        case nil: return .failure(.unavailable("No assistant model is configured (local rules only)"))
+        case nil:
+            if AssistantClient.shared.activeKind == nil {
+                return .failure(.unavailable("The assistant model is still being detected; try again in a few seconds"))
+            }
+            return .failure(.unavailable("No assistant model is configured (local rules only)"))
         }
     }
 

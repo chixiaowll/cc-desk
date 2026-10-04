@@ -64,13 +64,20 @@ public enum AssistantBackendKind: String, Equatable, Sendable {
 }
 
 public enum AssistantBackendSelector {
-    /// 选哪个后端。claudeAvailable：解析到了 claude 可执行文件；apiConfigured：接口地址、模型（与需要的密钥）都填好了。
-    /// 明确选了某个后端但它不可用时退回仅本地规则（不偷偷换成另一家：用户的话会发到哪里应当是用户选的）。
-    public static func resolve(_ choice: AssistantBackendChoice, claudeAvailable: Bool,
-                               apiConfigured: Bool) -> AssistantBackendKind {
+    /// 选哪个后端。claudeAvailable：解析到了 claude 可执行文件（nil = 还在解析，登录 shell 最多约 6 秒）；
+    /// apiConfigured：接口地址、模型（与需要的密钥）都填好了。
+    /// - 明确选了某个后端但它不可用时退回仅本地规则（不偷偷换成另一家：用户的话会发到哪里应当是用户选的）。
+    /// - 需要 claude 而它还没解析完时返回 nil（待定）：调用方先把请求攒着，解析完再选，
+    ///   不能先把话发给第三方接口、等 claude 解析出来再换回去。
+    public static func resolve(_ choice: AssistantBackendChoice, claudeAvailable: Bool?,
+                               apiConfigured: Bool) -> AssistantBackendKind? {
         switch choice {
-        case .auto: return claudeAvailable ? .claude : apiConfigured ? .api : .local
-        case .claude: return claudeAvailable ? .claude : .local
+        case .auto:
+            guard let claudeAvailable else { return nil }
+            return claudeAvailable ? .claude : apiConfigured ? .api : .local
+        case .claude:
+            guard let claudeAvailable else { return nil }
+            return claudeAvailable ? .claude : .local
         case .api: return apiConfigured ? .api : .local
         case .local: return .local
         }
@@ -79,6 +86,31 @@ public enum AssistantBackendSelector {
     /// 这个选择是否需要先解析 claude 路径（走一次登录 shell）。
     public static func needsClaude(_ choice: AssistantBackendChoice) -> Bool {
         choice == .auto || choice == .claude
+    }
+}
+
+/// 换后端时停掉不再用的那个（Claude 进程不白白常驻），但不打断它正在等回复的那一轮：忙的先记为「退役中」，
+/// 空闲后再停；退役中又被选回来就不停了。设置里临时改出一个不完整的配置（选中的后端变成仅本地规则）
+/// 因此不会中止正在进行的那一轮；配置改动从下一轮起生效。非线程安全，调用方在主线程使用。
+public struct AssistantBackendSwitch: Equatable, Sendable {
+    public private(set) var active: AssistantBackendKind?
+    public private(set) var retiring: Set<AssistantBackendKind> = []
+
+    public init() {}
+
+    /// 选出 kind；返回现在就可以停掉的后端。busy：某个后端是否有请求在等回复。
+    public mutating func activate(_ kind: AssistantBackendKind, busy: (AssistantBackendKind) -> Bool) -> [AssistantBackendKind] {
+        if let previous = active, previous != kind, previous != .local { retiring.insert(previous) }
+        active = kind
+        retiring.remove(kind)
+        return sweep(busy: busy)
+    }
+
+    /// 退役中的后端里已经空闲的：从退役列表移除并返回（调用方停掉它们）。之后定期再调用，直到退役列表为空。
+    public mutating func sweep(busy: (AssistantBackendKind) -> Bool) -> [AssistantBackendKind] {
+        let idle = retiring.filter { !busy($0) }.sorted { $0.rawValue < $1.rawValue }
+        retiring.subtract(idle)
+        return idle
     }
 }
 

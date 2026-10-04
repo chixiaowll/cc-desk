@@ -22,6 +22,7 @@ struct SettingsAssistantSection: View {
     @State private var testing = false
     @State private var testResult: (AssistantAPIProbe.Result, TimeInterval)?
     @State private var activeLabel = ""
+    @State private var activeHasModel = false
     @State private var claudeMissing = false
 
     private var client: AssistantClient { .shared }
@@ -59,7 +60,7 @@ struct SettingsAssistantSection: View {
                 Text(L("settings.assistant.choice.local")).tag(AssistantBackendChoice.local.rawValue)
             }
             LabeledContent(L("settings.assistant.active")) {
-                SettingsStatus(text: activeLabel, tone: activeLabel == L("assistant.backend.local") ? .secondary : .success)
+                SettingsStatus(text: activeLabel, tone: activeHasModel ? .success : .secondary)
             }
             SettingsNote(text: choiceNote)
             if claudeMissing, selectedChoice == .claude {
@@ -211,6 +212,7 @@ struct SettingsAssistantSection: View {
 
     private func refreshActive() {
         activeLabel = client.activeLabel
+        activeHasModel = client.assistantAvailable == true
         claudeMissing = client.isAvailable == false
     }
 

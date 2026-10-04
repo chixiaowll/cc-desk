@@ -39,4 +39,52 @@ final class AssistantBackendTests: XCTestCase {
         XCTAssertEqual(AssistantAPISettings.origin(url), "http://localhost:11434")
         XCTAssertEqual(AssistantAPISettings.origin(try XCTUnwrap(URL(string: "http://h:80/x"))), "http://h")
     }
+
+    /// claude 还在解析时（nil）自动 / Claude Code 模式都待定，不能先选接口。
+    func testUnknownClaudeAvailabilityIsUndecided() {
+        typealias S = AssistantBackendSelector
+        XCTAssertNil(S.resolve(.auto, claudeAvailable: nil, apiConfigured: true), "auto must not route to the API yet")
+        XCTAssertNil(S.resolve(.auto, claudeAvailable: nil, apiConfigured: false))
+        XCTAssertNil(S.resolve(.claude, claudeAvailable: nil, apiConfigured: true))
+        XCTAssertEqual(S.resolve(.api, claudeAvailable: nil, apiConfigured: true), .api)
+        XCTAssertEqual(S.resolve(.api, claudeAvailable: nil, apiConfigured: false), .local)
+        XCTAssertEqual(S.resolve(.local, claudeAvailable: nil, apiConfigured: true), .local)
+        // 解析完了就有确定的结果。
+        XCTAssertEqual(S.resolve(.auto, claudeAvailable: true, apiConfigured: true), .claude)
+        XCTAssertEqual(S.resolve(.auto, claudeAvailable: false, apiConfigured: true), .api)
+    }
+
+    func testSwitchingAwayFromAnIdleBackendStopsItAtOnce() {
+        var sw = AssistantBackendSwitch()
+        XCTAssertEqual(sw.activate(.claude, busy: { _ in false }), [])
+        XCTAssertEqual(sw.activate(.api, busy: { _ in false }), [.claude])
+        XCTAssertEqual(sw.active, .api)
+        XCTAssertTrue(sw.retiring.isEmpty)
+        // 换回同一个：不停任何东西。
+        XCTAssertEqual(sw.activate(.api, busy: { _ in false }), [])
+    }
+
+    /// 正在等回复的后端不被中止：空闲后才停。设置里临时改出不完整的配置（api → local）也一样。
+    func testBusyBackendIsRetiredOnlyWhenIdle() {
+        var sw = AssistantBackendSwitch()
+        _ = sw.activate(.api, busy: { _ in false })
+        var apiBusy = true
+        XCTAssertEqual(sw.activate(.local, busy: { $0 == .api && apiBusy }), [], "in-flight api turn is not aborted")
+        XCTAssertEqual(sw.retiring, [.api])
+        XCTAssertEqual(sw.sweep(busy: { $0 == .api && apiBusy }), [])
+        apiBusy = false
+        XCTAssertEqual(sw.sweep(busy: { _ in false }), [.api])
+        XCTAssertTrue(sw.retiring.isEmpty)
+    }
+
+    func testReselectingARetiringBackendKeepsIt() {
+        var sw = AssistantBackendSwitch()
+        _ = sw.activate(.api, busy: { _ in false })
+        XCTAssertEqual(sw.activate(.local, busy: { _ in true }), [])
+        XCTAssertEqual(sw.activate(.api, busy: { _ in false }), [], "api selected again: not stopped")
+        XCTAssertTrue(sw.retiring.isEmpty)
+        // 仅本地规则没有东西要停。
+        _ = sw.activate(.local, busy: { _ in false })
+        XCTAssertEqual(sw.activate(.claude, busy: { _ in false }), [])
+    }
 }
