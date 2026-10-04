@@ -14,14 +14,15 @@ final class TerminalAppearanceTests: XCTestCase {
         for scheme in TerminalColorScheme.allCases {
             XCTAssertEqual(scheme.palette.ansi.count, 16, scheme.rawValue)
         }
-        XCTAssertEqual(TerminalPalette.light.background, 0xE3E8E4)
+        XCTAssertEqual(TerminalPalette.light.background, 0xF3EAD3)
         XCTAssertEqual(TerminalPalette.dark.background, 0x1B1A18)
     }
 
-    /// 浅色：普通色 0–7（含「白」）≥ 4.5:1，明亮色 8–15 ≥ 3:1；前景 ≥ 7:1。
+    /// 浅色：普通色 0–7（含「白」）≥ 4.5:1，明亮色 8–15 ≥ 3:1；前景 ≥ 5:1
+    ///（Everforest 风格刻意降低对比以减少刺眼，正文仍明显高于 WCAG AA 的 4.5:1）。
     func testLightPaletteContrast() {
         let p = TerminalPalette.light
-        XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.foreground, p.background), 7)
+        XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.foreground, p.background), 5)
         for i in 0..<8 {
             XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[i], p.background), 4.5, "light ansi \(i)")
         }
