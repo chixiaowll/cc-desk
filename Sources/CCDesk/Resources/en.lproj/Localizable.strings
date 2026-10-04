@@ -510,7 +510,7 @@
 "skills.detail.path" = "Path";
 "skills.detail.files" = "Files (%d)";
 "skills.detail.fileHelp" = "Click for Quick Look, double-click to open";
-"skills.detail.truncated" = "…(truncated; open the file to see the rest)";
+"skills.detail.truncated" = "…(large file, preview truncated · open it in the editor to see the rest)";
 "skills.detail.unreadable" = "Could not read this file.";
 "skills.action.open" = "Open in Editor";
 "skills.action.reveal" = "Show in Finder";

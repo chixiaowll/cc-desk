@@ -7,6 +7,8 @@ struct SkillDetailView: View {
     let entry: SkillEntry
     let library: SkillLibrary
     let theme: Theme
+    /// 预览最多显示这么多字节：整段放在一个 Text 里排版，再大会卡住主线程；更长的用编辑器打开看。
+    static let previewLimit = 64 * 1024
     @State private var content: String?
     @State private var truncated = false
     @State private var files: [String] = []
@@ -125,8 +127,9 @@ struct SkillDetailView: View {
     private func load() async {
         let path = entry.filePath
         let folder = entry.folderPath
+        let limit = Self.previewLimit
         let loaded = await Task.detached(priority: .userInitiated) { () -> (String, Bool, [String], Bool) in
-            let text = SkillScanner.readText(path)
+            let text = SkillScanner.readText(path, limit: limit)
             let listing: (files: [String], truncated: Bool) = folder.map { SkillScanner.folderFiles($0) } ?? ([], false)
             return (text?.text ?? L("skills.detail.unreadable"), text?.truncated ?? false, listing.files, listing.truncated)
         }.value

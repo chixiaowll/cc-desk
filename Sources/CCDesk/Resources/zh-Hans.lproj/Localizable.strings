@@ -510,7 +510,7 @@
 "skills.detail.path" = "路径";
 "skills.detail.files" = "文件（%d）";
 "skills.detail.fileHelp" = "单击快速查看，双击打开";
-"skills.detail.truncated" = "…（内容过长已截断，打开文件查看全部）";
+"skills.detail.truncated" = "…（文件较大，已截断 · 用编辑器打开查看全部）";
 "skills.detail.unreadable" = "无法读取这个文件。";
 "skills.action.open" = "用编辑器打开";
 "skills.action.reveal" = "在 Finder 中显示";
