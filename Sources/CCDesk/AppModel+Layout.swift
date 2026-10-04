@@ -5,6 +5,13 @@ import CCDeskCore
 /// 关窗格只是不再显示，会话仍在侧栏里；会话结束 / 关闭时它的窗格收拢。
 extension AppModel {
     /// 某个内嵌终端在侧栏上的行。
+    /// 主窗口里聚焦的窗格对应的行：主窗口的标题栏 / 改动的文件面板跟它走，
+    /// 而不是全局选中（独立窗口在前时全局选中是独立窗口里的会话）。主窗口没有窗格时退回全局选中。
+    var mainWindowRow: SidebarRow? {
+        if let focused = panes.layout.focused { return row(forTerminal: focused) }
+        return selectedRow
+    }
+
     func row(forTerminal tid: UUID) -> SidebarRow? {
         groups.lazy.flatMap(\.rows).first { $0.session.host == .embedded(terminalID: tid) }
     }

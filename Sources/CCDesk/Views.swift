@@ -55,7 +55,8 @@ struct DetailView: View {
 
     var body: some View {
         let theme = themes.theme(for: colorScheme)
-        let row = model.selectedRow.flatMap { $0.session.host.isEmbedded ? $0 : nil }
+        // 主窗口显示自己聚焦的窗格（独立窗口在前时全局选中是那个窗口的会话，不能让主窗口标题跟着变）。
+        let row = model.mainWindowRow.flatMap { $0.session.host.isEmbedded ? $0 : nil }
         VStack(spacing: 0) {
             theme.line.frame(height: 1)
             HStack(spacing: 0) {
