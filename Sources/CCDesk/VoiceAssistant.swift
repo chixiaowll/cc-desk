@@ -73,11 +73,11 @@ final class VoiceAssistant {
         if events.count > Self.maxEvents { events.removeFirst(events.count - Self.maxEvents) }
     }
 
-    /// 丢弃助手的对话记忆，下一句开始新会话。
+    /// 丢弃助手的对话记忆（Claude 会话与接口历史都清掉，不只是当前用的那个），下一句开始新会话。
     func reset() {
         events = []
         lastContextJSON = nil
-        activeBackend.reset()
+        client.resetConversations()
     }
 
     /// 一句话交给常驻会话：模型用工具做事，返回最后的文字回复（要朗读的内容）。spokenAt：用户开始说这句话的时刻（systemUptime）。

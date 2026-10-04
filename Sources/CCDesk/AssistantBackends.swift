@@ -145,6 +145,12 @@ extension AssistantClient {
         }
     }
 
+    /// 「重置助手对话」：Claude 会话与接口历史都清掉（不管当前用的是哪个）。只在主线程调用。
+    func resetConversations() {
+        session.reset()
+        apiBackend.reset()
+    }
+
     /// 有没有可用的模型：true / false；nil = 还要先解析 claude 才知道。只在主线程调用。
     var assistantAvailable: Bool? {
         if choice == .local { return false }
