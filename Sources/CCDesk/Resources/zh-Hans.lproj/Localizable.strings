@@ -436,3 +436,4 @@
 "settings.general.lightTheme" = "浅色主题";
 "settings.general.darkTheme" = "深色主题";
 "menu.theme" = "主题";
+"files.collapse.help" = "收起面板（⇧⌘F）";

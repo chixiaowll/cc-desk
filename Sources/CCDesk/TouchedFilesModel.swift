@@ -11,6 +11,19 @@ final class TouchedFilesModel: ObservableObject {
     static let hiddenInterval: TimeInterval = 6
 
     /// 面板是否展开（记在 UserDefaults）。
+    /// 面板宽度（拖动分隔线调整，记住上次的值）。
+    @Published var panelWidth: CGFloat = {
+        let stored = UserDefaults.standard.double(forKey: TouchedFilesModel.widthKey)
+        return stored > 0 ? min(max(CGFloat(stored), TouchedFilesModel.minWidth), TouchedFilesModel.maxWidth) : 300
+    }() {
+        didSet { UserDefaults.standard.set(Double(panelWidth), forKey: Self.widthKey) }
+    }
+    static let widthKey = "touchedFilesPanelWidth"
+    static let minWidth: CGFloat = 220
+    static let maxWidth: CGFloat = 560
+    /// 拖到比这更窄就收起面板。
+    static let collapseWidth: CGFloat = 160
+
     @Published var isShown: Bool = UserDefaults.standard.bool(forKey: TouchedFilesModel.shownKey) {
         didSet {
             guard isShown != oldValue else { return }

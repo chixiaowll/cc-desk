@@ -61,7 +61,7 @@ struct TouchedFilesPanel: View {
                 return .handled
             }
         }
-        .frame(width: Self.width)
+        .frame(width: files.panelWidth)
         .background(theme.side)
         .background(WindowReader(window: $window))
     }
@@ -91,6 +91,16 @@ struct TouchedFilesPanel: View {
             .buttonStyle(.plain)
             .disabled(files.selection == nil)
             .help(L("files.quickLook.help"))
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) { files.isShown = false }
+            } label: {
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.fg2)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(L("files.collapse.help"))
         }
         .padding(.leading, 14)
         .padding(.trailing, 8)

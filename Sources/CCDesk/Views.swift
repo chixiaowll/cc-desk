@@ -39,6 +39,12 @@ struct DetailView: View {
         return min(520, max(120, width - 224))
     }
 
+    /// 标题栏这一行的宽度：详情区宽度减去两侧的系统留白。
+    private var toolbarRowWidth: CGFloat {
+        guard width > 0 else { return 600 }
+        return max(240, width - 40)
+    }
+
     var body: some View {
         let theme = themes.theme(for: colorScheme)
         let row = model.selectedRow.flatMap { $0.session.host.isEmbedded ? $0 : nil }
@@ -77,19 +83,21 @@ struct DetailView: View {
         .toolbar {
             // 标题在左（navigation）；状态胶囊用 .automatic 放在工具栏最右侧。
             // macOS 上 .primaryAction 会被放在工具栏前端、紧挨标题，所以不用它。
+            // 标题在左；状态胶囊和「改动的文件」开关固定在标题栏最右端（与左上角的侧栏开关对称），
+            // 位置不随标题长短移动。macOS 14 的工具栏没有弹性间距，所以让这一项撑满详情区宽度。
             ToolbarItem(placement: .navigation) {
-                if let row { DetailTitle(row: row, theme: theme, maxWidth: titleMaxWidth) }
-            }
-            ToolbarItem(placement: .automatic) {
                 if let row {
                     HStack(spacing: 6) {
-                        if row.session.kind.isAgent {
-                            TouchedFilesToggle(files: model.touchedFiles, theme: theme)
-                        }
+                        DetailTitle(row: row, theme: theme, maxWidth: titleMaxWidth)
+                        Spacer(minLength: 12)
                         ConversationBadge(conversation: model.conversation, theme: theme)
                         StatusPill(status: row.session.status, label: row.statusLabel, missing: false,
                                    unread: row.showsUnread, theme: theme)
+                        if row.session.kind.isAgent {
+                            TouchedFilesToggle(files: model.touchedFiles, theme: theme)
+                        }
                     }
+                    .frame(width: toolbarRowWidth)
                 }
             }
         }
@@ -113,11 +121,49 @@ struct TouchedFilesSlot: View {
     var body: some View {
         if files.isShown {
             HStack(spacing: 0) {
-                theme.line.frame(width: 1)
+                PanelDivider(files: files, theme: theme)
                 TouchedFilesPanel(files: files, now: now, theme: theme)
             }
             .transition(.move(edge: .trailing))
         }
+    }
+}
+
+/// 终端与「改动的文件」之间的分隔线：可拖动调整面板宽度，拖得很窄时收起面板。
+struct PanelDivider: View {
+    @ObservedObject var files: TouchedFilesModel
+    let theme: Theme
+    @State private var startWidth: CGFloat?
+    @State private var hovering = false
+
+    var body: some View {
+        theme.line
+            .frame(width: 1)
+            .overlay {
+                // 实际可拖动的区域比 1pt 宽，方便抓取。
+                Color.clear
+                    .frame(width: 9)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        hovering = inside
+                        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                    }
+                    .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                        .onChanged { value in
+                            let start = startWidth ?? files.panelWidth
+                            if startWidth == nil { startWidth = start }
+                            let proposed = start - value.translation.width
+                            files.panelWidth = min(max(proposed, TouchedFilesModel.minWidth), TouchedFilesModel.maxWidth)
+                        }
+                        .onEnded { value in
+                            let proposed = (startWidth ?? files.panelWidth) - value.translation.width
+                            startWidth = nil
+                            if proposed < TouchedFilesModel.collapseWidth {
+                                withAnimation(.easeInOut(duration: 0.18)) { files.isShown = false }
+                            }
+                        })
+            }
+            .onDisappear { if hovering { NSCursor.pop() } }
     }
 }
 
