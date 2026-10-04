@@ -26,6 +26,7 @@ public struct PushSettings: Equatable, Sendable {
     public static let onWaitingKey = "pushOnWaiting"
     public static let onFinishedKey = "pushOnFinished"
     public static let conditionKey = "pushCondition"
+    public static let includeReasonKey = "pushIncludeReason"
 
     public static let defaultBarkServer = "https://api.day.app"
     public static let defaultNtfyServer = "https://ntfy.sh"
@@ -36,16 +37,19 @@ public struct PushSettings: Equatable, Sendable {
     public var onWaiting: Bool
     public var onFinished: Bool
     public var condition: PushCondition
+    /// 推送正文里带上等待原因（要批准的命令）；关闭时只说「等批准」（命令可能含路径、主机名等敏感内容）。
+    public var includeReason: Bool
 
     public init(provider: PushProvider = .none, barkServer: String = PushSettings.defaultBarkServer,
                 ntfyServer: String = PushSettings.defaultNtfyServer, onWaiting: Bool = true, onFinished: Bool = false,
-                condition: PushCondition = .whenAway) {
+                condition: PushCondition = .whenAway, includeReason: Bool = true) {
         self.provider = provider
         self.barkServer = barkServer
         self.ntfyServer = ntfyServer
         self.onWaiting = onWaiting
         self.onFinished = onFinished
         self.condition = condition
+        self.includeReason = includeReason
     }
 
     public static func load(_ defaults: UserDefaults = .standard) -> PushSettings {
@@ -59,7 +63,26 @@ public struct PushSettings: Equatable, Sendable {
             ntfyServer: text(ntfyServerKey, defaultNtfyServer),
             onWaiting: defaults.object(forKey: onWaitingKey) as? Bool ?? true,
             onFinished: defaults.object(forKey: onFinishedKey) as? Bool ?? false,
-            condition: PushCondition(rawValue: defaults.string(forKey: conditionKey) ?? "") ?? .whenAway)
+            condition: PushCondition(rawValue: defaults.string(forKey: conditionKey) ?? "") ?? .whenAway,
+            includeReason: defaults.object(forKey: includeReasonKey) as? Bool ?? true)
+    }
+
+    /// 设置里的提醒：密钥（ntfy 令牌 / Bark 设备 key）会以明文 http 发到不是本机的服务器。
+    public func sendsSecretInPlaintext(_ secrets: PushSecrets) -> Bool {
+        switch provider {
+        case .none, .webhook: return false
+        case .bark: return !secrets.barkDeviceKey.isEmpty && Self.isPlainRemoteHTTP(barkServer)
+        case .ntfy: return !secrets.ntfyToken.isEmpty && Self.isPlainRemoteHTTP(ntfyServer)
+        }
+    }
+
+    /// http://（不是 https）且主机不是本机（localhost / 127.x / ::1）。
+    public static func isPlainRemoteHTTP(_ text: String) -> Bool {
+        guard let url = PushRequestBuilder.httpURL(text), url.scheme?.lowercased() == "http",
+              let host = url.host?.lowercased() else { return false }
+        let local = host == "localhost" || host.hasSuffix(".localhost") || host.hasPrefix("127.") || host == "::1"
+            || host == "[::1]"
+        return !local
     }
 
     public func allows(_ kind: StatusEvent.Kind) -> Bool {
@@ -172,8 +195,10 @@ public struct PushMessage: Equatable, Sendable {
         return PushMessage(title: title, body: body, session: session, project: projectName, status: status)
     }
 
-    public static func make(event: StatusEvent, row: SidebarRow) -> PushMessage {
-        make(kind: event.kind, project: row.groupTitle, sessionTitle: row.notificationName, reason: event.reason)
+    /// includeReason = false：正文不带等待原因（设置「推送里包含原因」关闭时）。
+    public static func make(event: StatusEvent, row: SidebarRow, includeReason: Bool = true) -> PushMessage {
+        make(kind: event.kind, project: row.groupTitle, sessionTitle: row.notificationName,
+             reason: includeReason ? event.reason : nil)
     }
 
     /// 设置里「发送测试推送」的内容。

@@ -527,8 +527,10 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 - **请求格式**（`PushRequestBuilder`，Core）：全部 POST JSON，`Content-Type: application/json`。Bark：`<server>/push`，`{device_key, title, body, group: "CC Desk", level: "timeSensitive"（仅等批准）, url?}`。ntfy：JSON 发布到服务根地址，`{topic, title, message, priority: 4/3, tags, click?}`，有令牌时 `Authorization: Bearer`（标题放 JSON 里，避免 HTTP 头不能放中文）。Webhook：`{title, body, session, project, status, url?}`，status 为 `waiting` / `finished` / `test`。地址只接受 http(s)。
 - **内容**（`PushMessage.make`）：标题「<项目> · <会话标题>」（相同或项目为空时只写会话标题，各最多 60 字）；正文「等批准：<原因>」（原因压成一行、最多 100 字）或「已完成」。不发送对话内容；设置页写明会把项目名、会话标题、状态与简短原因发给所选第三方服务。
 - **哪些事件**：等批准（`pushOnWaiting`，默认开）、完成一轮（`pushOnFinished`，默认关）。**时机**（`pushCondition`）：离开时（默认，`PushPolicy.isAway`：`CGEventSource.secondsSinceLastEventType` 空闲 ≥ 180 秒或 `CGSessionCopyCurrentDictionary` 的 `CGSSessionScreenIsLocked`）/ 总是。分发在 Core 的 `EventRouting.route`：系统通知与「已完成·未读」不发给「App 在前台且正看着」的会话；推送对别的会话照常交给 `PushPolicy`，对正看着的会话**只在离开时**推送（App 停在前台、选着这个会话，人却走开了——以前这种情况永远收不到推送）。离开状态只在需要时采集一次。
+- **推送里包含原因**（`pushIncludeReason`，默认开）：关闭时正文只写「等批准」，不带要批准的命令。服务器地址是 `http://`（不是本机）且配置了 ntfy 令牌 / Bark 设备 Key 时，设置页提示密钥会明文发送（`PushSettings.sendsSecretInPlaintext`）。
+- **密钥缓存**：Keychain 只在主线程读写（第一次推送时、设置页打开时、设置页修改后停下 0.5 秒 / 离开设置页 / 发测试推送时），发送队列用内存里的副本：重新签名后 Keychain 可能弹访问授权框，在后台队列上读会让推送一直卡住。
 - **限流去重**（`PushRateLimiter`）：同一会话的同一种状态 2 分钟内最多一条；全局每小时最多 20 条；被拒的不占名额。
-- **接入点**：`AppModel` 处理 `TransitionDetector` 事件处（与 `Notifier.post` 同一处）调用 `PhonePushCenter.handle(events, rows:, presence:)`；判断与限流在主线程（纯内存），读钥匙串与 `URLSession`（ephemeral，请求超时 10 秒、总超时 20 秒）在后台队列，不阻塞轮询。结果记到 `~/.cc-desk/assistant-diag.txt`（只记服务、状态、HTTP 码或错误域 / 错误码，不记密钥、地址与内容）。
+- **接入点**：`AppModel` 处理 `TransitionDetector` 事件处（与 `Notifier.post` 同一处）调用 `PhonePushCenter.handle(events, rows:, presence:)`；判断与限流在主线程（纯内存），`URLSession`（ephemeral，请求超时 10 秒、总超时 20 秒）在后台队列，不阻塞轮询（密钥用主线程读好的内存副本，见下）。结果记到 `~/.cc-desk/assistant-diag.txt`（只记服务、状态、HTTP 码或错误域 / 错误码，不记密钥、地址与内容）。
 - **测试推送**：设置页「发送测试推送」不看时机与限流，显示「已发送（HTTP 200）」或失败原因（缺少配置 / 地址无效 / 网络错误 / HTTP 码）。
 
 ## 17. 改动的文件：快速找到 agent 写的文档（v1.7）

@@ -380,6 +380,8 @@
 "settings.push.webhook.note" = "POST JSON：{title, body, session, project, status}，status 为 waiting / finished / test。";
 "settings.push.onWaiting" = "会话等批准时推送";
 "settings.push.onFinished" = "会话完成一轮时推送";
+"settings.push.includeReason" = "推送里包含原因（要批准的命令）";
+"settings.push.insecureWarning" = "服务器地址是 http://：设备 key / 令牌会以明文发送，建议改用 https://。";
 "settings.push.when" = "推送时机";
 "settings.push.when.away" = "离开 Mac 时（空闲 3 分钟以上或已锁屏）";
 "settings.push.when.always" = "总是";

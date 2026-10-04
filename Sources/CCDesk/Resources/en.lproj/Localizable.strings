@@ -380,6 +380,8 @@
 "settings.push.webhook.note" = "POST JSON: {title, body, session, project, status}; status is waiting / finished / test.";
 "settings.push.onWaiting" = "Push when a session needs approval";
 "settings.push.onFinished" = "Push when a session finishes a turn";
+"settings.push.includeReason" = "Include the reason (the command awaiting approval)";
+"settings.push.insecureWarning" = "The server uses http://: your device key / token is sent unencrypted. Use https:// instead.";
 "settings.push.when" = "When";
 "settings.push.when.away" = "When I'm away (idle 3+ minutes or screen locked)";
 "settings.push.when.always" = "Always";

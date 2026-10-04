@@ -11,9 +11,9 @@ struct SettingsPushSection: View {
     @AppStorage(PushSettings.onWaitingKey) private var onWaiting = true
     @AppStorage(PushSettings.onFinishedKey) private var onFinished = false
     @AppStorage(PushSettings.conditionKey) private var condition = PushCondition.whenAway.rawValue
-    /// 输入框里的密钥；`saved` 是 Keychain 里的值，只有不同时才写回。
+    @AppStorage(PushSettings.includeReasonKey) private var includeReason = true
+    /// 输入框里的密钥；停止输入 0.5 秒后（以及离开设置页、发送测试时）只把变了的项写回 Keychain。
     @State private var draft = PushSecrets()
-    @State private var saved = PushSecrets()
     @State private var saveError: String?
     @State private var testing = false
     @State private var result: PhonePushCenter.Outcome?
@@ -54,6 +54,7 @@ struct SettingsPushSection: View {
             if selected != .none {
                 Toggle(L("settings.push.onWaiting"), isOn: $onWaiting)
                 Toggle(L("settings.push.onFinished"), isOn: $onFinished)
+                Toggle(L("settings.push.includeReason"), isOn: $includeReason)
                 Picker(L("settings.push.when"), selection: $condition) {
                     Text(L("settings.push.when.away")).tag(PushCondition.whenAway.rawValue)
                     Text(L("settings.push.when.always")).tag(PushCondition.always.rawValue)
@@ -66,6 +67,9 @@ struct SettingsPushSection: View {
                     Spacer()
                 }
             }
+            if currentSettings.sendsSecretInPlaintext(draft) {
+                SettingsNote(text: L("settings.push.insecureWarning"), tone: .warning)
+            }
             if let saveError { SettingsNote(text: L("settings.push.saveFailed", saveError), tone: .warning) }
         } header: {
             Text(L("settings.push.title"))
@@ -73,7 +77,17 @@ struct SettingsPushSection: View {
             SettingsNote(text: L("settings.push.privacy"))
         }
         .onAppear(perform: load)
-        .onChange(of: draft) { _, _ in store() }
+        .onDisappear(perform: store)
+        .task(id: draft) {
+            // 每次按键都写 Keychain 太频繁：停下来 0.5 秒再写。
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            if !Task.isCancelled { store() }
+        }
+    }
+
+    /// 当前界面上的推送设置（判断是否要提醒明文发送密钥）。
+    private var currentSettings: PushSettings {
+        PushSettings(provider: selected, barkServer: barkServer, ntfyServer: ntfyServer)
     }
 
     private func serverField(_ text: Binding<String>, placeholder: String) -> some View {
@@ -100,24 +114,14 @@ struct SettingsPushSection: View {
     }
 
     private func load() {
-        let current = PushSecrets.load(push.secrets)
-        saved = current
-        draft = current
+        draft = push.reloadSecrets()
     }
 
-    /// 输入框变化时把改动的那几项写进 Keychain（空白 = 删除）。
+    /// 把改动的那几项写进 Keychain（空白 = 删除）；没有改动时什么都不做。
     private func store() {
-        let pairs: [(PushSecretKey, String, String)] = [
-            (.barkDeviceKey, draft.barkDeviceKey, saved.barkDeviceKey),
-            (.ntfyTopic, draft.ntfyTopic, saved.ntfyTopic),
-            (.ntfyToken, draft.ntfyToken, saved.ntfyToken),
-            (.webhookURL, draft.webhookURL, saved.webhookURL),
-        ]
+        guard draft != push.secrets else { return }
         do {
-            for (key, value, old) in pairs where value != old {
-                try push.secrets.write(value, account: key.rawValue)
-            }
-            saved = draft
+            try push.saveSecrets(draft)
             saveError = nil
         } catch {
             saveError = error.localizedDescription
