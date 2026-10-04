@@ -64,6 +64,7 @@ public struct GeneratedFilesLog: Equatable, Sendable {
 
     public var isEmpty: Bool { entries.isEmpty }
     public var count: Int { entries.count }
+    public func contains(_ path: String) -> Bool { entries[path] != nil }
 
     /// 记一次改动：created 为 FSEvents 的「新建」（含改名进来）。之前新建过的文件再被改动仍算新建。
     public mutating func record(_ path: String, created: Bool, at time: Date) {
