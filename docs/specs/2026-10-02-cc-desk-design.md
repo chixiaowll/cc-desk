@@ -220,7 +220,7 @@ v1.1 实测补充（codex-cli 0.160.0 / pi 0.73.1，详见 `docs/notes/2026-10-0
 
 - 终端组件：[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)（SPM 引入，使用其 `LocalProcessTerminalView`）。
 - 每个内嵌 session = 一个伪终端 + 用户的登录 shell（`$SHELL -l -i`），启动后自动输入 agent 的启动或恢复命令。这样 PATH、别名、rtk 等环境与平时一致；agent 退出后 shell 保留，用户可再次输入命令。
-- 环境变量额外注入 `CC_DESK=1`、`CC_DESK_TERMINAL_ID=<uuid>`，供 hook 识别（tty 仍是主键）。
+- 环境变量额外注入 `CC_DESK=1`、`CC_DESK_TERMINAL_ID=<uuid>`，供 hook 识别（tty 仍是主键）；`COLORFGBG` 按会话启动时的明暗写入（见 §18）。
 - 屏幕检测通过 SwiftTerm 的缓冲区接口读取底部行，只在主线程之外做匹配。
 - 对外提供统一的写入接口，v1 只用于自动输入启动 / 恢复命令，为后续语音输入等功能预留：
 
@@ -510,7 +510,7 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 
 - SwiftUI `Settings` scene：应用菜单「设置…」（⌘,，系统自带项）与菜单栏菜单「设置…」打开（`SettingsOpener`，`showSettingsWindow:`）。工具栏样式标签页，600 × 560，表单为系统分组样式、纸色背景（`Theme.main`）、陶土色强调；当前标签存 `settingsTab`。
 - **每个控件都绑定原有的 UserDefaults 键 / 偏好对象**，不另存一份：外观 `appearance`（`AppearancePreference.apply`）、语言（`AppDelegate.selectLanguage`，沿用「保存 → 询问立即重启」流程）、`LoginItemController`、`DesktopPreferences`、`ConversationMode` 的静态键、`voiceWakeWord`、`voiceSpeechVoice`、`NaturalVoiceInstaller`。
-- **通用**：外观（跟随系统 / 浅色 / 深色）、语言（跟随系统 / 简体中文 / English，重启生效）、登录时启动、在菜单栏显示图标、启用全局快捷键（列出 ⌃⌥C 主窗口、⌃⌥V 对话模式；被占用的组合用陶土色提示）。
+- **通用**：外观（跟随系统 / 浅色 / 深色，下方提示把 Claude Code 主题设为 Auto）、终端字体与字号（§18）、语言（跟随系统 / 简体中文 / English，重启生效）、登录时启动、在菜单栏显示图标、启用全局快捷键（列出 ⌃⌥C 主窗口、⌃⌥V 对话模式；被占用的组合用陶土色提示）。
 - **语音**：按住右 ⌥ 说话说明；Whisper 模型状态（已下载 / 下载中 x% / 加载中 / 未下载 + 下载按钮，`VoiceInput.predownload`）；对话模式默认值（启动时开启助手、常驻对话）；唤醒词（`WakeWordRule`：去掉首尾空白后 2–8 个字，不合格时陶土色提示且不保存；回车 / 「保存」/ 离开页面时保存，等于默认值时删除自定义；**下次开启对话模式时生效**——`ConversationMode.turnOn` 才读取，运行中的会话不热切换，避免改动对话状态机）；回复摘要；朗读声音（自然语音 / 系统自动 / 已安装的系统声音，选未安装的自然语音时先询问安装；自然语音安装状态与「安装…」按钮；试听（对话模式开启时禁用）、下载更多系统声音）；重置助手对话。
 - **通知**：系统通知权限状态（已允许 / 已关闭 / 尚未询问，回到 App 时刷新）+「打开系统设置」；按事件开关（`notifyOnWaiting` / `notifyOnFinished`，默认都开，只影响系统通知，角标与未读照常）；测试通知与角标；推送到手机（16.2）。
 - **集成**：直接复用 `IntegrationsList`（原「集成…」表单的内容，Claude 内置 / Codex hook / pi 扩展的状态与安装、卸载）；原表单与 `showIntegrations` 删除。
@@ -545,8 +545,8 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 
 ### 17.2 面板（App，`TouchedFilesModel` / `TouchedFilesPanel`）
 
-- **位置**：详情区终端右侧，宽 300pt，与侧栏同底色，左侧 1pt 分隔线；只对 agent 会话显示。开关：标题栏右侧（状态胶囊左边）的文档按钮、菜单「显示 → 改动的文件」（⇧⌘F）；开关状态存 UserDefaults `touchedFilesPanelShown`。
-- **内容**：标题「改动的文件」+ 数量；超过 15 个文件时显示筛选框（文件名 / 相对路径包含即可）；分「文档与产出 · n」「代码 · n」两组。每行：系统文件图标（`NSWorkspace.icon(forFile:)`，不存在时按扩展名）、文件名、徽标（新 / 已改 / 已删除 / 不存在）、相对时间（悬停 / 选中时换成眼睛按钮），第二行是相对项目根目录（git 顶层，见 §4）的所在目录。已删除的文件名加删除线、图标变淡。空状态分别提示没有 agent 会话、正在读取、还没找到会话记录、还没有改动文件、没有匹配项。
+- **位置**：详情区终端右侧，宽 300pt，与侧栏同底色，左侧 1pt 分隔线；只对 agent 会话显示。开关：标题栏右侧（状态胶囊左边）的线条图标按钮（`sidebar.right`，fg2，打开时加浅底）、菜单「显示 → 改动的文件」（⇧⌘F）；开关状态存 UserDefaults `touchedFilesPanelShown`。
+- **内容**：标题「改动的文件」+ 数量；超过 15 个文件时显示筛选框（文件名 / 相对路径包含即可）；分「文档与产出 · n」「代码 · n」两组。每行：系统文件图标（`NSWorkspace.icon(forFile:)`，不存在时按扩展名）、文件名、徽标（新 / 已改 / 已删除 / 不存在）、相对时间（悬停 / 选中时换成眼睛按钮），第二行是所在目录（`TouchedFiles.displayDirectory`）：项目根目录（git 顶层，见 §4）内为相对路径，项目外为 `~/…`（或绝对路径），超长时按路径段从中间省略，保留开头与离文件最近的几层（如 `~/Documents/…/cc-desk/docs/design/`）。已删除的文件名加删除线、图标变淡。空状态分别提示没有 agent 会话、正在读取、还没找到会话记录、还没有改动文件、没有匹配项。
 - **动作**：单击选中；空格 / 眼睛按钮快速查看（`QLPreviewPanel`）；双击 / 回车用默认 App 打开（`NSWorkspace.open`）；↑ / ↓ 移动选中。右键：快速查看、用默认 App 打开、在访达中显示（`activateFileViewerSelecting`）、用 VS Code 打开（仅当装了 VS Code，`Jumper.vsCodeURL`）、复制路径、复制相对路径；已删除 / 不存在的文件只有「复制路径」。
 - **快速查看**（`FilePreviewController`）：作为 QLPreviewPanel 的控制者插到主窗口响应链末尾（`window.nextResponder`），面板列表与终端 ⌘-点击共用。预览列表是当前可见且存在的文件；面板打开时 ↑ / ↓（← / →）切换并同步列表选中，空格关闭，与访达一致；列表刷新或选中变化时跟着更新。
 - **刷新**：只跟踪选中的会话。会话记录的定位复用轮询队列上的 `TranscriptIndex` / `AgentSessionIndex`（`AppModel.locateTranscript`，带 miss 缓存），读取在单独的串行队列 `cc-desk.touched-files` 上。面板显示时每 2 秒、隐藏时每 6 秒检查一次文件大小 / 修改时间，变了才读新增部分；显示时每次重新检查文件是否还在。切换会话后正在进行的大文件读取在块之间停下。
@@ -560,3 +560,11 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 ### 17.4 语音助手 `open_file`
 
 - 工具（`AssistantTools`）：`open_file(session?, query?, app?)`——会话里最近改动且仍存在的文件，优先文档类；`query` 匹配路径里的文字；默认快速查看，`app=true` 用默认 App 打开。选中会话直接用面板已加载的结果，其他会话一次性读取。人设提示里加一句：「打开它写的文档 / 给我看看那个报告」→ open_file。
+
+## 18. 终端外观：浅色 / 深色与中文字体（v1.8）
+
+- **配色**（Core `TerminalPalette` / `TerminalColorScheme`，App `TerminalTheme`）：底色 / 前景 / 光标与 ANSI 16 色成套定义，`installColors` 安装；切换外观时与 App 外观在同一个 CATransaction 里换色。浅色为 #F4EFE6 奶油底设计：普通色 0–7（含「白」，是暖灰）对底色 ≥ 4.5:1，明亮色 ≥ 3:1；深色为 #1B1A18 设计：1–7、9–15 ≥ 4.5:1，8 ≥ 3:1。单元测试用 `ColorContrast`（WCAG 相对亮度）守住这些下限。
+- **Claude Code 的明暗**：它的默认主题是 dark，真彩色界面在浅色底上发白。它的 Auto 主题读 `COLORFGBG`（最后一段为底色色号）与 OSC 11。CC Desk 在会话启动时按当时的明暗写入 `COLORFGBG`（浅色 `0;15`、深色 `15;0`；tmux 会话用 `new-session -e`，直连 PTY 写进环境；宿主终端继承来的值去掉）。不改用户的 Claude 配置，由用户自己执行 `/theme` → Auto；设置 › 通用 › 外观下有提示。`COLORFGBG` 只在会话启动时确定，切换外观后旧会话的值不变。
+- **OSC 10/11 与 tmux**：SwiftTerm 按当前 `nativeBackgroundColor` / `nativeForegroundColor` 回答 OSC 10/11 查询。tmux 在客户端附着时向外层终端查询 OSC 10/11，窗格里的查询（默认底色时）用外层的回答作答（已用 tmux 3.7c 验证）。tmux ≥ 3.6 支持 DEC mode 2031：附着后与每次切换明暗时，CC Desk 像真实终端一样向 tmux 客户端发送 `CSI ? 997 ; 1|2 n`（1 深色、2 浅色），tmux 随即重新查询底色，并通知订阅了 2031 的窗格程序。tmux 3.5 及更早的版本不发（它们会把这段报告当成按键），直连 PTY 也不发。
+- **字体**（Core `TerminalFontChoice`，App `TerminalFont` / `TerminalFontPreferences`，UserDefaults `terminalFontFamily`（空 = 自动）/ `terminalFontSize`）：SF Mono 没有中文，苹方回退的字形窄于两格，字间留缝。「自动」按顺序取第一个已安装的中文等宽字体：Maple Mono NF CN、Maple Mono CN、Sarasa Term SC、Sarasa Mono SC、LXGW WenKai Mono、Noto Sans Mono CJK SC，都没有时用 SF Mono，并在设置里提示 `brew install --cask font-maple-mono-nf-cn`（不替用户安装）。也可以选任何已安装的等宽字体，字号 11–18；选中的字体被卸载时按「自动」处理。改动立即应用到所有终端：SwiftTerm 按新格子重算行列，tmux 客户端随之调整窗口大小。
+- **界面对比度**：浅色 fg2 #5F5B54、fg3 #736E66（对奶油底约 5.9 / 4.4:1，原 #6B675F / #8A857D 约 4.9 / 3.2:1），已完成绿 #4F7D5B（白字 4.75:1）；深色 fg3 #8F8A82（约 4.5:1）。
