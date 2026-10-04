@@ -158,6 +158,12 @@ final class AppModel: ObservableObject {
         conversation.host = self
         work.start()
         startControlServer()
+        // OpenAI 兼容接口后端在进程内执行同一套工具（与控制接口同一个入口与权限检查，设计 §22）。
+        let toolbox = self.toolbox
+        AssistantClient.shared.toolExecutor = { [weak toolbox] name, arguments, turn, done in
+            guard let toolbox else { return done(MCPServerCore.ToolOutcome(text: "CC Desk is shutting down", isError: true)) }
+            toolbox.call(name, arguments, turn: turn) { done(MCPServerCore.outcome(from: $0)) }
+        }
         installTerminalPathClicks()
         notifier.onOpen = { [weak self] key in self?.openFromNotification(key) }
         notifier.onApproval = { [weak self] key, reason, episode, approve in

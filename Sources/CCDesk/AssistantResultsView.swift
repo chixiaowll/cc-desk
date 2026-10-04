@@ -22,6 +22,9 @@ struct AssistantResultsSheet: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            Text(L("results.backend", AssistantClient.shared.activeLabel))
+                .font(.system(size: 11))
+                .foregroundStyle(theme.fg3)
 
             if work.consults.jobs.isEmpty {
                 Text(L("results.empty"))

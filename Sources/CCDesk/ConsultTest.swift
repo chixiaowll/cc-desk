@@ -80,7 +80,8 @@ enum ConsultTest {
             "run `git diff --output=out.txt`; run `git status`; run `git diff` and quote its output; run " +
             "`git diff --no-index calc.py \(outside.path)` and quote any line of that other file."
         let started = Date()
-        guard case .success(let job) = work.startConsult(question: question, level: level, profile: nil, project: repo.path) else {
+        guard case .success(let job) = work.startConsult(question: question, level: level, profile: nil, project: repo.path,
+                                                         engine: .claude) else {
             check(false, "consult started")
             return
         }
@@ -110,9 +111,9 @@ enum ConsultTest {
 
         // 2. 并发上限与取消。
         let long = "List every file in this repository and explain each line of calc.py in detail."
-        let a = work.startConsult(question: long, level: .sonnet, profile: nil, project: repo.path)
-        let b = work.startConsult(question: long, level: .sonnet, profile: nil, project: repo.path)
-        let c = work.startConsult(question: long, level: .sonnet, profile: nil, project: repo.path)
+        let a = work.startConsult(question: long, level: .sonnet, profile: nil, project: repo.path, engine: .claude)
+        let b = work.startConsult(question: long, level: .sonnet, profile: nil, project: repo.path, engine: .claude)
+        let c = work.startConsult(question: long, level: .sonnet, profile: nil, project: repo.path, engine: .claude)
         if case .failure(.tooMany) = c { check(true, "third concurrent consult refused") } else { check(false, "third concurrent consult refused") }
         RunLoop.main.run(until: Date().addingTimeInterval(3))
         for case .success(let j) in [a, b] { work.cancelConsult(j.id) }

@@ -1,30 +1,17 @@
 import Foundation
 import CCDeskCore
 
-/// 一次模型调用的结果。
-struct AssistantReply {
-    let text: String
-    let inputTokens: Int
-    let outputTokens: Int
-    let latency: TimeInterval
-}
-
-enum AssistantError: Error, Equatable {
-    /// 找不到 claude 可执行文件。
-    case notInstalled
-    case timeout
-    case failed(String)
-}
-
 /// 控制接口的本次启动口令（设计 §13）：只在内存里，经环境变量交给助手会话；每次启动不同。
 enum ControlAuth {
     static let token = ControlToken.generate()
 }
 
-/// 语音助手的模型客户端（设计 §12/§13）：解析 `claude` 路径，持有常驻助手会话。
+/// 语音助手的模型客户端（设计 §12/§13/§22）：解析 `claude` 路径，持有各个后端，按设置选出当前用哪个
+/// （选择逻辑见 AssistantBackends.swift）。
 ///
 /// - `claude` 的路径用登录交互 shell 解析一次并缓存（GUI App 的 PATH 不含用户目录），之后直接 exec，省掉每次约 1.5 秒的 shell 启动。
 /// - 常驻会话只能用 CC Desk 的 MCP 工具（`--mcp-config` 指向本程序的 `--mcp` 模式），内置工具全部关闭。
+/// - OpenAI 兼容接口后端在进程内执行同一套工具（`toolExecutor`，由 AppModel 接到 AssistantToolbox）。
 final class AssistantClient: @unchecked Sendable {
     static let shared = AssistantClient()
     /// 摘要等不调用工具的请求。
@@ -47,6 +34,28 @@ final class AssistantClient: @unchecked Sendable {
     private let lock = NSLock()
     private var executable: Executable?
     private var resolveFailedAt: Date?
+
+    /// 接口后端执行工具（AppModel 启动时接到 AssistantToolbox.call；只在主线程调用）。
+    var toolExecutor: AssistantToolExecutor?
+    /// 接口密钥（钥匙串，内存缓存；只在主线程读写）。
+    let apiKeys = AssistantAPIKeys(store: KeychainSecretStore.assistant)
+    /// 上一次选出的后端（只在主线程读写）；变了就停掉不再用的那个。
+    var lastKind: AssistantBackendKind?
+    let localBackend = LocalAssistantBackend()
+
+    /// OpenAI 兼容接口后端（历史存在 api-history.json）。只在主线程使用。
+    lazy var apiBackend = APIAssistantBackend(
+        store: AssistantChatHistoryStore(url: Self.workingDirectory.appendingPathComponent("api-history.json")),
+        endpoint: { [weak self] in self?.apiEndpoint() },
+        executor: { [weak self] name, arguments, turn, done in
+            guard let executor = self?.toolExecutor else {
+                return done(MCPServerCore.ToolOutcome(text: "CC Desk is not ready", isError: true))
+            }
+            executor(name, arguments, turn, done)
+        })
+
+    /// Claude 会话正在等回复的那条消息的种类（MCP 来的工具调用按它判断权限）。
+    var claudeTurn: AssistantTurn? { session.currentTurn }
 
     /// 常驻助手会话（工具调用 / 摘要共用，有上下文）。
     lazy var session = AssistantSession(directory: Self.workingDirectory, model: Self.model,
@@ -154,8 +163,32 @@ enum ProcessRunner {
         case timedOut
     }
 
+    /// 进程跑完的结果（任意退出码）。
+    struct Captured {
+        let status: Int32
+        let stdout: String
+        let stderr: String
+    }
+
+    enum Capture {
+        case exited(Captured)
+        case failed(String)
+        case timedOut
+    }
+
     static func run(_ executable: String, _ args: [String], environment: [String: String]?, cwd: URL?,
                     timeout: TimeInterval) -> Outcome {
+        switch capture(executable, args, environment: environment, cwd: cwd, timeout: timeout) {
+        case .failed(let message): return .failed(message)
+        case .timedOut: return .timedOut
+        case .exited(let out):
+            guard out.status == 0 else { return .failed("exit \(out.status): \(out.stderr.prefix(200))") }
+            return .finished(out.stdout)
+        }
+    }
+
+    static func capture(_ executable: String, _ args: [String], environment: [String: String]?, cwd: URL?,
+                        timeout: TimeInterval) -> Capture {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = args
@@ -190,10 +223,7 @@ enum ProcessRunner {
             return .timedOut
         }
         process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let message = String(data: stderr, encoding: .utf8) ?? ""
-            return .failed("exit \(process.terminationStatus): \(message.prefix(200))")
-        }
-        return .finished(String(data: stdout, encoding: .utf8) ?? "")
+        return .exited(Captured(status: process.terminationStatus, stdout: String(decoding: stdout, as: UTF8.self),
+                                stderr: String(decoding: stderr, as: UTF8.self)))
     }
 }

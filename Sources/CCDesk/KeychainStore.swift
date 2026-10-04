@@ -2,14 +2,19 @@ import Foundation
 import Security
 import CCDeskCore
 
-/// 推送密钥存在登录钥匙串里（generic password，service 为 `PushSecrets.service`）。测试用 `InMemorySecretStore`。
+/// 推送密钥与助手接口密钥存在登录钥匙串里（generic password，service 为 `PushSecrets.service` /
+/// `AssistantAPISettings.keychainService`）。条目由 CC Desk 自己创建，之后读取不弹授权。测试用 `InMemorySecretStore`。
 final class KeychainSecretStore: SecretStore {
-    static let push = KeychainSecretStore(service: PushSecrets.service)
+    static let push = KeychainSecretStore(service: PushSecrets.service, label: "CC Desk push")
+    static let assistant = KeychainSecretStore(service: AssistantAPISettings.keychainService, label: "CC Desk assistant API")
 
     let service: String
+    /// 钥匙串访问里显示的名字（后面加账户名）。
+    let label: String
 
-    init(service: String) {
+    init(service: String, label: String) {
         self.service = service
+        self.label = label
     }
 
     private func query(_ account: String) -> [String: Any] {
@@ -41,7 +46,7 @@ final class KeychainSecretStore: SecretStore {
         var add = query(account)
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        add[kSecAttrLabel as String] = "CC Desk push (\(account))"
+        add[kSecAttrLabel as String] = "\(label) (\(account))"
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError(status: status) }
     }

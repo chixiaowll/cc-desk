@@ -37,8 +37,8 @@ extension AssistantToolbox {
         case .failure(.tooMany(let running)):
             done(Self.failure("Already running \(running.count) consults (\(running.joined(separator: ", "))); wait for one " +
                               "to finish or cancel_consult"))
-        case .failure(.noClaude):
-            done(Self.failure("Claude Code was not found"))
+        case .failure(.unavailable(let why)):
+            done(Self.failure("The senior assistant is not available: \(why)"))
         case .failure(.failed(let message)):
             done(Self.failure(message))
         }

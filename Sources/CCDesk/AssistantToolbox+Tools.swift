@@ -201,7 +201,7 @@ extension AssistantToolbox {
                                         expectedEpisode: expectedEpisode))
             }
             // 用户这句话要在请求出现（和播报）之后才开始说，否则先语音确认：说「批准」时可能还没听到 / 看到这个请求。
-            let spokenAt = model.conversation.assistantTurn?.spokenAt
+            let spokenAt = args.turn?.spokenAt
             guard AssistantToolPolicy.approvalNeedsConfirmation(spokenAt: spokenAt, waitingSince: episode.since,
                                                                 announcedAt: announced?.at) else { return apply() }
             let question: String

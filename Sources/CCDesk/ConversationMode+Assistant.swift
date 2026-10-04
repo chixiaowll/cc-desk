@@ -38,11 +38,26 @@ extension ConversationMode {
                 if let spoken = AssistantSpeech.clean(reply.text) { quiet ? self.showToast(spoken) : self.speak(spoken) }
             case .failure(.notInstalled):
                 self.perform(.insert(text), target: target)
+            case .failure(.api(let detail)):
+                self.speak(L("assistant.unavailable"))
+                self.showToast(L("assistant.toast.apiError", detail))
             case .failure:
                 self.speak(L("assistant.unavailable"))
             }
             self.state = self.session.state
             self.transcribeNext()
+        }
+    }
+
+    /// 设置里换了助手模型 / 改了接口配置（设计 §22）：重新选后端；对话模式开着时更新「交给助手还是直接填入」。
+    func assistantBackendChanged() {
+        assistant.backendChanged()
+        guard isOn else { return }
+        let current = generation
+        assistant.prepare { [weak self] ok in
+            guard let self, self.isOn, self.generation == current else { return }
+            self.session.routesToAssistant = ok
+            AssistantDiag.log("assistant backend changed, model available=\(ok)")
         }
     }
 
@@ -82,9 +97,6 @@ extension ConversationMode {
         turnQuiet = nil
         session.noteSpeech(now: ProcessInfo.processInfo.systemUptime)
     }
-
-    /// 常驻助手正在处理的那条消息的种类（工具调用权限，见 `AssistantToolPolicy`）；没有时 nil。
-    var assistantTurn: AssistantTurn? { assistant.currentTurn }
 
     /// 工具开始执行：VoiceBar 显示「→ …」。quiet：只是往输入框打字。
     func toolStarted(_ text: String, quiet: Bool) {

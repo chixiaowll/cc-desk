@@ -19,7 +19,7 @@ final class AssistantWork: ObservableObject {
     let profileStore: AgentProfileStore
     private var consultsURL: URL { directory.appendingPathComponent("consults.json") }
     private var delegationStore: DelegationStore { DelegationStore(url: directory.appendingPathComponent("delegations.json")) }
-    private var processes: [String: ConsultProcess] = [:]
+    private var processes: [String: ConsultRunning] = [:]
     private var gate = ProactiveSpeechGate()
     private var drainTimer: Timer?
     /// 最近播报过的等批准（按行），respond_approval 用它复核「批准的是用户听到的那个请求」。
@@ -63,15 +63,32 @@ final class AssistantWork: ObservableObject {
 
     enum ConsultStartError: Error {
         case tooMany([String])
-        case noClaude
+        /// 没有可用的顾问（找不到 claude / 接口没配置 / 仅本地规则）；附说明给模型。
+        case unavailable(String)
         case failed(String)
     }
 
-    /// 启动一次顾问调用；成功时返回任务（已在运行）。
-    func startConsult(question: String, level: ConsultLevel?, profile: AgentProfile?, project: String)
+    /// 顾问用哪个引擎（设计 §22）：claude -p，或 OpenAI 兼容接口。
+    enum ConsultEngine {
+        case claude, api
+    }
+
+    /// 启动一次顾问调用；成功时返回任务（已在运行）。engine 为 nil 时跟着当前的助手后端走。
+    func startConsult(question: String, level: ConsultLevel?, profile: AgentProfile?, project: String,
+                      engine: ConsultEngine? = nil) -> Result<ConsultJob, ConsultStartError> {
+        switch engine ?? AssistantClient.shared.consultEngine {
+        case .claude?: return startClaudeConsult(question: question, level: level, profile: profile, project: project)
+        case .api?: return startAPIConsult(question: question, profile: profile, project: project)
+        case nil: return .failure(.unavailable("No assistant model is configured (local rules only)"))
+        }
+    }
+
+    private func startClaudeConsult(question: String, level: ConsultLevel?, profile: AgentProfile?, project: String)
         -> Result<ConsultJob, ConsultStartError> {
         let model = ConsultCommand.model(level: level, profile: profile)
-        guard let claude = AssistantClient.shared.resolvedClaudeIfKnown() else { return .failure(.noClaude) }
+        guard let claude = AssistantClient.shared.resolvedClaudeIfKnown() else {
+            return .failure(.unavailable("Claude Code was not found"))
+        }
         let job: ConsultJob
         switch consults.start(question: question, model: model, profile: profile?.name, project: project, now: Date()) {
         case .failure(.tooMany(let running)): return .failure(.tooMany(running))
@@ -96,6 +113,31 @@ final class AssistantWork: ObservableObject {
         return .success(job)
     }
 
+    /// 接口版顾问：同一个服务、「顾问模型」（没填时与助手相同）；level（sonnet / opus）不适用。
+    private func startAPIConsult(question: String, profile: AgentProfile?, project: String)
+        -> Result<ConsultJob, ConsultStartError> {
+        let settings = AssistantAPISettings.load()
+        guard let endpoint = AssistantClient.shared.apiEndpoint(settings: settings, model: settings.effectiveConsultModel)
+        else { return .failure(.unavailable("The assistant API is not configured")) }
+        guard let sandbox = ConsultSandbox(project: project) else { return .failure(.failed("\(project) is not a directory")) }
+        let job: ConsultJob
+        switch consults.start(question: question, model: endpoint.model, profile: profile?.name, project: project,
+                              now: Date()) {
+        case .failure(.tooMany(let running)): return .failure(.tooMany(running))
+        case .success(let started): job = started
+        }
+        let id = job.id
+        let run = APIConsultRun(endpoint: endpoint, sandbox: sandbox, question: question, profile: profile,
+                                language: Localization.currentLanguage,
+                                onProgress: { [weak self] calls in self?.consults.progress(id, toolCalls: calls) },
+                                completion: { [weak self] ending in self?.consultEnded(id, ending) })
+        processes[id] = run
+        run.start()
+        saveConsults()
+        AssistantDiag.log("consult \(id) started via api profile=\(profile?.name ?? "-")")
+        return .success(job)
+    }
+
     /// 取消运行中的任务（id 为 nil 时取最新的一个）。返回被取消的任务 id。
     @discardableResult
     func cancelConsult(_ id: String?) -> String? {
@@ -110,7 +152,7 @@ final class AssistantWork: ObservableObject {
         for process in processes.values { process.terminateNow() }
     }
 
-    private func consultEnded(_ id: String, _ ending: ConsultProcess.Ending) {
+    private func consultEnded(_ id: String, _ ending: ConsultEnding) {
         processes[id] = nil
         let now = Date()
         let finished: ConsultJob?

@@ -5,13 +5,8 @@ import CCDeskCore
 /// 逐行读 stream-json：工具调用数作为进度，最后的 result 行作为结果。子进程在自己的进程组里启动，
 /// 超时 / 取消 / App 退出时先对整个组 SIGTERM，稍后 SIGKILL（claude 启动的 git 等子进程一并结束）。
 /// 回调都在主线程，completion 恰好一次。
-final class ConsultProcess: @unchecked Sendable {
-    enum Ending {
-        case finished(ConsultOutcome)
-        case failed(String)
-        case timedOut
-        case cancelled
-    }
+final class ConsultProcess: ConsultRunning, @unchecked Sendable {
+    typealias Ending = ConsultEnding
 
     private let queue = DispatchQueue(label: "cc-desk.consult")
     private let executable: String
@@ -167,6 +162,21 @@ final class ConsultProcess: @unchecked Sendable {
         }
         DispatchQueue.main.async { [completion] in completion(result) }
     }
+}
+
+/// 一次顾问调用的结局（Claude 进程与接口版共用）。
+enum ConsultEnding {
+    case finished(ConsultOutcome)
+    case failed(String)
+    case timedOut
+    case cancelled
+}
+
+/// 运行中的一次顾问调用（`ConsultProcess` = claude -p，`APIConsultRun` = OpenAI 兼容接口）。只在主线程调用。
+protocol ConsultRunning: AnyObject {
+    func cancel()
+    /// App 退出时同步结束，不等回调。
+    func terminateNow()
 }
 
 /// posix_spawn 启动的子进程（Foundation 的 Process 不能让子进程进入新的进程组）：

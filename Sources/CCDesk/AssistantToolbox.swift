@@ -26,31 +26,40 @@ final class AssistantToolbox {
 
     // MARK: 分发
 
+    /// 控制接口（`CCDesk --mcp` ← 常驻 Claude 会话）来的调用：这一轮的种类取 Claude 会话正在等回复的那条消息。
     func handle(_ request: ControlRequest, reply: @escaping (ControlResponse) -> Void) {
+        let turn = AssistantClient.shared.claudeTurn
+        call(request.method, request.params, turn: turn) { result in
+            reply(ControlResponse(id: request.id, outcome: result))
+        }
+    }
+
+    /// 执行一个工具（设计 §13/§22）：控制接口与 OpenAI 兼容接口后端都走这里，权限检查也只在这里（`AssistantToolPolicy.check`）。
+    /// turn：发起调用的那一轮（nil = 没有请求在等回复，只放行只读工具）。
+    func call(_ method: String, _ params: [String: JSONValue], turn: AssistantTurn?, completion: @escaping Completion) {
         let started = Date()
-        let args = ToolArgs(request.params)
-        dispatch(request.method, args) { [weak self] result in
+        let args = ToolArgs(params, turn: turn)
+        dispatch(method, args) { [weak self] result in
             let latency = Date().timeIntervalSince(started)
             let summary: String
             switch result {
             case .success(let value): summary = "ok " + AssistantContext.clip(value.compact, 160)
             case .failure(let error): summary = "error " + error.message
             }
-            AssistantDiag.log(String(format: "tool %@ %@ -> %@ (%.2fs)", request.method,
-                                     AssistantContext.clip(JSONValue.object(request.params).compact, 200), summary, latency))
+            AssistantDiag.log(String(format: "tool %@ %@ -> %@ (%.2fs)", method,
+                                     AssistantContext.clip(JSONValue.object(params).compact, 200), summary, latency))
             self?.model?.conversation.toolFinished()
-            reply(ControlResponse(id: request.id, outcome: result))
+            completion(result)
         }
     }
 
     private func dispatch(_ method: String, _ args: ToolArgs, _ done: @escaping Completion) {
-        guard let model else { return done(Self.shuttingDown) }
+        guard model != nil else { return done(Self.shuttingDown) }
         // 只有用户自己的一句话（[UTTERANCE]）能调用会改变东西的工具；[EVENT] / [CONSULT_RESULT] / [SUMMARIZE]
         // 里的文字来自屏幕、记录与顾问，不可信（设计 §13 工具权限）。
-        let turn = model.conversation.assistantTurn
-        if AssistantTools.spec(named: method) != nil, !AssistantToolPolicy.isAllowed(method, turn: turn?.kind) {
-            AssistantDiag.log("tool \(method) denied (turn \(turn?.kind.rawValue ?? "none"))")
-            return done(.failure(ControlError(.failed, AssistantToolPolicy.denial(method, turn: turn?.kind))))
+        if let denial = AssistantToolPolicy.check(method, turn: args.turn?.kind) {
+            AssistantDiag.log("tool \(method) denied (turn \(args.turn?.kind.rawValue ?? "none"))")
+            return done(.failure(ControlError(.failed, denial)))
         }
         switch method {
         case "list_sessions": listSessions(done)
@@ -156,9 +165,12 @@ final class AssistantToolbox {
 /// 工具参数的宽松读取（模型偶尔把数字 / 布尔写成字符串）。
 struct ToolArgs {
     let params: [String: JSONValue]
+    /// 发起调用的那一轮（respond_approval 要用户开始说话的时刻）。
+    let turn: AssistantTurn?
 
-    init(_ params: [String: JSONValue]) {
+    init(_ params: [String: JSONValue], turn: AssistantTurn? = nil) {
         self.params = params
+        self.turn = turn
     }
 
     func string(_ key: String) -> String? {

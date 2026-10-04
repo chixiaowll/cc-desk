@@ -27,6 +27,11 @@
 	<string>2</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSAppleEventsUsageDescription</key>
 	<string>CC Desk needs to control Terminal to jump to the tab running Claude Code.</string>
 	<key>NSHighResolutionCapable</key>
