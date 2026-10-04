@@ -409,3 +409,4 @@
 "files.menu.copyRelativePath" = "复制相对路径";
 "files.toggle.help" = "改动的文件（⇧⌘F）";
 "files.toggle.newHelp" = "改动的文件：有你还没看过的新文档（⇧⌘F）";
+"assistant.activity.openFile" = "→ 打开 %@ 写的文件";

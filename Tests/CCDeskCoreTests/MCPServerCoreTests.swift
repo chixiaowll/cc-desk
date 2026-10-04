@@ -103,7 +103,7 @@ final class AssistantToolsTests: XCTestCase {
         let names = Set(AssistantTools.all.map(\.name))
         for name in ["list_sessions", "read_screen", "read_transcript", "list_history", "list_projects", "git_status",
                      "switch_to", "type_text", "press_key", "respond_approval", "new_session", "resume_session",
-                     "close_session", "take_over", "clear_input"] {
+                     "close_session", "take_over", "clear_input", "open_file"] {
             XCTAssertTrue(names.contains(name), name)
         }
         XCTAssertEqual(names.count, AssistantTools.all.count, "duplicate tool names")

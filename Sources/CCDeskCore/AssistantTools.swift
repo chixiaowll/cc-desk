@@ -170,6 +170,14 @@ public enum AssistantTools {
             description: "Cancel a running consult job.",
             parameters: [.init("job", .string, "Job id from consult / list_consults (e.g. c2); omit for the latest running.")]),
         AssistantToolSpec(
+            name: "open_file",
+            description: "Show a file a session's agent wrote or edited: the most recent document-like one (md, html, " +
+                "pdf, image, csv, office document…), optionally matching words from its name or path. Opens it in the " +
+                "system Quick Look panel (default) or in its default app.",
+            parameters: [.init("session", .string, sessionRef),
+                         .init("query", .string, "Optional words from the file name or path (e.g. report, README)."),
+                         .init("app", .boolean, "true = open in the default app instead of Quick Look, default false.")]),
+        AssistantToolSpec(
             name: "take_over",
             description: "Move an external terminal session into CC Desk (it is restarted with resume). Asks the user to confirm.",
             parameters: [.init("session", .string, sessionRef, required: true)]),

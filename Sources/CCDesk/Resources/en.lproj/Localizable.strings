@@ -409,3 +409,4 @@
 "files.menu.copyRelativePath" = "Copy Relative Path";
 "files.toggle.help" = "Changed files (⇧⌘F)";
 "files.toggle.newHelp" = "Changed files: new documents since you last looked (⇧⌘F)";
+"assistant.activity.openFile" = "→ Open a file from %@";
