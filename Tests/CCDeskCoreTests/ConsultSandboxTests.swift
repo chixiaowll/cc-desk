@@ -92,6 +92,23 @@ final class ConsultSandboxTests: XCTestCase {
         XCTAssertNotNil(failure(sandbox.listDir("src/a.swift")))
     }
 
+    /// FIFO 等特殊文件：read_file 立即拒绝（不会卡在 open 上），list_dir 不当作目录，grep 跳过。
+    func testSpecialFilesAreRejectedWithoutBlocking() throws {
+        let fifo = project.appendingPathComponent("src/pipe").path
+        XCTAssertEqual(mkfifo(fifo, 0o600), 0)
+        let started = Date()
+        let read = failure(sandbox.readFile("src/pipe", startLine: nil, maxLines: nil))
+        XCTAssertLessThan(Date().timeIntervalSince(started), 1)
+        XCTAssertEqual(read?.message, "src/pipe is not a regular file")
+        XCTAssertEqual(failure(sandbox.listDir("src/pipe"))?.message, "src/pipe is not a directory")
+        XCTAssertEqual(failure(sandbox.readFile("src", startLine: nil, maxLines: nil))?.message,
+                       "src is a directory; use list_dir")
+        XCTAssertTrue(try sandbox.readFile("src/a.swift", startLine: nil, maxLines: nil).get().hasPrefix("1\tline1"))
+        XCTAssertEqual(try sandbox.listDir("src").get().components(separatedBy: "\n"), ["a.swift", "pipe", "secret-link.txt@"])
+        let args = try sandbox.searchArguments(pattern: "x", regex: false, ignoreCase: false, path: nil).get()
+        XCTAssertEqual(args[(args.firstIndex(of: "-D") ?? 0) + 1], "skip")
+    }
+
     func testSearchArguments() throws {
         let args = try sandbox.searchArguments(pattern: "-rf --include=x", regex: false, ignoreCase: true, path: nil).get()
         let e = try XCTUnwrap(args.firstIndex(of: "-e"))
@@ -109,6 +126,8 @@ final class ConsultSandboxTests: XCTestCase {
     /// 真的跑一次 /usr/bin/grep：项目里的符号链接指向外面的文件 / 目录时不会被搜到。
     func testRealGrepDoesNotFollowSymlinks() throws {
         try "SECRET inside\n".write(to: project.appendingPathComponent("src/b.txt"), atomically: true, encoding: .utf8)
+        // 没有 -D skip 时 grep 会卡在这个 FIFO 上。
+        XCTAssertEqual(mkfifo(project.appendingPathComponent("src/pipe").path, 0o600), 0)
         let args = try sandbox.searchArguments(pattern: "SECRET", regex: false, ignoreCase: false, path: nil).get()
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/grep")

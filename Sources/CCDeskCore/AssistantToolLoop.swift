@@ -5,7 +5,8 @@ import Foundation
 /// - 工具先过 `gate`（助手：`AssistantToolPolicy.check`，与 MCP 路径同一个函数），被拒绝的不执行，拒绝说明作为结果交给模型；
 ///   未知工具、参数不是 JSON 对象时同样回一个错误结果，让模型自己改正。
 /// - 最多 `maxIterations` 次带工具的请求；用完时再发一次 `tool_choice: none` 逼出文字回复，仍要调用工具就失败。
-/// - 总时长 `timeout`：每次请求只给剩余的时间，超出即失败。
+/// - 总时长 `timeout`：开始时用 `schedule` 定一个真正的计时器，到点就取消正在进行的请求、不再等还没回来的工具，
+///   以 `.timeout` 结束（请求与工具卡住也一样）；每次请求也只给剩余的时间。
 /// - 回复取最后一次请求（没有工具调用的那次）的文字，去掉 `<think>` 段；调用工具时夹带的文字不朗读也不存。
 /// - completion 恰好调用一次；`cancel()` 之后不再调用。不碰线程：调用方保证 transport / executor 的回调与 cancel 在同一个
 ///   串行上下文里（App 里是主线程）。
@@ -16,6 +17,8 @@ public final class AssistantToolLoop {
                                  _ completion: @escaping (MCPServerCore.ToolOutcome) -> Void) -> Void
     /// nil = 放行；否则是拒绝说明。
     public typealias Gate = (_ name: String) -> String?
+    /// `seconds` 秒后在同一串行上下文里执行（App 里是主线程）。
+    public typealias Schedule = (_ seconds: TimeInterval, _ work: @escaping () -> Void) -> Void
 
     public static let defaultMaxIterations = 8
     /// 单个工具结果交给模型（并存进历史）的上限。
@@ -54,6 +57,7 @@ public final class AssistantToolLoop {
     private let transport: Transport
     private let executor: Executor
     private let now: () -> Date
+    private let schedule: Schedule
     private let onToolCall: ((String) -> Void)?
 
     private var turn: [ChatMessage]
@@ -72,7 +76,9 @@ public final class AssistantToolLoop {
     public init(model: String, prefix: [ChatMessage], user: ChatMessage, tools: [AssistantToolSpec],
                 maxIterations: Int = AssistantToolLoop.defaultMaxIterations, timeout: TimeInterval,
                 gate: @escaping Gate, transport: @escaping Transport, executor: @escaping Executor,
-                now: @escaping () -> Date = Date.init, onToolCall: ((String) -> Void)? = nil) {
+                now: @escaping () -> Date = Date.init,
+                schedule: @escaping Schedule = { DispatchQueue.main.asyncAfter(deadline: .now() + $0, execute: $1) },
+                onToolCall: ((String) -> Void)? = nil) {
         self.model = model
         self.prefix = prefix
         self.turn = [user]
@@ -83,6 +89,7 @@ public final class AssistantToolLoop {
         self.transport = transport
         self.executor = executor
         self.now = now
+        self.schedule = schedule
         self.onToolCall = onToolCall
     }
 
@@ -90,8 +97,10 @@ public final class AssistantToolLoop {
         guard self.completion == nil, !finished else { return }
         self.completion = completion
         deadline = now().addingTimeInterval(timeout)
+        schedule(timeout) { [weak self] in self?.deadlineReached() }
         request()
     }
+
 
     public func cancel() {
         guard !finished else { return }
@@ -102,6 +111,13 @@ public final class AssistantToolLoop {
     }
 
     // MARK: 内部
+
+    /// 总时长到了：取消正在进行的请求，不再等工具，以超时结束。
+    private func deadlineReached() {
+        guard !finished else { return }
+        cancelRequest?()
+        finish(.failure(.timeout))
+    }
 
     private func finish(_ result: Result<Outcome, Failure>) {
         guard !finished else { return }

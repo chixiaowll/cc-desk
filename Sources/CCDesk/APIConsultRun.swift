@@ -2,7 +2,8 @@ import Foundation
 import CCDeskCore
 
 /// 接口版顾问（设计 §22）：一次性的 OpenAI 兼容对话，只有项目目录内的只读工具（`ConsultSandbox`：list_dir / read_file /
-/// search / git_status / git_diff / git_log）。与 `ConsultProcess` 同样的任务记录、进度、超时（5 分钟）与取消；
+/// search / git_status / git_diff / git_log）。与 `ConsultProcess` 同样的任务记录、进度、超时（5 分钟，真正的计时器：
+/// 请求或工具卡住也按时以超时结束）与取消；
 /// 回调在主线程，completion 恰好一次。文件读取与 grep / git 在后台队列执行。
 final class APIConsultRun: ConsultRunning {
     static let maxIterations = 20
@@ -15,7 +16,7 @@ final class APIConsultRun: ConsultRunning {
     private let started = Date()
 
     init(endpoint: APIEndpoint, sandbox: ConsultSandbox, question: String, profile: AgentProfile?, language: String,
-         http: ChatHTTPClient = .shared, timeout: TimeInterval = ConsultCommand.timeout,
+         http: ChatHTTPClient = .consult, timeout: TimeInterval = ConsultCommand.timeout,
          onProgress: @escaping (Int) -> Void, completion: @escaping (ConsultEnding) -> Void) {
         self.completion = completion
         var calls = 0

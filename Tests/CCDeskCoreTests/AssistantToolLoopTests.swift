@@ -228,4 +228,37 @@ final class AssistantToolLoopTests: XCTestCase {
         XCTAssertLessThan(tool.content?.count ?? 0, AssistantToolLoop.toolResultLimit + 50)
         XCTAssertTrue(tool.content?.hasSuffix("(truncated)") == true)
     }
+
+    /// 真正的计时器：请求挂起、或工具一直不返回时，到点就以超时结束（不靠下一次请求时才检查）。
+    func testDeadlineTimerFiresWhileARequestOrAToolHangs() throws {
+        var timers: [(TimeInterval, () -> Void)] = []
+        let hanging = FakeTransport([])
+        hanging.hang = true
+        var r1: Result<AssistantToolLoop.Outcome, AssistantToolLoop.Failure>?
+        let loop1 = AssistantToolLoop(model: "m", prefix: [], user: .user("x"), tools: AssistantTools.all, timeout: 30,
+                                      gate: { _ in nil }, transport: hanging.transport, executor: { _, _, _ in },
+                                      schedule: { timers.append(($0, $1)) })
+        loop1.start { r1 = $0 }
+        XCTAssertNil(r1)
+        XCTAssertEqual(timers.map(\.0), [30])
+        timers[0].1()
+        guard case .failure(.timeout)? = r1 else { return XCTFail("\(String(describing: r1))") }
+        XCTAssertEqual(hanging.cancelled, 1, "the hanging request is cancelled")
+
+        timers = []
+        let fake = FakeTransport([.success(call("list_sessions"))])
+        var r2: Result<AssistantToolLoop.Outcome, AssistantToolLoop.Failure>?
+        var late: ((MCPServerCore.ToolOutcome) -> Void)?
+        let loop2 = AssistantToolLoop(model: "m", prefix: [], user: .user("x"), tools: AssistantTools.all, timeout: 5,
+                                      gate: { _ in nil }, transport: fake.transport,
+                                      executor: { _, _, done in late = done },  // 工具卡住
+                                      schedule: { timers.append(($0, $1)) })
+        loop2.start { r2 = $0 }
+        XCTAssertNil(r2)
+        timers[0].1()
+        guard case .failure(.timeout)? = r2 else { return XCTFail("\(String(describing: r2))") }
+        late?(.init(text: "too late"))
+        XCTAssertEqual(fake.bodies.count, 1, "a late tool result starts no new request")
+        timers[0].1()  // 再触发一次也不会再回调
+    }
 }

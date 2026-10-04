@@ -4,8 +4,8 @@ import Foundation
 ///
 /// - 路径：相对项目根目录（也接受落在根目录内的绝对路径）；用 realpath 解析符号链接与 `..` 后必须仍在根目录内，
 ///   指向外面的符号链接因此读不到。
-/// - read_file：普通文件、最多读 `maxFileBytes`、含 NUL 的当作二进制拒绝；按行返回（带行号）。
-/// - search：`/usr/bin/grep -rnI`（参数数组，模式经 `-e` 传入，不会被当作选项；BSD grep 递归时默认不跟随符号链接），
+/// - read_file：只读普通文件（FIFO / 设备等拒绝，非阻塞打开，不会卡住）、最多读 `maxFileBytes`、含 NUL 的当作二进制拒绝；按行返回（带行号）。
+/// - search：`/usr/bin/grep -rnI -D skip`（参数数组，模式经 `-e` 传入，不会被当作选项；BSD grep 递归时默认不跟随符号链接），
 ///   工作目录为根目录，结果条数与字数有上限。
 /// - git：只读子命令，固定加 `--no-ext-diff --no-textconv`，ref 只接受普通的提交 / 分支写法（不能以 `-` 开头），
 ///   路径放在 `--` 之后；环境用 `GitSafety`（由调用方提供的 runner 负责）。
@@ -74,12 +74,15 @@ public struct ConsultSandbox: Sendable {
         case .failure(let f): return .failure(f)
         case .success(let r): real = r
         }
-        var isDir: ObjCBool = false
-        FileManager.default.fileExists(atPath: real, isDirectory: &isDir)
-        if isDir.boolValue { return .failure(.invalid("\(path) is a directory; use list_dir")) }
-        guard let handle = FileHandle(forReadingAtPath: real) else { return .failure(.invalid("cannot read \(path)")) }
+        let handle: FileHandle
+        let size: Int
+        switch Self.openRegularFile(real) {
+        case .failure(.directory): return .failure(.invalid("\(path) is a directory; use list_dir"))
+        case .failure(.special): return .failure(.invalid("\(path) is not a regular file"))
+        case .failure(.unreadable): return .failure(.invalid("cannot read \(path)"))
+        case .success(let opened): (handle, size) = opened
+        }
         defer { try? handle.close() }
-        let size = (try? FileManager.default.attributesOfItem(atPath: real)[.size] as? Int) ?? 0
         let data = (try? handle.read(upToCount: Self.maxFileBytes)) ?? Data()
         if data.contains(0) { return .failure(.invalid("\(path) looks like a binary file")) }
         let text = String(decoding: data, as: UTF8.self)
@@ -95,11 +98,36 @@ public struct ConsultSandbox: Sendable {
         return .success(Self.clip(out))
     }
 
+    enum OpenFailure: Error, Equatable {
+        case directory, special, unreadable
+    }
+
+    /// 只读打开一个普通文件：先 stat，FIFO / 设备 / 套接字等直接拒绝；以 `O_NONBLOCK | O_NOFOLLOW` 打开
+    /// （stat 与 open 之间被换成 FIFO 也不会卡在 open 上），打开后再 fstat 确认仍是普通文件。返回句柄与大小。
+    static func openRegularFile(_ path: String) -> Result<(FileHandle, Int), OpenFailure> {
+        var info = stat()
+        guard stat(path, &info) == 0 else { return .failure(.unreadable) }
+        if (info.st_mode & S_IFMT) == S_IFDIR { return .failure(.directory) }
+        guard (info.st_mode & S_IFMT) == S_IFREG else { return .failure(.special) }
+        let fd = open(path, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
+        guard fd >= 0 else { return .failure(.unreadable) }
+        guard fstat(fd, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else {
+            close(fd)
+            return .failure(.special)
+        }
+        return .success((FileHandle(fileDescriptor: fd, closeOnDealloc: true), Int(info.st_size)))
+    }
+
     public func listDir(_ path: String?) -> Result<String, Failure> {
         let real: String
         switch resolve(path) {
         case .failure(let f): return .failure(f)
         case .success(let r): real = r
+        }
+        // 只列目录（contentsOfDirectory 对 FIFO 等也不会阻塞，但说明要清楚）；条目只 lstat / stat，不打开。
+        var info = stat()
+        guard stat(real, &info) == 0, (info.st_mode & S_IFMT) == S_IFDIR else {
+            return .failure(.invalid("\(path ?? ".") is not a directory"))
         }
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: real) else {
@@ -130,7 +158,8 @@ public struct ConsultSandbox: Sendable {
         case .failure(let f): return .failure(f)
         case .success(let r): real = r
         }
-        var args = ["-rnI", "--exclude-dir=.git", "--exclude-dir=node_modules", "--exclude-dir=.build"]
+        // -D skip：递归时跳过 FIFO / 设备 / 套接字（默认会去读，FIFO 上会一直卡住）。
+        var args = ["-rnI", "-D", "skip", "--exclude-dir=.git", "--exclude-dir=node_modules", "--exclude-dir=.build"]
         args.append(regex ? "-E" : "-F")
         if ignoreCase { args.append("-i") }
         args += ["-e", pattern, "--", relative(real)]

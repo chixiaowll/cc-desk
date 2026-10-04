@@ -11,7 +11,7 @@ import CCDeskCore
 final class APIAssistantBackend: AssistantBackend {
     /// 摘要 / 事件等请求至少给这么久（比 claude 慢的接口与本机模型）。
     static let minimumTimeout: TimeInterval = 45
-    /// 一轮的兜底时长（真正的超时由请求队列控制，超时后会取消这一轮）。
+    /// 一轮的兜底时长（循环自己的计时器；通常请求队列的超时更早到，到了会取消这一轮）。
     static let loopTimeout: TimeInterval = 120
 
     let kind = AssistantBackendKind.api
@@ -182,15 +182,19 @@ final class APIAssistantBackend: AssistantBackend {
 }
 
 /// 发 HTTP 请求（URLSession，临时会话：不存 cookie / 缓存），回调在主线程。
+/// `URLRequest` 的超时只管「多久没有数据」；会话的 `timeoutIntervalForResource` 再给每个请求一个总时长上限
+/// （= 那一轮的总时长；一轮本身还有 `AssistantToolLoop` 的计时器）。
 final class ChatHTTPClient: @unchecked Sendable {
-    /// 共用一个（URLSession 线程安全；每次新建会话会一直占着资源）。
-    static let shared = ChatHTTPClient()
+    /// 助手与设置页共用一个（URLSession 线程安全；每次新建会话会一直占着资源）。
+    static let shared = ChatHTTPClient(resourceTimeout: APIAssistantBackend.loopTimeout)
+    /// 接口版顾问（一次最长 `ConsultCommand.timeout`）。
+    static let consult = ChatHTTPClient(resourceTimeout: ConsultCommand.timeout)
     private let session: URLSession
 
-    init() {
+    init(resourceTimeout: TimeInterval) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.waitsForConnectivity = false
-        configuration.timeoutIntervalForResource = 600
+        configuration.timeoutIntervalForResource = resourceTimeout
         session = URLSession(configuration: configuration)
     }
 
