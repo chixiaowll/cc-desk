@@ -108,6 +108,7 @@ final class SingleTerminalHostView: NSView {
         let wanted = provider()
         if wanted !== terminalView || (wanted != nil && wanted?.superview !== self) {
             host(wanted)
+            AssistantDiag.log("detached-host hosting=\(wanted != nil) window=\(window != nil)")
             if let wanted, let window, window.isKeyWindow {
                 DispatchQueue.main.async { [weak self] in
                     guard let self, wanted.superview === self else { return }

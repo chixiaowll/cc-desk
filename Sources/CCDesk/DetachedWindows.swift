@@ -61,8 +61,8 @@ final class DetachedWindows: NSObject {
         detached.onFrameChange = { [weak model] in model?.saveWorkspace() }
         windows[tid] = detached
         model.objectWillChange.send()
-        // 登记完成后再让窗口内容重新排版一次，确保终端视图被托管进来。
-        detached.window.contentView?.needsLayout = true
+        // 登记完成后才搭建内容，保证第一次排版就能托管终端视图。
+        detached.installContent(model: model)
         if activate {
             detached.window.makeKeyAndOrderFront(nil)
         } else {
@@ -139,7 +139,16 @@ final class DetachedWindow: NSObject, NSWindowDelegate {
         window.identifier = NSUserInterfaceItemIdentifier("detached-\(terminalID.uuidString)")
         window.minSize = NSSize(width: 380, height: 240)
         window.title = model.row(forTerminal: terminalID)?.displayName ?? model.pool.terminal(terminalID)?.title ?? ""
+        window.setFrame(frame, display: false)
+        window.delegate = self
+    }
+
+    /// 搭建窗口内容。必须在 `DetachedWindows` 登记好这个终端之后调用：内容第一次排版时就要确认
+    /// 「终端归这个窗口显示」，登记前搭建会拿不到终端视图（窗口一片空白）。
+    func installContent(model: AppModel) {
+        guard window.contentView as? NSHostingView<DetachedWindowView> == nil else { return }
         let window = self.window
+        let frame = window.frame
         let content = NSHostingView(rootView: DetachedWindowView(
             model: model, terminalID: terminalID, onTitle: { [weak window] title in
                 if let window, window.title != title { window.title = title }
@@ -148,7 +157,6 @@ final class DetachedWindow: NSObject, NSWindowDelegate {
         content.sizingOptions = []
         window.contentView = content
         window.setFrame(frame, display: false)
-        window.delegate = self
     }
 
     func windowWillClose(_ notification: Notification) {
