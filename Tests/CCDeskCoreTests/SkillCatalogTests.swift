@@ -200,12 +200,13 @@ final class SkillScannerTests: XCTestCase {
         XCTAssertEqual(SkillCatalog.filter(entries, query: "chart", agent: nil).map(\.name), ["Zeta", "beta"])
         XCTAssertEqual(SkillCatalog.filter(entries, query: "CHART", agent: .codex).map(\.name), ["beta"])
         XCTAssertEqual(SkillCatalog.filter(entries, query: "  ", agent: .claude).map(\.name), ["alpha", "Zeta"])
+        XCTAssertEqual(SkillCatalog.filter(entries, query: "codex charts", agent: nil).map(\.name), ["beta"])
+        XCTAssertEqual(SkillCatalog.filter(entries, query: "zeta docs", agent: nil), [])
         let json = entries[0].json(home: home.path)
         XCTAssertEqual(json["path"], "~/.claude/skills/alpha/SKILL.md")
         XCTAssertEqual(json["source"], "claude-user")
         XCTAssertEqual(json["enabled"], .bool(true))
         XCTAssertEqual(Set(entries.map(\.id)).count, entries.count)
-        XCTAssertEqual(SkillCatalog.counts(entries).map(\.count), [2, 1])
     }
 
     func testTildePathAndProjectContainment() {

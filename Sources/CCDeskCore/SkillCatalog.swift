@@ -186,12 +186,12 @@ public struct SkillEntry: Identifiable, Equatable, Sendable {
         return path == root || path.hasPrefix(root + "/")
     }
 
-    /// 搜索：名字、显示名或描述包含 query（不区分大小写）。
+    /// 搜索：query 里每个词都出现在名字、显示名或描述里（不区分大小写）；空 query 全部匹配。
     public func matches(_ query: String) -> Bool {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return true }
-        return name.localizedCaseInsensitiveContains(q) || description.localizedCaseInsensitiveContains(q)
-            || (title?.localizedCaseInsensitiveContains(q) ?? false)
+        let words = query.split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return true }
+        let haystack = [name, title ?? "", description].joined(separator: "\n")
+        return words.allSatisfy { haystack.localizedCaseInsensitiveContains($0) }
     }
 
     /// 给助手看的一项（list_skills）：路径相对 home 写成 `~/…`。
@@ -239,19 +239,5 @@ public enum SkillCatalog {
         if path == home { return "~" }
         if path.hasPrefix(home + "/") { return "~" + path.dropFirst(home.count) }
         return path
-    }
-
-    /// 各来源的条目数（自检 / 诊断用）。
-    public static func counts(_ entries: [SkillEntry]) -> [(label: String, count: Int)] {
-        var result: [(label: String, count: Int)] = []
-        for entry in entries {
-            let label = entry.source.label + (entry.kind == .skill ? "" : " (\(entry.kind.rawValue))")
-            if let i = result.firstIndex(where: { $0.label == label }) {
-                result[i].count += 1
-            } else {
-                result.append((label, 1))
-            }
-        }
-        return result
     }
 }
