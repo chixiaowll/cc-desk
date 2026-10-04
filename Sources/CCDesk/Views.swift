@@ -20,7 +20,6 @@ struct ContentView: View {
         }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
         .modifier(AssistantResultsPresenter(work: model.work))
-        .background(WindowChrome(color: NSColor(themes.theme(for: colorScheme).main)))
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
         .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(themes.theme(for: scheme).terminal) }
     }
@@ -80,7 +79,9 @@ struct DetailView: View {
                 .onChange(of: proxy.size.width) { _, new in width = new }
         })
         .onChange(of: Self.touchedKey(row), initial: true) { _, _ in model.touchedFiles.select(row: row) }
-        .toolbarBackground(.hidden, for: .windowToolbar)
+        // 标题栏底色跟随主题（不直接改 NSWindow 的底色 / 标题栏样式：那样会让整个工具栏消失）。
+        .toolbarBackground(theme.main, for: .windowToolbar)
+        .toolbarBackground(.visible, for: .windowToolbar)
         .toolbar {
             // 标题在左（navigation）；状态胶囊用 .automatic 放在工具栏最右侧。
             // macOS 上 .primaryAction 会被放在工具栏前端、紧挨标题，所以不用它。

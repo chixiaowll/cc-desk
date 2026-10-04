@@ -45,7 +45,8 @@ struct SettingsView: View {
                 .tag(SettingsTab.usage.rawValue)
         }
         .frame(width: 600, height: 560)
-        .background(WindowChrome(color: NSColor(themes.theme(for: colorScheme).main)))
+        // 标题栏 / 标签栏底色用 SwiftUI 的工具栏背景跟随主题（不直接改 NSWindow，那样会让工具栏消失）。
+        .toolbarBackground(themes.theme(for: colorScheme).main, for: .windowToolbar)
     }
 }
 
