@@ -149,6 +149,7 @@ enum CCDeskMain {
         NaturalSpeechTest.runIfRequested()
         TmuxSelfTest.runIfRequested()
         ConsultTest.runIfRequested()
+        PushSecretImport.runIfRequested()
         SingleInstance.acquireOrHandOff()
         CCDeskApp.main()
     }
