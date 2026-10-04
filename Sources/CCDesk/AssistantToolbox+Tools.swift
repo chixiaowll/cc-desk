@@ -80,10 +80,11 @@ extension AssistantToolbox {
         }
     }
 
-    /// 只读 git 命令，各 5 秒超时。
+    /// 只读 git 命令，各 5 秒超时；不执行仓库配置里的外部程序（GitSafety）。
     private static func gitSummary(_ path: String) -> Result<JSONValue, ControlError> {
+        let env = GitSafety.environment(ProcessInfo.processInfo.environment)
         func git(_ args: [String]) -> String? {
-            if case .finished(let out) = ProcessRunner.run("/usr/bin/git", ["-C", path] + args, environment: nil, cwd: nil,
+            if case .finished(let out) = ProcessRunner.run("/usr/bin/git", ["-C", path] + args, environment: env, cwd: nil,
                                                           timeout: 5) { return out }
             return nil
         }

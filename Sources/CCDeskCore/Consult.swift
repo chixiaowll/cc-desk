@@ -19,7 +19,8 @@ public enum ConsultLevel: String, CaseIterable, Codable, Sendable {
 /// - `--restricted`：不读用户 / 项目 / 本地 settings（用户的 SessionStart 等 hook 不会运行，用户 settings 里的 allow
 ///   规则也不会放开写操作），文件工具限定在工作目录内。
 /// - `--tools`：只有 Read / Grep / Glob / Bash 四个内置工具；`--allowedTools` 只放行只读工具与只读 git；
-///   `--disallowedTools` 挡住 `git diff --output=<file>` 这类会写文件的选项。
+///   `--disallowedTools` 挡住 `git diff --output=<file>` 这类会写文件 / 执行外部程序（`--ext-diff`、`--textconv`）/
+///   读工作目录以外文件（`--no-index`）的选项；仓库配置里的外部程序由环境变量覆盖（`GitSafety`）。
 /// - `--permission-prompts none`：其他一切需要批准的调用自动拒绝，不会卡在权限提示上。
 /// - `--strict-mcp-config`（没有 `--mcp-config`）：不加载任何 MCP 服务器。
 /// - `--no-session-persistence`：不写会话记录；问题从 stdin 传入（避免被可变参数选项吞掉）。
@@ -27,8 +28,8 @@ public enum ConsultCommand {
     public static let readOnlyGit = ["Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)"]
     /// 只读工具集合（配置的 tools 全在这里面才算只读）。
     public static let readOnlyTools: Set<String> = Set(["Read", "Grep", "Glob"] + readOnlyGit)
-    /// 只读 git 里仍会写文件 / 执行外部程序的选项。
-    public static let disallowed = ["Bash(*--output*)", "Bash(*--ext-diff*)"]
+    /// 只读 git 里仍会写文件 / 执行外部程序 / 读工作目录以外文件的选项。
+    public static let disallowed = ["Bash(*--output*)", "Bash(*--ext-diff*)", "Bash(*--textconv*)", "Bash(*--no-index*)"]
     public static let timeout: TimeInterval = 300
     public static let maxConcurrent = 2
 
@@ -52,6 +53,43 @@ public enum ConsultCommand {
     /// 实际使用的模型名（显示用）。
     public static func model(level: ConsultLevel?, profile: AgentProfile?) -> String {
         level?.rawValue ?? profile?.model ?? ConsultLevel.sonnet.rawValue
+    }
+}
+
+/// 顾问（以及助手的 git_status）运行 git 时的环境：「只读」的 git 命令也会按仓库自己的配置执行外部程序
+/// （core.fsmonitor、diff.external、core.pager…），仓库可能不可信。用 `GIT_CONFIG_COUNT` / `GIT_CONFIG_KEY_n` /
+/// `GIT_CONFIG_VALUE_n`（优先级高于仓库配置）把这些项改成安全值：
+/// - core.fsmonitor=false、core.pager=cat；GIT_PAGER / PAGER=cat；
+/// - diff.external 改成一个只调用 /usr/bin/diff 的 shell 函数（空值会让每次 diff 失败），输出普通的统一格式差异；
+/// - GIT_NO_REPLACE_OBJECTS=1、GIT_TERMINAL_PROMPT=0、GIT_OPTIONAL_LOCKS=0（git status 不写索引）。
+/// 仓库配置里按驱动名定义的 textconv / filter 无法逐个覆盖（名字由 .gitattributes 决定），见设计 §14 的剩余风险。
+public enum GitSafety {
+    public static let externalDiff =
+        #"f() { /usr/bin/diff -u --label "a/$1" --label "b/$1" "$2" "$5"; return 0; }; f"#
+
+    public static let overrides: [(key: String, value: String)] = [
+        ("core.fsmonitor", "false"),
+        ("core.pager", "cat"),
+        ("diff.external", externalDiff),
+        ("core.hooksPath", "/dev/null"),
+    ]
+
+    /// 在 base 上加上安全设置（已有的 GIT_CONFIG_* 被替换）。
+    public static func environment(_ base: [String: String]) -> [String: String] {
+        var env = base.filter { !$0.key.hasPrefix("GIT_CONFIG_KEY_") && !$0.key.hasPrefix("GIT_CONFIG_VALUE_") }
+        env["GIT_CONFIG_PARAMETERS"] = nil
+        env["GIT_CONFIG_COUNT"] = String(overrides.count)
+        for (i, item) in overrides.enumerated() {
+            env["GIT_CONFIG_KEY_\(i)"] = item.key
+            env["GIT_CONFIG_VALUE_\(i)"] = item.value
+        }
+        env["GIT_NO_REPLACE_OBJECTS"] = "1"
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_OPTIONAL_LOCKS"] = "0"
+        env["GIT_PAGER"] = "cat"
+        env["PAGER"] = "cat"
+        env["GIT_EXTERNAL_DIFF"] = nil
+        return env
     }
 }
 

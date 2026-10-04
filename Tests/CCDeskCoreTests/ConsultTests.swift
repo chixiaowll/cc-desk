@@ -20,7 +20,8 @@ final class ConsultTests: XCTestCase {
         XCTAssertEqual(value(after: "--tools", in: args), "Read,Grep,Glob,Bash")
         XCTAssertEqual(value(after: "--allowedTools", in: args),
                        "Read,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)")
-        XCTAssertEqual(value(after: "--disallowedTools", in: args), "Bash(*--output*),Bash(*--ext-diff*)")
+        XCTAssertEqual(value(after: "--disallowedTools", in: args),
+                       "Bash(*--output*),Bash(*--ext-diff*),Bash(*--textconv*),Bash(*--no-index*)")
         for forbidden in ["Edit", "Write", "NotebookEdit", "WebFetch", "--dangerously-skip-permissions", "bypassPermissions"] {
             XCTAssertFalse(args.contains { $0.split(separator: ",").contains(Substring(forbidden)) || $0 == forbidden },
                            "\(forbidden) must not be granted")

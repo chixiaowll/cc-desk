@@ -78,6 +78,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // 顾问的 claude（连同它启动的 git 等）不随 App 退出：结束整个进程组。
+        model.work.cancelAll()
         model.conversation.turnOff()
         NaturalSpeechEngine.shared.unload()
         model.stopControlServer()

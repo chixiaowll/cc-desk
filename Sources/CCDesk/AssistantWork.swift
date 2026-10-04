@@ -105,6 +105,11 @@ final class AssistantWork: ObservableObject {
         return job.id
     }
 
+    /// App 退出：结束所有运行中的顾问（连同它们启动的 git 等子进程），不等回调。
+    func cancelAll() {
+        for process in processes.values { process.terminateNow() }
+    }
+
     private func consultEnded(_ id: String, _ ending: ConsultProcess.Ending) {
         processes[id] = nil
         let now = Date()
