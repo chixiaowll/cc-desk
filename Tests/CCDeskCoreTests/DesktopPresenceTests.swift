@@ -59,7 +59,6 @@ final class DesktopPresenceTests: XCTestCase {
         XCTAssertEqual(GlobalHotkey.default(for: .toggleMainWindow)?.carbonModifiers, 0x1800)
         XCTAssertEqual(GlobalHotkey.default(for: .toggleMainWindow)?.keyCode, 8)
         XCTAssertEqual(GlobalHotkey.default(for: .toggleConversation)?.keyCode, 9)
-        XCTAssertEqual(GlobalHotkey.default(for: .toggleConversation)?.menuKeyEquivalent, "v")
         // 默认组合互不重复，id 唯一。
         let combos = GlobalHotkey.defaults.map { "\($0.keyCode)-\($0.carbonModifiers)" }
         XCTAssertEqual(Set(combos).count, combos.count)
@@ -70,7 +69,6 @@ final class DesktopPresenceTests: XCTestCase {
         let all = GlobalHotkey(action: .toggleMainWindow, keyCode: 49,
                                modifiers: [.command, .shift, .option, .control], key: "Space")
         XCTAssertEqual(all.displayString, "⌃⌥⇧⌘Space")
-        XCTAssertNil(all.menuKeyEquivalent)
         XCTAssertEqual(GlobalHotkey.Action(hotkeyID: 2), .toggleConversation)
         XCTAssertNil(GlobalHotkey.Action(hotkeyID: 99))
     }

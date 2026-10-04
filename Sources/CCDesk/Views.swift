@@ -7,13 +7,15 @@ struct ContentView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var themes = ThemeStore.shared
+    /// 侧栏是否收起：收起时窗口按钮与侧栏开关挤到详情区的工具栏这一行，标题栏要让出位置。
+    @State private var columnVisibility = NavigationSplitViewVisibility.automatic
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(model: model)
                 .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
         } detail: {
-            DetailView(model: model)
+            DetailView(model: model, sidebarCollapsed: columnVisibility == .detailOnly)
         }
         .overlay {
             if model.showHistoryPalette { HistoryPalette(model: model) }
@@ -28,21 +30,26 @@ struct ContentView: View {
 /// 详情区：标题栏（放在窗口工具栏里，与侧栏顶部同高）+ 铺满的内嵌终端。
 struct DetailView: View {
     @ObservedObject var model: AppModel
+    /// 侧栏已收起：左上角的红绿灯和侧栏开关占用了工具栏这一行的开头。
+    var sidebarCollapsed = false
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var themes = ThemeStore.shared
     /// 详情区宽度，用于限制标题宽度：长标题截断，不把右侧的状态胶囊挤走。
     @State private var width: CGFloat = 0
 
+    /// 工具栏这一行开头被系统占用的宽度：两侧留白；侧栏收起时再加上红绿灯（约 70pt）和侧栏开关（约 50pt）。
+    private var leadingChrome: CGFloat { sidebarCollapsed ? 160 : 40 }
+
     /// 给胶囊（约 90pt）、麦克风按钮（约 34pt）和两侧留白预留空间；宽度未知时沿用 520。
     private var titleMaxWidth: CGFloat {
         guard width > 0 else { return 520 }
-        return min(520, max(120, width - 224))
+        return min(520, max(120, width - 184 - leadingChrome))
     }
 
-    /// 标题栏这一行的宽度：详情区宽度减去两侧的系统留白。
+    /// 标题栏这一行的宽度：详情区宽度减去开头被占用的部分；不超过实际可用的宽度，否则整项会被收进「>>」溢出菜单。
     private var toolbarRowWidth: CGFloat {
         guard width > 0 else { return 600 }
-        return max(240, width - 40)
+        return max(0, width - leadingChrome)
     }
 
     var body: some View {
@@ -65,7 +72,7 @@ struct DetailView: View {
                 }
                 .background(Color(nsColor: theme.terminal.background))
                 if row?.session.kind.isAgent == true {
-                    TouchedFilesSlot(files: model.touchedFiles, now: model.now, theme: theme)
+                    TouchedFilesSlot(files: model.touchedFiles, theme: theme)
                 }
             }
             if row != nil {
@@ -115,16 +122,18 @@ extension DetailView {
 }
 
 /// 面板的显示 / 隐藏（单独观察 TouchedFilesModel，开关时不重绘整个详情区）。
+/// 相对时间只精确到分钟：用每分钟走一次的时钟，不跟着每秒的轮询重绘。
 struct TouchedFilesSlot: View {
     @ObservedObject var files: TouchedFilesModel
-    let now: Date
     let theme: Theme
 
     var body: some View {
         if files.isShown {
             HStack(spacing: 0) {
                 PanelDivider(files: files, theme: theme)
-                TouchedFilesPanel(files: files, now: now, theme: theme)
+                TimelineView(.everyMinute) { context in
+                    TouchedFilesPanel(files: files, now: context.date, theme: theme)
+                }
             }
             .transition(.move(edge: .trailing))
         }
@@ -136,20 +145,16 @@ struct PanelDivider: View {
     @ObservedObject var files: TouchedFilesModel
     let theme: Theme
     @State private var startWidth: CGFloat?
-    @State private var hovering = false
 
     var body: some View {
         theme.line
             .frame(width: 1)
             .overlay {
-                // 实际可拖动的区域比 1pt 宽，方便抓取。
+                // 实际可拖动的区域比 1pt 宽，方便抓取。光标用 AppKit 的光标区域（不用 push / pop，不会失衡）。
                 Color.clear
                     .frame(width: 9)
                     .contentShape(Rectangle())
-                    .onHover { inside in
-                        hovering = inside
-                        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-                    }
+                    .background(ResizeCursorArea())
                     .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
                         .onChanged { value in
                             let start = startWidth ?? files.panelWidth
@@ -165,7 +170,24 @@ struct PanelDivider: View {
                             }
                         })
             }
-            .onDisappear { if hovering { NSCursor.pop() } }
+    }
+}
+
+/// 左右调整大小的光标区域：NSView 的 cursor rect 由窗口管理，进出 / 视图消失都不需要配对的 push / pop。
+/// 不接收鼠标事件（hitTest 返回 nil），拖动仍由 SwiftUI 的手势处理。
+struct ResizeCursorArea: NSViewRepresentable {
+    final class CursorView: NSView {
+        override func resetCursorRects() {
+            addCursorRect(bounds, cursor: .resizeLeftRight)
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    }
+
+    func makeNSView(context: Context) -> CursorView { CursorView() }
+
+    func updateNSView(_ view: CursorView, context: Context) {
+        view.window?.invalidateCursorRects(for: view)
     }
 }
 

@@ -35,7 +35,10 @@ final class DesktopPresence {
             .sink { [weak self] enabled in
                 guard let self else { return }
                 let failed = self.hotkeys.apply(enabled: enabled)
-                if !initial, enabled { self.hotkeys.alertUnavailable(failed) }
+                // 模态框不在 Combine 回调（设置开关的绑定还在更新中）里直接弹出，放到下一轮主循环。
+                if !initial, enabled, !failed.isEmpty {
+                    DispatchQueue.main.async { [weak self] in self?.hotkeys.alertUnavailable(failed) }
+                }
                 initial = false
             }
             .store(in: &cancellables)

@@ -5,8 +5,15 @@ import CCDeskCore
 /// 侧栏：自绘的目录分组 + 会话行（ScrollView + LazyVStack，以便精确控制间距与悬停），底部汇总。
 struct SidebarView: View {
     @ObservedObject var model: AppModel
+    /// 每秒走一次的时钟（会话行的相对时间）；只有侧栏观察它。
+    @ObservedObject private var clock: AppClock
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var themes = ThemeStore.shared
+
+    init(model: AppModel) {
+        self.model = model
+        _clock = ObservedObject(wrappedValue: model.clock)
+    }
 
     var body: some View {
         let theme = themes.theme(for: colorScheme)
@@ -17,7 +24,7 @@ struct SidebarView: View {
                     ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                         let collapsed = model.collapsed.contains(group.id)
                         let previousExpanded = index > 0 && !model.collapsed.contains(groups[index - 1].id)
-                        GroupSectionView(model: model, group: group, collapsed: collapsed, theme: theme)
+                        GroupSectionView(model: model, group: group, collapsed: collapsed, now: clock.now, theme: theme)
                             .padding(.top, previousExpanded ? 2 : 0)
                             .padding(.bottom, collapsed ? 0 : 8)
                     }
@@ -33,7 +40,7 @@ struct SidebarView: View {
                         .foregroundStyle(theme.fg3)
                 }
             }
-            SidebarFooter(rows: groups.flatMap(\.rows), usage: model.claudeUsage, now: model.now, theme: theme,
+            SidebarFooter(rows: groups.flatMap(\.rows), usage: model.claudeUsage, now: clock.now, theme: theme,
                           onOpenUsage: { model.refreshUsageNow() })
         }
         .background(theme.side.ignoresSafeArea())
@@ -56,6 +63,7 @@ struct GroupSectionView: View {
     @ObservedObject var model: AppModel
     let group: SessionGroup
     let collapsed: Bool
+    let now: Date
     let theme: Theme
 
     var body: some View {
@@ -65,7 +73,7 @@ struct GroupSectionView: View {
                 let showAgentLabel = model.showAgentLabel
                 VStack(alignment: .leading, spacing: 1) {
                     ForEach(group.rows) { row in
-                        SessionRowView(row: row, selected: row.id == model.selectedID, now: model.now,
+                        SessionRowView(row: row, selected: row.id == model.selectedID, now: now,
                                        appIcon: HostApps.icon(appPath: model.hostAppPaths[row.id], host: row.session.host),
                                        theme: theme,
                                        onResume: row.session.host.isEmbedded && row.session.status == .ended

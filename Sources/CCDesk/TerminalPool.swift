@@ -48,11 +48,13 @@ final class DetectingTerminalView: LocalProcessTerminalView {
             return false
         }
         guard let line = terminal.getLine(row: row) else { return false }
-        // 每个单元格一个字符（宽字符后面的占位格是 "\0"，换成空格），列号与字符下标一一对应。
-        let text = line.translateToString(trimRight: false, characterProvider: { cell in
-            let c = cell.getCharacter()
-            return c == "\0" ? " " : c
-        })
+        // 每个单元格一个字符，列号与字符下标一一对应：宽字符后面的占位格换成不分隔路径的替身，空格子换成空格
+        // （TerminalPaths.lineText）。
+        let cells = (0..<line.count).map { i -> (character: Character, width: Int) in
+            let cell = line[i]
+            return (cell.getCharacter(), Int(cell.width))
+        }
+        let text = TerminalPaths.lineText(cells)
         return handler(self, text, col, event.modifierFlags.contains(.shift))
     }
 }

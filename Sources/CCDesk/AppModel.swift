@@ -5,7 +5,10 @@ import CCDeskCore
 /// 状态中心。只在主线程访问；后台队列只做文件读取和子进程调用。
 final class AppModel: ObservableObject {
     @Published private(set) var groups: [SessionGroup] = []
-    @Published private(set) var now = Date()
+    /// 每秒走一次的时钟（侧栏的相对时间）。单独的对象：只有观察它的视图每秒重绘，详情区 / 工具栏不跟着重绘。
+    let clock = AppClock()
+    /// 最近一次轮询的时刻。
+    var now: Date { clock.now }
     /// 每个会话当前这次等批准的编号与开始时刻（通知按钮 / 语音批准核对仍是同一次等待）。
     private(set) var waitingEpisodes = WaitingEpisodes(base: Int(Date().timeIntervalSince1970) * 1000)
     @Published var selectedID: String? {
@@ -22,6 +25,8 @@ final class AppModel: ObservableObject {
     @Published var showNewSession = false
     /// 由 ContentView 在 onAppear 时注入，用于在窗口已关闭时重新打开（App 设计上关闭窗口不退出）。
     var openMainWindow: (() -> Void)?
+    /// 用户主动打开主窗口（由 AppDelegate 注入 showMainWindow：结束登录启动时的收起、激活并显示）。
+    var revealMainWindow: (() -> Void)?
     @Published var collapsed: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsedGroups") ?? []) {
         didSet { UserDefaults.standard.set(Array(collapsed), forKey: "collapsedGroups") }
     }
@@ -292,7 +297,7 @@ final class AppModel: ObservableObject {
     private func apply(registry: [RegistryEntry], processes: ProcessTable, agents snapshots: [AgentProcessSnapshot],
                        projects: [String: ProjectRef], titles: [String: TranscriptMeta]) {
         polling = false
-        now = Date()
+        clock.now = Date()
         lastProcesses = processes
         let agents = mergeAgentStatus(snapshots, processes: processes)
         var built = SessionBuilder.build(registry: registry, processes: processes,
@@ -391,7 +396,8 @@ final class AppModel: ObservableObject {
             unread: { unread.contains($0.id) })
         // 固定顺序：按第一次出现的先后排列，重启后保持，状态变化不再改变位置。
         let ordered = sidebarOrder.apply(built)
-        groups = ordered.groups
+        // 没变时不重新赋值：@Published 每次赋值都会让所有观察 AppModel 的视图重绘。
+        if groups != ordered.groups { groups = ordered.groups }
         if ordered.changed {
             let snapshot = sidebarOrder
             queue.async { snapshot.save() }
@@ -1033,8 +1039,12 @@ final class AppModel: ObservableObject {
     }
 
     private func openFromNotification(_ key: String) {
-        NSApp.activate(ignoringOtherApps: true)
-        openMainWindow?()
+        if let revealMainWindow {
+            revealMainWindow()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            openMainWindow?()
+        }
         if let row = groups.lazy.flatMap(\.rows).first(where: { $0.id == key }) { activate(row) }
     }
 
@@ -1094,6 +1104,11 @@ final class AppModel: ObservableObject {
             NSWorkspace.shared.open(url)
         }
     }
+}
+
+/// 每秒走一次的时钟（AppModel 每次轮询时更新）。
+final class AppClock: ObservableObject {
+    @Published var now = Date()
 }
 
 /// 历史会话 + 其所属项目（用于按目录筛选与显示目录标签）。

@@ -111,7 +111,14 @@ final class FilePreviewController: NSResponder, QLPreviewPanelDataSource, QLPrev
 
 /// 文件的常用动作：默认 App 打开、在访达中显示、VS Code 打开、复制路径。
 enum FileActions {
+    /// 用默认 App 打开；会直接运行的文件（App、终端脚本、带可执行位的脚本…，见 `FileOpenPolicy`）改为在访达里显示。
     static func open(_ path: String) {
+        var isDir: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: path, isDirectory: &isDir)
+        let executable = exists && FileManager.default.isExecutableFile(atPath: path)
+        if FileOpenPolicy.shouldReveal(path: path, isDirectory: isDir.boolValue, isExecutable: executable) {
+            return reveal(path)
+        }
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 

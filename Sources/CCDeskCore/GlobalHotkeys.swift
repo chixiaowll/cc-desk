@@ -63,12 +63,6 @@ public struct GlobalHotkey: Equatable, Sendable, Identifiable {
         return text + key
     }
 
-    /// 菜单项 keyEquivalent 用的小写字符（仅用于显示；字母键之外返回 nil）。
-    public var menuKeyEquivalent: String? {
-        guard key.count == 1, let scalar = key.unicodeScalars.first, CharacterSet.letters.contains(scalar) else { return nil }
-        return key.lowercased()
-    }
-
     /// 默认组合。选择理由（设计 §15）：
     /// - ⌃Space / ⌃⌥Space 是系统切换输入法（上一个 / 下一个输入源），⌘Space 是 Spotlight，⌥Space 是 Claude 桌面版
     ///   等常见 App 的快捷输入，⌃⌘Space 是表情与符号；所以不用 Space。

@@ -61,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             NSApp.activate(ignoringOtherApps: true)
         }
+        // 点通知等用户主动打开主窗口的路径都走 showMainWindow（会结束登录启动时的收起）。
+        model.revealMainWindow = { [weak self] in self?.showMainWindow() }
         ThemeStore.shared.pool = model.pool
         AppearancePreference.stored.apply(pool: model.pool)
         model.start()
@@ -169,10 +171,7 @@ struct CCDeskApp: App {
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button(L("menu.newSession")) {
-                    delegate.model.openMainWindow?()
-                    delegate.model.showNewSession = true
-                }
+                Button(L("menu.newSession")) { delegate.showNewSession() }
                 .keyboardShortcut("n")
             }
             // `Window` scene 不像 WindowGroup 那样自带系统 "Close"（⌘W）菜单项，所以这里用
@@ -180,13 +179,13 @@ struct CCDeskApp: App {
             // 选中内嵌 session 时关闭该 session（沿用原有确认逻辑）；否则按标准行为关闭窗口本身。
             CommandGroup(after: .newItem) {
                 Button(L("menu.closeSession")) {
-                    // 设置等其他窗口在前时 ⌘W 关那个窗口，不能误关侧栏里选中的会话。
-                    if let key = NSApp.keyWindow, !Self.isMainWindow(key) {
-                        key.performClose(nil)
-                    } else if let row = delegate.model.selectedRow, row.session.host.isEmbedded {
+                    // 只有主窗口是 key 时才关选中的会话；设置等其他窗口在前时关那个窗口；
+                    // 没有 key 窗口（主窗口已关 / 收起）时什么都不做，不能误关侧栏里选中的会话。
+                    guard let key = NSApp.keyWindow else { return }
+                    if Self.isMainWindow(key), let row = delegate.model.selectedRow, row.session.host.isEmbedded {
                         delegate.model.closeSelected()
                     } else {
-                        NSApp.keyWindow?.performClose(nil)
+                        key.performClose(nil)
                     }
                 }
                 .keyboardShortcut("w")
@@ -198,7 +197,7 @@ struct CCDeskApp: App {
             }
             CommandGroup(after: .sidebar) {
                 Button(L("menu.history")) {
-                    delegate.model.openMainWindow?()
+                    delegate.showMainWindow()
                     delegate.model.showHistoryPalette = true
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])

@@ -9,6 +9,24 @@ public enum TerminalPaths {
         "，", "。", "；", "：", "、", "“", "”", "‘", "’", "（", "）", "【", "】", "「", "」", "《", "》",
         "⏺", "⎿", "│", "─", "•", "·",
     ]
+    /// 宽字符（中日韩文字等）后面那个占位单元格在行文字里的替身：不是分隔符（路径里的中文不会被拆开），
+    /// 取出片段后去掉。用零宽空格：它自成一个字符（列号与字符下标仍一一对应），也不算空白。
+    public static let wideSpacer: Character = "\u{200B}"
+
+    /// 一行终端单元格 → 行文字（每格一个字符）：宽字符后面的占位格（字符为 "\0"、前一格宽 2）换成 `wideSpacer`，
+    /// 其他空单元格（"\0"）换成空格。cells：每格的字符与宽度。
+    public static func lineText(_ cells: [(character: Character, width: Int)]) -> String {
+        var out = ""
+        for (i, cell) in cells.enumerated() {
+            if cell.character == "\0" {
+                out.append(i > 0 && cells[i - 1].width == 2 ? wideSpacer : " ")
+            } else {
+                out.append(cell.character)
+            }
+        }
+        return out
+    }
+
     /// 片段末尾要去掉的标点。
     static let trailingPunctuation: Set<Character> = [".", ",", ":", ";", "!", "?", "…"]
 
@@ -22,7 +40,7 @@ public enum TerminalPaths {
         var start = column, end = column
         while start > 0, !isDelimiter(chars[start - 1]) { start -= 1 }
         while end + 1 < chars.count, !isDelimiter(chars[end + 1]) { end += 1 }
-        return clean(String(chars[start...end]))
+        return clean(String(chars[start...end].filter { $0 != wideSpacer }))
     }
 
     static func isDelimiter(_ c: Character) -> Bool {

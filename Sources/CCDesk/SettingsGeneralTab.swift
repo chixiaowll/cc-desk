@@ -58,7 +58,9 @@ struct SettingsGeneralTab: View {
                 }
             }
             Section(L("settings.general.desktop")) {
-                Toggle(isOn: Binding(get: { loginItem.state.isOn }, set: { _ in loginItem.toggle() })) {
+                // toggle 可能弹出说明框：不在绑定的 setter 里直接运行模态框。
+                Toggle(isOn: Binding(get: { loginItem.state.isOn },
+                                     set: { _ in DispatchQueue.main.async { loginItem.toggle() } })) {
                     Text(loginItem.state.needsApprovalHint ? L("menu.launchAtLogin.needsApproval") : L("menu.launchAtLogin"))
                 }
                 Toggle(L("menu.showMenuBarIcon"), isOn: $preferences.menuBarIconShown)
@@ -102,8 +104,11 @@ struct SettingsGeneralTab: View {
     private var languageBinding: Binding<LanguagePreference> {
         Binding(get: { language }, set: { pref in
             language = pref
-            selectLanguage(pref)
-            language = LanguagePreference.stored
+            // 「是否立即重启」的模态框放到下一轮主循环，不在绑定的 setter 里运行。
+            DispatchQueue.main.async {
+                selectLanguage(pref)
+                language = LanguagePreference.stored
+            }
         })
     }
 }

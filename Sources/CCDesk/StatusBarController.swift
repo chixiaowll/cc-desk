@@ -162,21 +162,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
         item.keyEquivalentModifierMask = modifiers
-        // 全局快捷键只在菜单里显示（菜单打开时按下也会触发同一动作）。
-        if let hotkey, let equivalent = hotkey.menuKeyEquivalent {
-            item.keyEquivalent = equivalent
-            item.keyEquivalentModifierMask = Self.flags(hotkey.modifiers)
+        // 全局快捷键只作为文字显示在标题后面，不设成菜单的 keyEquivalent：菜单打开时按下它，
+        // 菜单项和全局快捷键会各触发一次（开了又关）。
+        if let hotkey {
+            let title = NSMutableAttributedString(string: title, attributes: [.font: NSFont.menuFont(ofSize: 0)])
+            title.append(NSAttributedString(string: "    " + hotkey.displayString, attributes: [
+                .font: NSFont.menuFont(ofSize: 0), .foregroundColor: NSColor.secondaryLabelColor]))
+            item.attributedTitle = title
         }
         return item
-    }
-
-    private static func flags(_ modifiers: GlobalHotkey.Modifiers) -> NSEvent.ModifierFlags {
-        var flags: NSEvent.ModifierFlags = []
-        if modifiers.contains(.control) { flags.insert(.control) }
-        if modifiers.contains(.option) { flags.insert(.option) }
-        if modifiers.contains(.shift) { flags.insert(.shift) }
-        if modifiers.contains(.command) { flags.insert(.command) }
-        return flags
     }
 
     // MARK: 状态点（颜色取自 Theme 的状态色，随浅色 / 深色菜单切换）

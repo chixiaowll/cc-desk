@@ -553,14 +553,14 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 
 - **位置**：详情区终端右侧，宽 300pt，与侧栏同底色，左侧 1pt 分隔线；只对 agent 会话显示。开关：标题栏右侧（状态胶囊左边）的线条图标按钮（`sidebar.right`，fg2，打开时加浅底）、菜单「显示 → 改动的文件」（⇧⌘F）；开关状态存 UserDefaults `touchedFilesPanelShown`。
 - **内容**：标题「改动的文件」+ 数量；超过 15 个文件时显示筛选框（文件名 / 相对路径包含即可）；分「文档与产出 · n」「代码 · n」两组。每行：系统文件图标（`NSWorkspace.icon(forFile:)`，不存在时按扩展名）、文件名、徽标（新 / 已改 / 已删除 / 不存在）、相对时间（悬停 / 选中时换成眼睛按钮），第二行是所在目录（`TouchedFiles.displayDirectory`）：项目根目录（git 顶层，见 §4）内为相对路径，项目外为 `~/…`（或绝对路径），超长时按路径段从中间省略，保留开头与离文件最近的几层（如 `~/Documents/…/cc-desk/docs/design/`）。已删除的文件名加删除线、图标变淡。空状态分别提示没有 agent 会话、正在读取、还没找到会话记录、还没有改动文件、没有匹配项。
-- **动作**：单击选中；空格 / 眼睛按钮快速查看（`QLPreviewPanel`）；双击 / 回车用默认 App 打开（`NSWorkspace.open`）；↑ / ↓ 移动选中。右键：快速查看、用默认 App 打开、在访达中显示（`activateFileViewerSelecting`）、用 VS Code 打开（仅当装了 VS Code，`Jumper.vsCodeURL`）、复制路径、复制相对路径；已删除 / 不存在的文件只有「复制路径」。
+- **动作**：单击选中；空格 / 眼睛按钮快速查看（`QLPreviewPanel`）；双击 / 回车用默认 App 打开（`NSWorkspace.open`；会直接运行的文件——.app / .command / .tool / .terminal / .workflow / .pkg 等，以及带可执行位的脚本 / 无扩展名程序——改为在访达里显示，`FileOpenPolicy`，⇧⌘-点击与 `open_file(app=true)` 同样）；↑ / ↓ 移动选中。右键：快速查看、用默认 App 打开、在访达中显示（`activateFileViewerSelecting`）、用 VS Code 打开（仅当装了 VS Code，`Jumper.vsCodeURL`）、复制路径、复制相对路径；已删除 / 不存在的文件只有「复制路径」。
 - **快速查看**（`FilePreviewController`）：作为 QLPreviewPanel 的控制者插到主窗口响应链末尾（`window.nextResponder`），面板列表与终端 ⌘-点击共用。预览列表是当前可见且存在的文件；面板打开时 ↑ / ↓（← / →）切换并同步列表选中，空格关闭，与访达一致；列表刷新或选中变化时跟着更新。
 - **刷新**：只跟踪选中的会话。会话记录的定位复用轮询队列上的 `TranscriptIndex` / `AgentSessionIndex`（`AppModel.locateTranscript`，带 miss 缓存），读取在单独的串行队列 `cc-desk.touched-files` 上。面板显示时每 2 秒、隐藏时每 6 秒检查一次文件大小 / 修改时间，变了才读新增部分；显示时每次重新检查文件是否还在。切换会话后正在进行的大文件读取在块之间停下。
 - **新文档提示**：选中会话的 agent 新建了文档、而你上次打开面板时还没有它，面板开关按钮右上角显示陶土色小圆点；打开面板即清除。第一次加载某个会话时已有的文档作为基准，不算新的（只在内存里记，重启后重新以当时为基准）。
 
 ### 17.3 终端里 ⌘-点击文件路径
 
-- `DetectingTerminalView` 覆盖 `mouseDown` / `mouseUp`：按着 ⌘ 单击时，用 SwiftTerm 公开的 `characterIndex(for:)` 算出屏幕行列，取该行文字（每格一个字符，宽字符的占位格换成空格），交给 `TerminalPaths`（Core）：向两侧扩展到空白 / 引号 / 括号 / 中文标点，去掉 `file://`、末尾标点、`:行[:列]`、`#L行` 后缀；必须含 `/` 或 `.`，排除纯数字与 URL。按该终端里 agent 会话的 cwd、再按终端启动目录解析相对路径与 `~/`，git diff 的 `a/` `b/` 前缀再试一次去掉前缀的版本；第一个存在的路径 → ⌘-点击快速查看，⇧⌘-点击用默认 App 打开，并吞掉这次点击的松开事件。
+- `DetectingTerminalView` 覆盖 `mouseDown` / `mouseUp`：按着 ⌘ 单击时，用 SwiftTerm 公开的 `characterIndex(for:)` 算出屏幕行列，取该行文字（每格一个字符；宽字符后面的占位格换成零宽空格 `TerminalPaths.wideSpacer`，取出片段后去掉，中文路径不会被拆开；其他空格子换成空格），交给 `TerminalPaths`（Core）：向两侧扩展到空白 / 引号 / 括号 / 中文标点，去掉 `file://`、末尾标点、`:行[:列]`、`#L行` 后缀；必须含 `/` 或 `.`，排除纯数字与 URL。按该终端里 agent 会话的 cwd、再按终端启动目录解析相对路径与 `~/`，git diff 的 `a/` `b/` 前缀再试一次去掉前缀的版本；第一个存在的路径 → ⌘-点击快速查看，⇧⌘-点击用默认 App 打开，并吞掉这次点击的松开事件。
 - 没识别出存在的文件、或点在 URL（非 file://）/ OSC 8 链接上时完全交还 SwiftTerm：原有的 ⌘-点击打开链接、选择、双击选词、tmux 鼠标模式都不变。只识别单行（不跨折行），路径里不能有空格。
 
 ### 17.4 语音助手 `open_file`
