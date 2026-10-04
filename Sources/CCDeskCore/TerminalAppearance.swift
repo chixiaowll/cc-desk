@@ -21,13 +21,13 @@ public struct TerminalPalette: Equatable, Sendable {
     public let foreground: UInt32
     public let ansi: [UInt32]
 
-    /// 浅色：为 #FAF4ED Rosé Pine Dawn 底设计（色相取自 Rosé Pine Dawn，对比度不足的颜色按要求加深）。普通色（含 0 黑、7 白）对底色 ≥ 4.5:1，明亮色 ≥ 3:1；
+    /// 浅色：为 #EFF1F5 Catppuccin Latte 底设计（色相取自 Catppuccin Latte，对比度不足的颜色按要求加深）。普通色（含 0 黑、7 白）对底色 ≥ 4.5:1，明亮色 ≥ 3:1；
     /// 色相取自 App 的陶土红 / 雾蓝 / 鼠尾草绿，「白」是暖灰（浅底上纯白看不见）。
     public static let light = TerminalPalette(
-        background: 0xFAF4ED, foreground: 0x575279,
+        background: 0xEFF1F5, foreground: 0x4C4F69,
         ansi: [
-            0x575279, 0xAB526B, 0x286983, 0x9C6110, 0x45767F, 0x7D649A, 0xC1423C, 0x6F6B89,
-            0x8B869A, 0xB4637A, 0x286983, 0xC17814, 0x55929C, 0x907AA9, 0xD06B67, 0x797593,
+            0x5C5F77, 0xD20F39, 0x317B21, 0x976014, 0x145FF5, 0xC51E99, 0x13777D, 0x666C82,
+            0x6C6F85, 0xDE293E, 0x419B36, 0xC07910, 0x456EFF, 0xCF4FAE, 0x2A969E, 0x81889F,
         ])
 
     /// 深色：为 #1B1A18 设计。普通色 1–7 与明亮色 9–15 对底色 ≥ 4.5:1，8（亮黑，常用作注释）≥ 3:1；

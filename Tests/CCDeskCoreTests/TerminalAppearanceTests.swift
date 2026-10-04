@@ -14,12 +14,12 @@ final class TerminalAppearanceTests: XCTestCase {
         for scheme in TerminalColorScheme.allCases {
             XCTAssertEqual(scheme.palette.ansi.count, 16, scheme.rawValue)
         }
-        XCTAssertEqual(TerminalPalette.light.background, 0xFAF4ED)
+        XCTAssertEqual(TerminalPalette.light.background, 0xEFF1F5)
         XCTAssertEqual(TerminalPalette.dark.background, 0x1B1A18)
     }
 
     /// 浅色：普通色 0–7（含「白」）≥ 4.5:1，明亮色 8–15 ≥ 3:1；前景 ≥ 5:1
-    ///（Rosé Pine Dawn 风格刻意降低对比以减少刺眼，正文仍明显高于 WCAG AA 的 4.5:1）。
+    ///（Catppuccin Latte 风格刻意降低对比以减少刺眼，正文仍明显高于 WCAG AA 的 4.5:1）。
     func testLightPaletteContrast() {
         let p = TerminalPalette.light
         XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.foreground, p.background), 5)

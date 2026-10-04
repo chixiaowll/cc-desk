@@ -55,25 +55,25 @@ struct Theme {
     static func of(_ scheme: ColorScheme) -> Theme { scheme == .dark ? dark : light }
 
     static let light = Theme(
-        side: Color(hex: 0xF2E9E1), main: Color(hex: 0xFAF4ED), line: Color(hex: 0xDFDAD9),
-        fg1: Color(hex: 0x575279), fg2: Color(hex: 0x6E6A86), fg3: Color(hex: 0x797593), chip: Color(hex: 0xEBE3DB),
-        sel: Color(hex: 0xFFFAF3), selLine: Color(hex: 0xDFDAD9), selShadow: Color(red: 87 / 255, green: 82 / 255, blue: 121 / 255).opacity(0.08),
-        hover: Color(hex: 0xEBE3DB), waitRow: Color(hex: 0xF6E3DC),
+        side: Color(hex: 0xE6E9EF), main: Color(hex: 0xEFF1F5), line: Color(hex: 0xCCD0DA),
+        fg1: Color(hex: 0x4C4F69), fg2: Color(hex: 0x5C5F77), fg3: Color(hex: 0x6C6F85), chip: Color(hex: 0xDCE0E8),
+        sel: Color(hex: 0xF7F8FA), selLine: Color(hex: 0xCCD0DA), selShadow: Color(red: 76 / 255, green: 79 / 255, blue: 105 / 255).opacity(0.08),
+        hover: Color(hex: 0xDCE0E8), waitRow: Color(hex: 0xF5E3DE),
         pillWaitBg: Color(hex: 0xC4552B), pillWaitFg: Color(hex: 0xFFFFFF),
         pillWorkBg: Color(hex: 0xE5ECF3), pillWorkFg: Color(hex: 0x35618E), dot: Color(hex: 0x4A7BAD),
         chipWorkBg: Color(hex: 0x3F6E9E), chipWorkFg: Color(hex: 0xFFFFFF),
         unread: Color(hex: 0x4F7D5B), chipUnreadBg: Color(hex: 0x4F7D5B), chipUnreadFg: Color(hex: 0xFFFFFF),
-        pillIdleBg: Color(hex: 0xEBE3DB), pillIdleFg: Color(hex: 0x625E7E),
+        pillIdleBg: Color(hex: 0xDCE0E8), pillIdleFg: Color(hex: 0x5C5F77),
         pillMissBg: Color(hex: 0xF1E4E2), pillMissFg: Color(hex: 0x8E5A55),
-        tileEmbBg: Color(hex: 0xE4DCD4), tileEmbFg: Color(hex: 0x4E4A6E),
-        tileTermBg: Color(hex: 0xEBE3DB), tileTermFg: Color(hex: 0x6E6A86),
+        tileEmbBg: Color(hex: 0xCCD0DA), tileEmbFg: Color(hex: 0x4C4F69),
+        tileTermBg: Color(hex: 0xDCE0E8), tileTermFg: Color(hex: 0x6C6F85),
         tileMissBg: Color(hex: 0xF1E4E2), tileMissFg: Color(hex: 0x8E5A55),
-        accent: Color(hex: 0xB24E26), action: Color(hex: 0x575279),
-        extBg: Color(hex: 0xFFFAF3), extFg: Color(hex: 0x625E7E), extRing: Color(hex: 0xDFDAD9),
-        appIconShadow: Color(red: 87 / 255, green: 82 / 255, blue: 121 / 255).opacity(0.18), appIconShadowRadius: 1,
+        accent: Color(hex: 0xB24E26), action: Color(hex: 0x4C4F69),
+        extBg: Color(hex: 0xF7F8FA), extFg: Color(hex: 0x5C5F77), extRing: Color(hex: 0xCCD0DA),
+        appIconShadow: Color(red: 76 / 255, green: 79 / 255, blue: 105 / 255).opacity(0.18), appIconShadowRadius: 1,
         appIconRim: nil,
-        backdrop: Color(red: 60 / 255, green: 55 / 255, blue: 85 / 255).opacity(0.16),
-        popShadow: Color(red: 70 / 255, green: 60 / 255, blue: 90 / 255).opacity(0.18),
+        backdrop: Color(red: 50 / 255, green: 55 / 255, blue: 80 / 255).opacity(0.16),
+        popShadow: Color(red: 55 / 255, green: 60 / 255, blue: 85 / 255).opacity(0.18),
         terminal: .light, isDark: false)
 
     static let dark = Theme(
