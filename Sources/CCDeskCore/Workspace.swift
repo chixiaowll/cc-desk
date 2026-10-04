@@ -35,10 +35,13 @@ public struct WorkspaceEntry: Codable, Equatable, Sendable {
 public struct WorkspaceFile: Codable, Equatable, Sendable {
     public var version: Int
     public var entries: [WorkspaceEntry]
+    /// 主窗口详情区的分屏布局（设计 §20）；旧文件没有这一项。
+    public var layout: PaneLayout?
 
-    public init(version: Int = 1, entries: [WorkspaceEntry]) {
+    public init(version: Int = 1, entries: [WorkspaceEntry], layout: PaneLayout? = nil) {
         self.version = version
         self.entries = entries
+        self.layout = layout
     }
 }
 
