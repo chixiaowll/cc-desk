@@ -433,3 +433,6 @@
 "theme.tokyoNightStorm" = "Tokyo Night Storm";
 "theme.gruvboxDark" = "Gruvbox Dark";
 "theme.nord" = "Nord";
+"settings.general.lightTheme" = "Light Theme";
+"settings.general.darkTheme" = "Dark Theme";
+"menu.theme" = "Theme";

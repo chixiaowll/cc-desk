@@ -192,6 +192,7 @@ struct CCDeskApp: App {
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
                 TouchedFilesMenuItem(files: delegate.model.touchedFiles)
+                ThemeMenu()
             }
             // 偏好开关都在设置窗口（⌘,）里；这里只留常用动作。
             CommandMenu(L("menu.session")) {

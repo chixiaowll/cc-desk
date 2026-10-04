@@ -1,7 +1,7 @@
 import SwiftUI
 import CCDeskCore
 
-/// 设置 › 通用：外观、语言（沿用重启流程）、终端字体、登录时启动、菜单栏图标、全局快捷键。
+/// 设置 › 通用：外观（明暗与浅色 / 深色主题）、语言（沿用重启流程）、终端字体、登录时启动、菜单栏图标、全局快捷键。
 struct SettingsGeneralTab: View {
     let model: AppModel
     let selectLanguage: (LanguagePreference) -> Void
@@ -25,6 +25,8 @@ struct SettingsGeneralTab: View {
                     .pickerStyle(.segmented)
                     SettingsNote(text: L("settings.general.claudeThemeNote"))
                 }
+                ThemePickerRow(title: L("settings.general.lightTheme"), kind: .light)
+                ThemePickerRow(title: L("settings.general.darkTheme"), kind: .dark)
                 VStack(alignment: .leading, spacing: 4) {
                     Picker(L("settings.general.language"), selection: languageBinding) {
                         ForEach(LanguagePreference.allCases) { Text($0.label).tag($0) }
