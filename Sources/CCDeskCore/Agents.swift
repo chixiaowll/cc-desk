@@ -119,9 +119,10 @@ public enum LaunchSpec {
     ]
 
     /// 宿主终端身份变量：会让子进程误以为自己运行在原宿主终端（Terminal/iTerm/VS Code/tmux/screen）中。
+    /// `COLORFGBG` 描述的是宿主终端的底色，由 CC Desk 按自己的外观重新写入（设计 §18）。
     private static let hostTerminalIdentityDenylist: Set<String> = [
         "TERM_PROGRAM", "TERM_PROGRAM_VERSION", "TERM_SESSION_ID", "__CFBundleIdentifier",
-        "TMUX", "TMUX_PANE", "STY",
+        "TMUX", "TMUX_PANE", "STY", "COLORFGBG",
     ]
 
     private static let hostTerminalIdentityPrefixes = ["ITERM_", "VSCODE_"]
@@ -147,8 +148,9 @@ public enum LaunchSpec {
     }
 
     /// `terminalID` 为 nil 时不写 CC_DESK_TERMINAL_ID：tmux 客户端的环境会成为整个 tmux 服务器的全局环境，
-    /// 终端 id 改为用 `new-session -e` 只写进对应会话。
+    /// 终端 id 改为用 `new-session -e` 只写进对应会话。`colorScheme` 非 nil 时写入对应的 `COLORFGBG`（直连 PTY 时）。
     public static func environment(base: [String: String], shell: String, terminalID: UUID?,
+                                    colorScheme: TerminalColorScheme? = nil,
                                     defaultLocale: String = LaunchSpec.defaultUTF8Locale()) -> [String] {
         var env = sanitizedEnvironment(base: base)
         env["TERM"] = "xterm-256color"
@@ -156,6 +158,7 @@ public enum LaunchSpec {
         env["SHELL"] = shell
         env["CC_DESK"] = "1"
         if let terminalID { env["CC_DESK_TERMINAL_ID"] = terminalID.uuidString }
+        if let colorScheme { env["COLORFGBG"] = colorScheme.colorFGBG }
         env["TERM_PROGRAM"] = "CCDesk"
         if env["LANG"] == nil && env["LC_ALL"] == nil && env["LC_CTYPE"] == nil {
             env["LANG"] = defaultLocale

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import CCDeskCore
 
 /// 颜色常量，取自 docs/design/sidebar-mockup.html 的 `:root`（浅色）与 dark 变量。
 /// 视图里用 `Theme.of(colorScheme)` 选择；不要在视图里写死黑 / 白。
@@ -98,16 +99,23 @@ struct Theme {
         terminal: .dark, isDark: true)
 }
 
-/// 内嵌终端配色（SwiftTerm 用 NSColor）。
+/// 内嵌终端配色（SwiftTerm 用 NSColor）：底色 / 前景 / 光标与 ANSI 16 色都取自 Core 的 `TerminalPalette`（设计 §18）。
 struct TerminalTheme {
+    let scheme: TerminalColorScheme
     let background: NSColor
     let foreground: NSColor
     let cursor: NSColor
 
-    static let light = TerminalTheme(background: NSColor(hex: 0xF4EFE6), foreground: NSColor(hex: 0x2E2A25),
-                                     cursor: NSColor(hex: 0x2E2A25))
-    static let dark = TerminalTheme(background: NSColor(hex: 0x1B1A18), foreground: NSColor(hex: 0xD8D3CB),
-                                    cursor: NSColor(hex: 0xD8D3CB))
+    init(scheme: TerminalColorScheme) {
+        let palette = scheme.palette
+        self.scheme = scheme
+        background = NSColor(hex: palette.background)
+        foreground = NSColor(hex: palette.foreground)
+        cursor = NSColor(hex: palette.foreground)
+    }
+
+    static let light = TerminalTheme(scheme: .light)
+    static let dark = TerminalTheme(scheme: .dark)
 
     static func of(_ appearance: NSAppearance) -> TerminalTheme {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light

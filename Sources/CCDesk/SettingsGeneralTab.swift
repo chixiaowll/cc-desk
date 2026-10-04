@@ -1,7 +1,7 @@
 import SwiftUI
 import CCDeskCore
 
-/// 设置 › 通用：外观、语言（沿用重启流程）、登录时启动、菜单栏图标、全局快捷键。
+/// 设置 › 通用：外观、语言（沿用重启流程）、终端字体、登录时启动、菜单栏图标、全局快捷键。
 struct SettingsGeneralTab: View {
     let model: AppModel
     let selectLanguage: (LanguagePreference) -> Void
@@ -10,19 +10,49 @@ struct SettingsGeneralTab: View {
     @ObservedObject private var preferences = DesktopPreferences.shared
     @ObservedObject private var loginItem = LoginItemController.shared
     @ObservedObject private var hotkeys = GlobalHotkeyCenter.shared
+    @ObservedObject private var terminalFont = TerminalFontPreferences.shared
+    /// 可选的等宽字体族与「自动」实际用的字体族（打开设置时扫描一次，装了新字体后重新打开即可看到）。
+    @State private var fontFamilies: [String] = []
+    @State private var autoFamily: String?
 
     var body: some View {
         SettingsForm {
             Section {
-                Picker(L("settings.general.appearance"), selection: appearanceBinding) {
-                    ForEach(AppearancePreference.allCases) { Text($0.label).tag($0) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Picker(L("settings.general.appearance"), selection: appearanceBinding) {
+                        ForEach(AppearancePreference.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    SettingsNote(text: L("settings.general.claudeThemeNote"))
                 }
-                .pickerStyle(.segmented)
                 VStack(alignment: .leading, spacing: 4) {
                     Picker(L("settings.general.language"), selection: languageBinding) {
                         ForEach(LanguagePreference.allCases) { Text($0.label).tag($0) }
                     }
                     SettingsNote(text: L("settings.general.languageNote"))
+                }
+            }
+            Section(L("settings.general.terminal")) {
+                Picker(L("settings.general.terminalFont"), selection: $terminalFont.family) {
+                    Text(L("settings.general.terminalFont.auto", autoFamily ?? "SF Mono")).tag("")
+                    Divider()
+                    ForEach(fontFamilies, id: \.self) { Text($0).tag($0) }
+                    // 选过的字体已卸载：仍显示在列表里，实际按「自动」处理。
+                    if !terminalFont.family.isEmpty, !fontFamilies.contains(terminalFont.family) {
+                        Text(terminalFont.family).tag(terminalFont.family)
+                    }
+                }
+                Picker(L("settings.general.terminalFontSize"), selection: $terminalFont.size) {
+                    ForEach(Array(stride(from: TerminalFontChoice.sizeRange.lowerBound,
+                                         through: TerminalFontChoice.sizeRange.upperBound, by: 1)), id: \.self) { size in
+                        Text("\(Int(size)) pt").tag(size)
+                    }
+                }
+                if autoFamily == nil {
+                    SettingsNote(text: L("settings.general.terminalFont.installHint", TerminalFontChoice.installHint))
+                        .textSelection(.enabled)
+                } else {
+                    SettingsNote(text: L("settings.general.terminalFontNote"))
                 }
             }
             Section(L("settings.general.desktop")) {
@@ -44,7 +74,11 @@ struct SettingsGeneralTab: View {
         .onAppear {
             loginItem.refresh()
             language = LanguagePreference.stored
+            fontFamilies = TerminalFont.pickableFamilies()
+            autoFamily = TerminalFontChoice.autoFamily(installed: TerminalFont.installedFamilies())
         }
+        .onChange(of: terminalFont.family) { _, _ in model.pool.applyFont() }
+        .onChange(of: terminalFont.size) { _, _ in model.pool.applyFont() }
     }
 
     private func hotkeyRow(_ action: GlobalHotkey.Action, _ title: String) -> some View {

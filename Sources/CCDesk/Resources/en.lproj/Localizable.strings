@@ -303,6 +303,13 @@
 "settings.general.appearance" = "Appearance";
 "settings.general.language" = "Language";
 "settings.general.languageNote" = "Changing the language restarts CC Desk; embedded sessions keep running.";
+"settings.general.claudeThemeNote" = "Set the Claude Code theme to Auto (run /theme in a session) to follow CC Desk’s light / dark appearance.";
+"settings.general.terminal" = "Terminal";
+"settings.general.terminalFont" = "Font";
+"settings.general.terminalFont.auto" = "Automatic (%@)";
+"settings.general.terminalFontSize" = "Size";
+"settings.general.terminalFontNote" = "Automatic prefers an installed CJK monospace font (such as Maple Mono NF CN or Sarasa), so Chinese characters fill exactly two cells without gaps.";
+"settings.general.terminalFont.installHint" = "No CJK monospace font is installed, so Chinese characters show gaps in the terminal. Run %@ in a terminal to install Maple Mono NF CN, then reopen Settings.";
 "settings.general.desktop" = "Desktop";
 "settings.general.hotkeys" = "Global Shortcuts";
 "settings.general.hotkey.main" = "Show / hide main window";

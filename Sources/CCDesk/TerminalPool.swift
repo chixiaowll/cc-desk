@@ -108,36 +108,39 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     private static let detectionInterval: TimeInterval = 0.5
     private static let detectionQueue = DispatchQueue(label: "cc-desk.screen-detect", qos: .utility)
 
-    init(id: UUID, cwd: String, title: String, launch: TerminalLaunch, host: TmuxHost?, theme: TerminalTheme) {
+    /// 当前的明暗（换色时据此决定是否给 tmux 发主题变化报告）。
+    private(set) var colorScheme: TerminalColorScheme
+
+    init(id: UUID, cwd: String, title: String, launch: TerminalLaunch, host: TmuxHost?, theme: TerminalTheme, font: NSFont) {
         self.id = id
         self.cwd = cwd
         self.title = title
         self.view = DetectingTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        self.colorScheme = theme.scheme
         super.init()
         view.onOutput = { [weak self] in self?.scheduleDetection() }
-        view.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        view.font = font
         apply(theme)
         view.processDelegate = self
         let shell = Self.userShell()
+        // 会话启动时的明暗写进 COLORFGBG（Claude Code 的 Auto 主题据此选浅色 / 深色，设计 §18）。
+        let directEnvironment = LaunchSpec.environment(base: ProcessInfo.processInfo.environment, shell: shell,
+                                                       terminalID: id, colorScheme: theme.scheme)
         switch launch {
         case .attach(let pane) where host != nil:
             if let host { backend = .tmux(host, panePID: pane.panePID) }
         case .attach:
             view.startProcess(executable: shell, args: LaunchSpec.shellArgs(command: nil),
-                              environment: LaunchSpec.environment(base: ProcessInfo.processInfo.environment, shell: shell, terminalID: id),
-                              currentDirectory: cwd)
+                              environment: directEnvironment, currentDirectory: cwd)
             return
         case .run(let command):
             let terminal = view.getTerminal()
             if let host, let pane = host.createSession(terminalID: id, cwd: cwd, cols: terminal.cols, rows: terminal.rows,
-                                                       shell: shell, command: command) {
+                                                       shell: shell, command: command, colorScheme: theme.scheme) {
                 backend = .tmux(host, panePID: pane.panePID)
             } else {
-                view.startProcess(
-                    executable: shell,
-                    args: LaunchSpec.shellArgs(command: command),
-                    environment: LaunchSpec.environment(base: ProcessInfo.processInfo.environment, shell: shell, terminalID: id),
-                    currentDirectory: cwd)
+                view.startProcess(executable: shell, args: LaunchSpec.shellArgs(command: command),
+                                  environment: directEnvironment, currentDirectory: cwd)
                 return
             }
         }
@@ -156,13 +159,33 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         return false
     }
 
-    /// 跟随系统外观切换终端底色 / 前景色 / 光标色，并重绘已有内容。
+    /// 跟随外观切换终端底色 / 前景色 / 光标色与 ANSI 16 色，并重绘已有内容。
+    /// 明暗变了且由 tmux（≥ 3.6）托管时，像真实终端一样给 tmux 发主题变化报告：tmux 重新查询底色
+    /// （SwiftTerm 按新的底色回答 OSC 11），并通知订阅了 mode 2031 的窗格程序。
     func apply(_ theme: TerminalTheme) {
         view.nativeBackgroundColor = theme.background
         view.nativeForegroundColor = theme.foreground
         view.caretColor = theme.cursor
+        // installColors 按当前底色 / 前景色推算 256 色里的灰阶，所以放在设置底色之后。
+        view.installColors(theme.scheme.palette.ansi.map(Self.terminalColor))
         view.getTerminal().updateFullScreen()
         view.needsDisplay = true
+        if theme.scheme != colorScheme {
+            colorScheme = theme.scheme
+            sendThemeReport()
+        }
+    }
+
+    /// 改终端字体（会按新的格子大小重算行列，tmux 客户端随之调整窗口大小）。
+    func apply(font: NSFont) {
+        guard view.font != font else { return }
+        view.font = font
+    }
+
+    /// 0xRRGGBB -> SwiftTerm 的 16 位颜色。
+    static func terminalColor(_ hex: UInt32) -> SwiftTerm.Color {
+        let c = TerminalPalette.components(hex)
+        return SwiftTerm.Color(red: UInt16(c.red) * 257, green: UInt16(c.green) * 257, blue: UInt16(c.blue) * 257)
     }
 
     /// 写入文本（遵循 bracketed paste 模式），submit 时稍后补回车。为语音输入等后续功能预留。
@@ -336,6 +359,12 @@ final class TerminalPool {
         for terminal in terminals { terminal.apply(theme) }
     }
 
+    /// 终端字体设置变化时调用，所有终端立即换字体。
+    func applyFont() {
+        let font = TerminalFont.current()
+        for terminal in terminals { terminal.apply(font: font) }
+    }
+
     /// tmux 托管层；nil 时所有终端直连 PTY。
     var tmux: TmuxHost? {
         didSet { if tmux != nil { installEventMonitor() } }
@@ -367,7 +396,8 @@ final class TerminalPool {
     @discardableResult
     func create(id: UUID = UUID(), cwd: String, title: String, launch: TerminalLaunch) -> EmbeddedTerminal {
         let theme = self.theme ?? TerminalTheme.of(NSApp.effectiveAppearance)
-        let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, launch: launch, host: tmux, theme: theme)
+        let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, launch: launch, host: tmux, theme: theme,
+                                        font: TerminalFont.current())
         terminals.append(terminal)
         return terminal
     }

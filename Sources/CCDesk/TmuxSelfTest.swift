@@ -73,7 +73,7 @@ enum TmuxSelfTest {
         let envFile = dir.appendingPathComponent("env.txt").path
         let e = UUID()
         _ = host.createSession(terminalID: e, cwd: dir.path, cols: 80, rows: 24, shell: "/bin/zsh",
-                               command: "env > \(ShellQuote.quote(envFile)); sleep 60")
+                               command: "env > \(ShellQuote.quote(envFile)); sleep 60", colorScheme: .dark)
         var paneEnv: [String: String] = [:]
         for _ in 0..<50 where paneEnv["CC_DESK_TERMINAL_ID"] == nil {
             usleep(100_000)
@@ -85,6 +85,7 @@ enum TmuxSelfTest {
         check(paneEnv["TERM"] == "tmux-256color", "pane TERM=\(paneEnv["TERM"] ?? "nil")")
         check(paneEnv["COLORTERM"] == "truecolor", "pane COLORTERM=\(paneEnv["COLORTERM"] ?? "nil")")
         check(paneEnv["TERM_PROGRAM"] == "tmux", "pane TERM_PROGRAM=\(paneEnv["TERM_PROGRAM"] ?? "nil")")
+        check(paneEnv["COLORFGBG"] == "15;0", "pane COLORFGBG=\(paneEnv["COLORFGBG"] ?? "nil")")
         check((paneEnv["LANG"] ?? paneEnv["LC_ALL"] ?? paneEnv["LC_CTYPE"] ?? "").uppercased().contains("UTF-8"),
               "pane locale is UTF-8 (LANG=\(paneEnv["LANG"] ?? "nil"))")
         check(paneEnv["TMUX"] == nil && paneEnv["TMUX_PANE"] == nil, "pane does not see TMUX / TMUX_PANE")

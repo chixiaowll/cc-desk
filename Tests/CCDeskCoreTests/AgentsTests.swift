@@ -36,6 +36,17 @@ final class AgentsTests: ZhHansTestCase {
         XCTAssertFalse(env.contains("TERM=dumb"))
     }
 
+    func testEnvironmentWritesColorFGBGForTheSchemeAndDropsTheHostValue() {
+        let base = ["PATH": "/bin", "COLORFGBG": "7;0"]
+        let light = LaunchSpec.environment(base: base, shell: "/bin/zsh", terminalID: nil, colorScheme: .light)
+        XCTAssertTrue(light.contains("COLORFGBG=0;15"))
+        let dark = LaunchSpec.environment(base: base, shell: "/bin/zsh", terminalID: nil, colorScheme: .dark)
+        XCTAssertTrue(dark.contains("COLORFGBG=15;0"))
+        // tmux 客户端的环境不带 COLORFGBG（宿主终端的值也不继承），由每个会话的 `new-session -e` 写入。
+        let client = LaunchSpec.environment(base: base, shell: "/bin/zsh", terminalID: nil)
+        XCTAssertFalse(client.contains { $0.hasPrefix("COLORFGBG=") })
+    }
+
     func testEnvironmentStripsHostTerminalIdentityVars() {
         let id = UUID()
         let env = LaunchSpec.environment(

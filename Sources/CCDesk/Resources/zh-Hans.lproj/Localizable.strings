@@ -303,6 +303,13 @@
 "settings.general.appearance" = "外观";
 "settings.general.language" = "语言";
 "settings.general.languageNote" = "切换语言需要重启 CC Desk；内嵌会话会继续运行。";
+"settings.general.claudeThemeNote" = "Claude Code 主题设为 Auto（在会话中执行 /theme）可跟随 CC Desk 的浅色 / 深色。";
+"settings.general.terminal" = "终端";
+"settings.general.terminalFont" = "字体";
+"settings.general.terminalFont.auto" = "自动（%@）";
+"settings.general.terminalFontSize" = "字号";
+"settings.general.terminalFontNote" = "自动：优先使用已安装的中文等宽字体（如 Maple Mono NF CN、更纱黑体），中文正好占两格，字间不留缝。";
+"settings.general.terminalFont.installHint" = "没有安装中文等宽字体，终端里的中文字之间会有空隙。可在终端执行 %@ 安装 Maple Mono NF CN，再重新打开设置。";
 "settings.general.desktop" = "桌面";
 "settings.general.hotkeys" = "全局快捷键";
 "settings.general.hotkey.main" = "显示 / 隐藏主窗口";

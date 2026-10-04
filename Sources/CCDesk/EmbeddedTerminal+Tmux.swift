@@ -15,6 +15,14 @@ extension EmbeddedTerminal {
         let dir = FileManager.default.fileExists(atPath: cwd, isDirectory: &isDir) && isDir.boolValue ? cwd : NSHomeDirectory()
         view.startProcess(executable: host.executable, args: host.command.attach(terminalID: id),
                           environment: host.clientEnvironment, currentDirectory: dir)
+        // tmux 启动时用 `CSI ? 996 n` 询问外层终端的明暗，SwiftTerm 不回答：客户端起来后补发一次报告。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.sendThemeReport() }
+    }
+
+    /// 像真实终端一样把当前明暗报告给 tmux 客户端（只在 tmux ≥ 3.6 时；直连 PTY 时不发，shell 不认识这段序列）。
+    func sendThemeReport() {
+        guard case .tmux(let host, _) = backend, host.supportsThemeReports, view.process.running else { return }
+        view.send(txt: colorScheme.themeReport)
     }
 
     /// 向上滚会让 tmux 进入复制模式（滚回底部时自动退出）。

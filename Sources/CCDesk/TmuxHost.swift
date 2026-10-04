@@ -7,6 +7,8 @@ import CCDeskCore
 final class TmuxHost: @unchecked Sendable {
     let executable: String
     let version: TmuxVersion
+    /// 能解析外层终端的主题变化报告（mode 2031）；更早的版本会把报告当成按键交给窗格。
+    var supportsThemeReports: Bool { version >= TmuxVersion.themeReports }
     let command: TmuxCommand
     /// tmux 客户端（attach / 短命令）的环境；第一次启动服务器的客户端的环境会成为服务器的全局环境，
     /// 所以这里已去掉会话级 Claude / Codex 变量与宿主终端身份变量，且不含 CC_DESK_TERMINAL_ID。
@@ -123,10 +125,13 @@ final class TmuxHost: @unchecked Sendable {
 
     /// 在后台新建会话并返回窗格；会话已存在（同一终端 id）时返回已有窗格。失败返回 nil（调用方回退直连 PTY）。
     /// 在主线程同步调用（新建终端时），平时几毫秒；超时设得短，tmux 卡住时尽快回退直连，不让界面冻住太久。
-    func createSession(terminalID: UUID, cwd: String, cols: Int, rows: Int, shell: String, command shellCommand: String?) -> TmuxPane? {
+    /// `colorScheme` 写成会话环境里的 `COLORFGBG`（设计 §18）。
+    func createSession(terminalID: UUID, cwd: String, cols: Int, rows: Int, shell: String, command shellCommand: String?,
+                       colorScheme: TerminalColorScheme = .light) -> TmuxPane? {
         let args = command.newSession(
             terminalID: terminalID, cwd: cwd, cols: cols, rows: rows,
-            environment: ["CC_DESK": "1", "CC_DESK_TERMINAL_ID": terminalID.uuidString],
+            environment: ["CC_DESK": "1", "CC_DESK_TERMINAL_ID": terminalID.uuidString,
+                          "COLORFGBG": colorScheme.colorFGBG],
             command: TmuxCommand.paneCommand(shell: shell, command: shellCommand))
         if let output = run(args, timeout: 1.5), output.ok, let pane = TmuxListing.parsePanes(output.stdout).first {
             return pane

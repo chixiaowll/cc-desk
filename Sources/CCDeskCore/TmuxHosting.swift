@@ -50,6 +50,9 @@ public struct TmuxVersion: Comparable, Equatable, Sendable, CustomStringConverti
 
     /// 生成的配置用到的特性（extended-keys-format、allow-passthrough、terminal-features 的下标写法）需要 3.3 以上。
     public static let minimumSupported = TmuxVersion(major: 3, minor: 3)
+    /// 支持外层终端的主题变化报告（mode 2031，`CSI ? 997 ; 1|2 n`）的最低版本：
+    /// 更早的版本会把这段报告当成按键交给窗格程序。
+    public static let themeReports = TmuxVersion(major: 3, minor: 6)
 
     public static func parse(_ output: String) -> TmuxVersion? {
         let text = output.trimmingCharacters(in: .whitespacesAndNewlines)
