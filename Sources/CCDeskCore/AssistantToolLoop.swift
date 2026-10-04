@@ -101,6 +101,9 @@ public final class AssistantToolLoop {
         request()
     }
 
+    /// 已经完成的部分（这一轮的用户消息与之后的工具调用 / 结果）：失败 / 取消后调用方据此保留已执行的工具，
+    /// 见 `salvaged(_:note:)`。
+    public var partialTurn: [ChatMessage] { turn }
 
     public func cancel() {
         guard !finished else { return }
@@ -207,4 +210,33 @@ public final class AssistantToolLoop {
     static func clip(_ text: String) -> String {
         text.count > toolResultLimit ? String(text.prefix(toolResultLimit)) + "\n…(truncated)" : text
     }
+
+    /// 失败 / 取消的一轮里值得保留的部分（设计 §22）：执行过工具时，保留用户消息与工具调用、结果，
+    /// 还没有结果的调用补上「未完成」的结果，最后加一条说明这一轮没有完成的 assistant 消息——
+    /// 历史仍然结构完整（没有缺结果的工具调用、没有孤立的工具结果），模型下一轮知道哪些已经做过，不会重复打字 / 批准。
+    /// 没有调用过工具时 nil（与以前一样丢弃这一轮）。
+    public static func salvaged(_ turn: [ChatMessage], note: String = interruptedNote) -> [ChatMessage]? {
+        guard let user = turn.first, user.role == "user" else { return nil }
+        var out = [user]
+        var i = 1
+        while i < turn.count {
+            let message = turn[i]
+            guard message.role == "assistant", let calls = message.toolCalls, !calls.isEmpty else { break }
+            out.append(message)
+            let given = Array(turn[(i + 1)...].prefix { $0.role == "tool" })
+            // 按调用顺序排好，缺的补上；多余的（对不上 id 的）丢掉。
+            out += calls.map { call in
+                given.first { $0.toolCallID == call.id } ?? .tool(id: call.id, interruptedToolResult)
+            }
+            i += 1 + given.count
+        }
+        guard out.count > 1 else { return nil }
+        out.append(ChatMessage(role: "assistant", content: note))
+        return out
+    }
+
+    /// 没来得及返回的工具调用的结果。
+    public static let interruptedToolResult = "Error: interrupted — the turn ended before this tool returned; its effect is unknown"
+    /// 没有完成的一轮最后补的 assistant 消息。
+    public static let interruptedNote = "（上一轮请求失败：已执行的工具及结果见上，不要重复执行）"
 }

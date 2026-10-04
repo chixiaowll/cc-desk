@@ -261,4 +261,65 @@ final class AssistantToolLoopTests: XCTestCase {
         XCTAssertEqual(fake.bodies.count, 1, "a late tool result starts no new request")
         timers[0].1()  // 再触发一次也不会再回调
     }
+
+    /// 执行过工具后失败：已完成的部分保留进历史，结构完整（每个调用都有结果、没有孤立的结果），最后有说明。
+    func testFailedTurnKeepsTheExecutedToolsAsAValidHistoryTurn() throws {
+        let two = ChatCompletion(content: nil, toolCalls: [ChatToolCall(id: "a", name: "type_text", arguments: #"{"text":"hi"}"#),
+                                                           ChatToolCall(id: "b", name: "list_sessions", arguments: "{}")],
+                                 finishReason: "tool_calls")
+        let fake = FakeTransport([.success(two), .failure(.http(500, nil))])
+        let (result, loop) = run(fake, turn: .utterance)
+        guard case .failure(.api)? = result else { return XCTFail("\(String(describing: result))") }
+        let salvaged = try XCTUnwrap(AssistantToolLoop.salvaged(loop.partialTurn))
+        XCTAssertEqual(salvaged.map(\.role), ["user", "assistant", "tool", "tool", "assistant"])
+        XCTAssertEqual(salvaged[2].toolCallID, "a")
+        XCTAssertEqual(salvaged[3].toolCallID, "b")
+        XCTAssertEqual(salvaged.last?.content, AssistantToolLoop.interruptedNote)
+        var history = AssistantChatHistory(promptVersion: 1)
+        history.append(salvaged)
+        XCTAssertEqual(history.messages, salvaged, "the salvaged turn is a complete, valid history turn")
+    }
+
+    /// 工具还没返回就被取消：已返回的保留，没返回的补「未完成」结果；多余的结果丢掉。
+    func testSalvageFillsMissingResults() throws {
+        let calls = [ChatToolCall(id: "a", name: "type_text", arguments: "{}"), ChatToolCall(id: "b", name: "read_screen", arguments: "{}")]
+        let partial: [ChatMessage] = [.user("u"), ChatMessage(role: "assistant", content: "", toolCalls: calls), .tool(id: "a", "typed")]
+        let salvaged = try XCTUnwrap(AssistantToolLoop.salvaged(partial))
+        XCTAssertEqual(salvaged.map(\.role), ["user", "assistant", "tool", "tool", "assistant"])
+        XCTAssertEqual(salvaged[2].content, "typed")
+        XCTAssertEqual(salvaged[3].toolCallID, "b")
+        XCTAssertEqual(salvaged[3].content, AssistantToolLoop.interruptedToolResult)
+        var history = AssistantChatHistory(promptVersion: 1)
+        history.append(salvaged)
+        XCTAssertEqual(history.turnCount, 1)
+
+        let stray: [ChatMessage] = [.user("u"), ChatMessage(role: "assistant", content: "", toolCalls: [calls[0]]),
+                                    .tool(id: "zzz", "stray"), .tool(id: "a", "typed")]
+        XCTAssertEqual(try XCTUnwrap(AssistantToolLoop.salvaged(stray)).compactMap(\.toolCallID), ["a"])
+        // 没有调用过工具：不保留。
+        XCTAssertNil(AssistantToolLoop.salvaged([.user("u")]))
+        XCTAssertNil(AssistantToolLoop.salvaged([]))
+    }
+
+    /// 第二次请求超时前已执行了一组工具，第二组工具卡住：两组都保留。
+    func testSalvageAfterTwoRounds() throws {
+        let fake = FakeTransport([.success(call("list_sessions", id: "c1")), .success(call("read_screen", id: "c2"))])
+        var timers: [() -> Void] = []
+        var result: Result<AssistantToolLoop.Outcome, AssistantToolLoop.Failure>?
+        var count = 0
+        let loop = AssistantToolLoop(model: "m", prefix: [], user: .user("x"), tools: AssistantTools.all, timeout: 5,
+                                     gate: { _ in nil }, transport: fake.transport,
+                                     executor: { _, _, done in
+                                         count += 1
+                                         if count == 1 { done(.init(text: "sessions")) }
+                                     },
+                                     schedule: { timers.append($1) })
+        loop.start { result = $0 }
+        timers.forEach { $0() }
+        guard case .failure(.timeout)? = result else { return XCTFail() }
+        let salvaged = try XCTUnwrap(AssistantToolLoop.salvaged(loop.partialTurn))
+        XCTAssertEqual(salvaged.map(\.role), ["user", "assistant", "tool", "assistant", "tool", "assistant"])
+        XCTAssertEqual(salvaged[2].content, "sessions")
+        XCTAssertEqual(salvaged[4].content, AssistantToolLoop.interruptedToolResult)
+    }
 }

@@ -3,6 +3,7 @@ import CCDeskCore
 
 /// OpenAI 兼容接口的助手后端（设计 §22）：每条消息跑一轮 `AssistantToolLoop`（函数调用 → 进程内执行 CC Desk 的工具 →
 /// 再请求），对话历史在内存里并存到 api-history.json（0600），重启后接着用；过长时从最早的整轮裁掉。
+/// 失败 / 超时的一轮如果已经执行了工具，已完成的部分也记进历史（`AssistantToolLoop.salvaged`）。
 ///
 /// - 请求串行、恰好一次的 completion、超时、重置：与 Claude 会话共用 `AssistantRequestQueue`（「进程」= 正在跑的那一轮）。
 /// - 工具权限：每个调用先过 `AssistantToolPolicy.check`（与 MCP 路径同一个函数），再交给工具执行器（它也会检查一次）。
@@ -29,7 +30,7 @@ final class APIAssistantBackend: AssistantBackend {
     private lazy var requests = AssistantRequestQueue<AssistantReply>(driver: AssistantRequestQueue.Driver(
         ensureRunning: { [unowned self] in endpoint() != nil },
         send: { [unowned self] message in startTurn(message) },
-        stopProcess: { [unowned self] in cancelTurn() },
+        stopProcess: { [unowned self] in cancelTurn(keepPartial: true) },
         schedule: { seconds, work in DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work) }))
 
     /// 历史写盘（串行，后写的最后落盘）。
@@ -70,6 +71,8 @@ final class APIAssistantBackend: AssistantBackend {
 
     func reset() {
         loadIfNeeded()
+        // 先丢掉正在进行的一轮（不保留它的部分结果：历史马上要清空）。
+        cancelTurn(keepPartial: false)
         history.clear()
         generation += 1
         let store = self.store
@@ -119,18 +122,33 @@ final class APIAssistantBackend: AssistantBackend {
             transport: http.transport(endpoint: endpoint, purpose: "assistant"),
             executor: { [executor] name, arguments, done in executor(name, arguments, turn, done) })
         self.loop = loop
-        loop.start { [weak self] result in
+        loop.start { [weak self, weak loop] result in
             guard let self, self.loopID == id else { return }
             self.loop = nil
+            if case .failure = result, let partial = loop?.partialTurn { self.keep(partial) }
             self.finishTurn(result, kind: turn?.kind, started: started)
         }
         return true
     }
 
-    private func cancelTurn() {
+    /// 停掉正在进行的一轮（超时 / 关闭 / 重置）。keepPartial：已执行的工具记进历史（见 `keep`）。
+    private func cancelTurn(keepPartial: Bool) {
         loopID += 1
+        if keepPartial, let partial = loop?.partialTurn { keep(partial) }
         loop?.cancel()
         loop = nil
+    }
+
+    /// 失败 / 取消的一轮：执行过工具时把已完成的部分（补齐未返回的结果，加一句「上一轮请求失败」）记进历史，
+    /// 模型下一轮知道哪些已经做过，不会重复打字 / 批准；没有执行工具时丢弃（与以前一样）。
+    private func keep(_ partial: [ChatMessage]) {
+        guard let salvaged = AssistantToolLoop.salvaged(partial) else { return }
+        if history.append(salvaged) {
+            generation += 1
+            AssistantDiag.log("api assistant history trimmed to \(history.turnCount) turns")
+        }
+        save()
+        AssistantDiag.log("api assistant kept \(salvaged.filter { $0.role == "tool" }.count) tool result(s) of a failed turn")
     }
 
     private func finishTurn(_ result: Result<AssistantToolLoop.Outcome, AssistantToolLoop.Failure>,
