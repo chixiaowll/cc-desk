@@ -588,3 +588,22 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 - **出处**：Catppuccin <https://catppuccin.com/palette> 与 <https://github.com/catppuccin/alacritty>；Rosé Pine <https://rosepinetheme.com/palette/ingredients> 与 <https://github.com/rose-pine/alacritty>；Everforest <https://github.com/sainnhe/everforest/blob/master/palette.md>（终端色取 alacritty-theme 的 everforest_dark）；Tokyo Night <https://github.com/folke/tokyonight.nvim>（`extras/alacritty/tokyonight_storm.toml`、`tokyonight_day.toml`）；Solarized <https://ethanschoonover.com/solarized/>（终端映射取 alacritty-theme 的 solarized_light）；Gruvbox <https://github.com/morhetz/gruvbox>（终端映射取 alacritty-theme 的 gruvbox_dark / gruvbox_light）；Nord <https://www.nordtheme.com/docs/colors-and-palettes> 与 <https://github.com/nordtheme/alacritty>；alacritty-theme <https://github.com/alacritty/alacritty-theme>。
 - **选择与持久化**：设置 › 通用 › 外观保留「跟随系统 / 浅色 / 深色」，下面是「浅色主题」「深色主题」两组迷你窗口缩略图（侧栏、终端区、强调色与三种状态色），点选即生效；菜单「显示 → 主题」列出两档主题供快速切换。UserDefaults `lightTheme` / `darkTheme` 存 `ThemeID` 原始值，缺失、无效或明暗不符时回退到默认（Catppuccin Latte / CC Desk 深色）。
 - **实时切换**（App `ThemeStore`，ObservableObject）：视图观察它，用 `theme(for: colorScheme)` 取配色（侧栏、详情区、设置、历史面板等随之重绘）。选主题时在一个 CATransaction 里保存选择、发布变化并给所有终端 `apply`（底色 / 前景 / 光标 + `installColors`），不重建终端；终端池对同一主题的重复 `apply` 直接跳过。由 tmux（≥ 3.6）托管的终端在明暗或主题变化时都发 mode 2031 报告，tmux 据此重新查询 OSC 10/11。`COLORFGBG` 仍只按明暗、在会话启动时写入。
+
+## 20. 分屏与独立窗口（v1.10）
+
+### 20.1 布局模型（Core `PaneLayout`）
+
+- **分割树**：叶子是内嵌终端的 terminalID，内部节点是一次分割（`PaneAxis.horizontal` = 左右并排、`.vertical` = 上下排列）+ 第一个子节点所占比例。最多 4 个叶子；一个终端最多出现在一个叶子里。另有 `focused`（焦点窗格）与 `zoomed`（放大的窗格，至少两个窗格时才有）。
+- **操作**：`show`（已显示则聚焦；布局为空则成为唯一窗格；否则替换焦点窗格）、`split(leaf, edge:, with:)`（新窗格放在 left / right / top / bottom 一侧，焦点移过去；被分的终端已在别处时先移走；满 4 个时拒绝）、`remove`（父分割收拢为兄弟子树，焦点交给兄弟子树里离它最近的叶子）、`replace`（新终端已在别的窗格时两者互换）、`swap`、`setRatio(at: path)`（限制在 0.1…0.9）、`toggleZoom`、`moveFocus(edge)`、`normalize(keeping:)`（去掉不存在 / 重复的终端、超出 4 个的叶子，修正比例、焦点与放大）。
+- **几何**：`frames(in:)` / `dividers(in:)` 按比例切分矩形（原点左上角，与 SwiftUI 一致）；`ratioRange(at:in:minPane:)` 按两侧子树的最小尺寸（左右并排时宽度相加、高度取大，上下排列反之）限制分隔线；`canSplit` 要求被分的窗格在该方向上至少容得下两个最小窗格（280×160）。焦点移动按几何找邻居：在那一侧、另一方向上有重叠，取最近的，同样近取重叠最多的，再取靠左 / 靠上的；那边没有窗格时不动（不回绕）。
+- **持久化**：`WorkspaceFile.layout`（可选字段，旧文件没有）随 workspace.json 一起保存；解码时整理，树结构损坏时得到空布局，不影响会话条目。启动恢复时去掉没能恢复的终端，选中布局的焦点窗格（没有布局记录时沿用 `lastSelectedTerminal`）。
+- **验证**：`PaneLayoutTests` 覆盖全部操作、4 个上限、收拢、焦点移动、比例范围与编解码；`CCDesk --layout-selftest` 在屏幕外跑 5000 步随机操作检查不变量（叶子不重复、≤ 4、焦点 / 放大合法、窗格铺满、编解码不变），并把真正的 SwiftTerm 视图放进容器按布局摆放、隐藏、搬到另一个容器再搬回，确认每个视图只有一个父视图、焦点终端能成为第一响应者。
+
+### 20.2 主窗口分屏（App `PaneLayoutModel` / `PaneArea` / `PaneTerminalHost`）
+
+- **焦点 = 选中**：焦点窗格就是选中的会话（`selectedID`）。选中变化时（侧栏点击、⌘1…9、通知、助手切换、新建）调用 `layout.show`：已显示则聚焦，否则替换焦点窗格的内容。所以工具栏标题 / 状态 / 「改动的文件」、语音输入、对话模式、助手 `type_text` 的默认目标都自动跟着焦点窗格走，不需要另外的目标状态。点窗格（终端里按下鼠标、窗格留白、标题条）选中它；焦点变化时把第一响应者交给它的终端。
+- **渲染**：所有终端视图仍常驻同一个 AppKit 容器（`PaneTerminalHost.HostView`，翻转坐标），切换 / 分屏只改每个视图的 frame 和 isHidden，不在容器之间搬动，也不重建。不在布局里的终端隐藏且保持原大小（不触发 tmux 改尺寸、不重绘）；显示中的终端只绘制自己。SwiftUI 在上面叠标题条、焦点边框（强调色 1.5pt）与分隔线。单窗格时与原来完全一样（四周 24 / 20pt 留白、没有标题条）；多窗格时每个窗格顶部 30pt 标题条（状态点、会话名、agent · 状态、放大 / 还原按钮、关闭分屏 ×），终端四周留 10pt。
+- **分隔线**：1pt 细线，两侧各 4pt 可拖动（AppKit cursor rect 显示左右 / 上下调整光标，不用 push / pop），拖动时按 `ratioRange` 限制，过程中只发布不保存，松手后写 workspace。
+- **打开到分屏**：侧栏内嵌会话的右键菜单「在右侧分屏打开」「在下方分屏打开」；把侧栏会话拖到窗格上（容器注册 `.string` 拖放类型，拖动内容 `row:term:<uuid>`），按落点在窗格里的位置高亮半个窗格（四边，分屏）或整个窗格（中间，替换；已显示在别处时互换）；⌘D / ⇧⌘D 在焦点窗格右侧 / 下方分屏并弹出与历史面板同样式的选择面板（还没显示的内嵌会话 + 「新建会话…」，后者打开新建表单，建好的会话放进那个分屏）。放不下（满 4 个或窗格太小）时提示音。
+- **关闭**：关闭分屏（标题条 ×、菜单「关闭分屏」⌥⌘W）只是不再显示，会话继续运行、仍在侧栏里；只剩一个窗格时不可用。⌘W 仍是「关闭当前 Session」（焦点窗格的会话，沿用确认逻辑），会话关闭 / 结束 / 移除时它的窗格收拢，选中接替的窗格（对话模式得以继续）。
+- **快捷键**：⌘D / ⇧⌘D 分屏，⇧⌘↩ 放大 / 还原，⌥⌘W 关闭分屏，⌥⌘← / → / ↑ / ↓ 移动焦点。都在菜单「Session」里，只在主窗口是 key 时生效；不适用时（如单窗格）置灰，按键照常交给终端。避开了已有的 ⌘W（关闭会话）、⇧⌘W（系统「关闭窗口」习惯）、⌘1…9、⇧⌘H / F / R、⌥⌘V。

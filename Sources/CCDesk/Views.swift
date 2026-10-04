@@ -20,6 +20,7 @@ struct ContentView: View {
         .overlay {
             if model.showHistoryPalette { HistoryPalette(model: model) }
         }
+        .overlay { PanePickerSlot(model: model, panes: model.panes) }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
         .modifier(AssistantResultsPresenter(work: model.work))
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
@@ -59,13 +60,7 @@ struct DetailView: View {
             theme.line.frame(height: 1)
             HStack(spacing: 0) {
                 ZStack {
-                    TerminalContainer(pool: model.pool, terminalIDs: model.pool.terminals.map(\.id),
-                                      selected: model.selectedTerminalID, background: theme.terminal.background)
-                    if model.selectedTerminalID == nil {
-                        Text(L("detail.empty"))
-                            .font(.system(size: 13))
-                            .foregroundStyle(theme.fg3)
-                    }
+                    PaneArea(model: model, panes: model.panes, theme: theme)
                     VoiceOverlay(voice: model.voice, theme: theme)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .padding(.bottom, 16)
@@ -176,9 +171,13 @@ struct PanelDivider: View {
 /// 左右调整大小的光标区域：NSView 的 cursor rect 由窗口管理，进出 / 视图消失都不需要配对的 push / pop。
 /// 不接收鼠标事件（hitTest 返回 nil），拖动仍由 SwiftUI 的手势处理。
 struct ResizeCursorArea: NSViewRepresentable {
+    var cursor: NSCursor = .resizeLeftRight
+
     final class CursorView: NSView {
+        var cursor: NSCursor = .resizeLeftRight
+
         override func resetCursorRects() {
-            addCursorRect(bounds, cursor: .resizeLeftRight)
+            addCursorRect(bounds, cursor: cursor)
         }
 
         override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -187,6 +186,7 @@ struct ResizeCursorArea: NSViewRepresentable {
     func makeNSView(context: Context) -> CursorView { CursorView() }
 
     func updateNSView(_ view: CursorView, context: Context) {
+        view.cursor = cursor
         view.window?.invalidateCursorRects(for: view)
     }
 }
@@ -250,64 +250,6 @@ struct StatusPill: View {
     }
 }
 
-/// 所有内嵌终端视图常驻同一个容器，切换只改 isHidden，不重建、不清屏。
-/// 容器四周留出与标题栏一致的内边距（左右 24pt、上下 20pt），底色与终端一致。
-struct TerminalContainer: NSViewRepresentable {
-    let pool: TerminalPool
-    let terminalIDs: [UUID]
-    let selected: UUID?
-    let background: NSColor
-
-    final class Coordinator {
-        var lastSelected: UUID?
-    }
-
-    /// 按固定内边距布局所有子视图（终端）。
-    final class HostView: NSView {
-        static let insets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
-
-        override func layout() {
-            super.layout()
-            let insets = Self.insets
-            let frame = NSRect(x: insets.left, y: insets.bottom,
-                               width: max(0, bounds.width - insets.left - insets.right),
-                               height: max(0, bounds.height - insets.top - insets.bottom))
-            for view in subviews { view.frame = frame }
-        }
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    func makeNSView(context: Context) -> HostView {
-        let view = HostView()
-        view.wantsLayer = true
-        return view
-    }
-
-    func updateNSView(_ container: HostView, context: Context) {
-        container.layer?.backgroundColor = background.cgColor
-        let views = pool.terminals.map(\.view)
-        var added = false
-        for view in views where view.superview !== container {
-            container.addSubview(view)
-            added = true
-        }
-        for view in container.subviews where !views.contains(where: { $0 === view }) {
-            view.removeFromSuperview()
-        }
-        if added { container.needsLayout = true }
-        for terminal in pool.terminals {
-            terminal.view.isHidden = terminal.id != selected
-        }
-        if context.coordinator.lastSelected != selected {
-            context.coordinator.lastSelected = selected
-            if let id = selected, let terminal = pool.terminal(id) {
-                DispatchQueue.main.async { terminal.view.window?.makeFirstResponder(terminal.view) }
-            }
-        }
-    }
-}
-
 struct NewSessionSheet: View {
     @ObservedObject var model: AppModel
     @State private var kind: AgentKind = .claude
@@ -347,6 +289,8 @@ struct NewSessionSheet: View {
             kind = model.lastAgent
             model.probeAgents()
         }
+        // 从分屏面板打开的表单：关掉时（无论是否新建）不再把之后的新建放进那个分屏。
+        .onDisappear { model.panes.pendingSplit = nil }
         .onChange(of: model.installedAgents) { _, _ in
             // 检测完成后上次的 agent 已不可用（如被卸载）：退回 Claude。
             if !model.availability(of: kind).isEnabled, model.installedAgents != nil { kind = .claude }

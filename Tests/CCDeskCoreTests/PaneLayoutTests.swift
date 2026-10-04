@@ -349,3 +349,25 @@ final class PaneLayoutTests: XCTestCase {
         XCTAssertNil(try JSONDecoder().decode(WorkspaceFile.self, from: Data(old.utf8)).layout)
     }
 }
+
+final class PaneDropZoneTests: XCTestCase {
+    private let rect = CGRect(x: 100, y: 0, width: 200, height: 100)
+
+    func testZones() {
+        XCTAssertEqual(PaneDropZone.at(CGPoint(x: 200, y: 50), in: rect), .center)
+        XCTAssertEqual(PaneDropZone.at(CGPoint(x: 230, y: 60), in: rect), .center)
+        XCTAssertEqual(PaneDropZone.at(CGPoint(x: 110, y: 50), in: rect), .edge(.left))
+        XCTAssertEqual(PaneDropZone.at(CGPoint(x: 290, y: 40), in: rect), .edge(.right))
+        XCTAssertEqual(PaneDropZone.at(CGPoint(x: 200, y: 5), in: rect), .edge(.top))
+        XCTAssertEqual(PaneDropZone.at(CGPoint(x: 210, y: 95), in: rect), .edge(.bottom))
+        XCTAssertEqual(PaneDropZone.at(.zero, in: .zero), .center)
+    }
+
+    func testHighlight() {
+        XCTAssertEqual(PaneDropZone.center.highlight(in: rect), rect)
+        XCTAssertEqual(PaneDropZone.edge(.left).highlight(in: rect), CGRect(x: 100, y: 0, width: 100, height: 100))
+        XCTAssertEqual(PaneDropZone.edge(.right).highlight(in: rect), CGRect(x: 200, y: 0, width: 100, height: 100))
+        XCTAssertEqual(PaneDropZone.edge(.top).highlight(in: rect), CGRect(x: 100, y: 0, width: 200, height: 50))
+        XCTAssertEqual(PaneDropZone.edge(.bottom).highlight(in: rect), CGRect(x: 100, y: 50, width: 200, height: 50))
+    }
+}

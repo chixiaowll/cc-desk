@@ -86,7 +86,10 @@ extension AppModel {
         }
         let terminal = makeTerminal(id: UUID(), cwd: cwd, command: command ?? launcher.launchCommand(prompt: prompt))
         knownKinds[terminal.id] = kind
-        if select { selectedID = "term:\(terminal.id.uuidString)" }
+        if select {
+            placeNewTerminal(terminal.id)
+            selectedID = "term:\(terminal.id.uuidString)"
+        }
         rememberRecent(cwd)
         saveWorkspace()
         poll()
@@ -119,10 +122,11 @@ extension AppModel {
         removeTerminal(tid)
     }
 
-    /// 不再确认、直接关闭内嵌会话（语音已确认过）。关闭的是选中的会话时先选中另一个内嵌会话，对话模式得以继续。
+    /// 不再确认、直接关闭内嵌会话（语音已确认过）。关闭的是选中的会话时先选中另一个内嵌会话，对话模式得以继续
+    /// （分屏时由接替的窗格成为选中，见 `layoutTerminalRemoved`）。
     func closeWithoutConfirmation(_ row: SidebarRow) {
         guard case .embedded(let tid) = row.session.host, let terminal = pool.terminal(tid) else { return }
-        if selectedID == row.id, let next = embeddedRowsInOrder.first(where: { $0.id != row.id }) {
+        if selectedID == row.id, !(panes.layout.isSplit && panes.layout.contains(tid)), let next = embeddedRowsInOrder.first(where: { $0.id != row.id }) {
             selectedID = next.id
         }
         terminal.terminate()

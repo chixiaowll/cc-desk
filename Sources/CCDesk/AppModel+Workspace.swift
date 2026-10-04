@@ -30,7 +30,7 @@ extension AppModel {
             return WorkspaceEntry(terminalID: terminal.id, cwd: cwd, sessionID: sessionID,
                                   name: terminal.title, kind: kind)
         }
-        try? WorkspaceStore.save(WorkspaceFile(entries: embedded + missing))
+        try? WorkspaceStore.save(WorkspaceFile(entries: embedded + missing, layout: panes.layout))
     }
 
     func restore() {
@@ -56,8 +56,10 @@ extension AppModel {
         }
         // 收养了没有记录的会话：立即写进 workspace。
         if !restore.plan.adopted.isEmpty { saveWorkspace() }
-        // 选回上次选中的终端；它没能恢复时选第一个。
-        let last = UserDefaults.standard.string(forKey: Self.lastSelectedTerminalKey).flatMap(UUID.init(uuidString:))
+        restoreLayout(restore.layout)
+        // 选回分屏的焦点窗格（没有分屏记录时为上次选中的终端）；它没能恢复时选第一个。
+        let last = panes.layout.focused
+            ?? UserDefaults.standard.string(forKey: Self.lastSelectedTerminalKey).flatMap(UUID.init(uuidString:))
         if let terminal = pool.terminals.first(where: { $0.id == last }) ?? pool.terminals.first {
             selectedID = "term:\(terminal.id.uuidString)"
         }
@@ -82,6 +84,7 @@ extension AppModel {
         let terminal = pool.create(id: id, cwd: cwd, title: title, launch: launch)
         terminal.onTerminated = { [weak self] tid in self?.removeTerminal(tid) }
         terminal.onServerLost = { [weak self] tid in self?.tmuxServerLost(tid) }
+        terminal.view.onMouseDown = { [weak self] in self?.focusPane(id) }
         return terminal
     }
 
@@ -110,7 +113,7 @@ extension AppModel {
         observedAgent.remove(tid)
         endedSessionIDs[tid] = nil
         resumingEnded[tid] = nil
-        if selectedTerminalID == tid { selectedID = nil }
+        layoutTerminalRemoved(tid)
         saveWorkspace()
         poll()
     }

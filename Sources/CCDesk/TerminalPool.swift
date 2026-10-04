@@ -5,6 +5,8 @@ import CCDeskCore
 /// 在 SwiftTerm 收到输出后通知外部（用于节流触发屏幕检测）；⌘-点击文件路径交给 `pathClickHandler`（设计 §17）。
 final class DetectingTerminalView: LocalProcessTerminalView {
     var onOutput: (() -> Void)?
+    /// 鼠标在终端里按下（分屏时点哪个窗格就选中哪个，设计 §20）。
+    var onMouseDown: (() -> Void)?
     /// ⌘-点击：(终端视图, 点击行的文字, 列, 是否按着 ⇧) -> 是否已处理（识别出存在的文件）。
     /// 未处理时照常交给 SwiftTerm（URL / OSC 8 链接、选择、tmux 鼠标模式不受影响）。
     static var pathClickHandler: ((DetectingTerminalView, String, Int, Bool) -> Bool)?
@@ -17,6 +19,7 @@ final class DetectingTerminalView: LocalProcessTerminalView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        onMouseDown?()
         swallowMouseUp = false
         if event.modifierFlags.contains(.command), event.clickCount == 1, handlePathClick(event) {
             swallowMouseUp = true

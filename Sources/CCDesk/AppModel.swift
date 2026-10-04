@@ -20,6 +20,7 @@ final class AppModel: ObservableObject {
             }
             // 对话模式只作用于选中的内嵌 session；没有选中内嵌 session 时自动关闭。
             if selectedTerminalID == nil { conversation.turnOff() }
+            layoutFollowSelection()
         }
     }
     @Published var showNewSession = false
@@ -48,6 +49,8 @@ final class AppModel: ObservableObject {
     /// 外部会话行 id -> 宿主 App 的 .app 路径（由进程链推出），用于显示真实 App 图标。
     var hostAppPaths: [String: String] = [:]
     let pool = TerminalPool()
+    /// 详情区的分屏布局（设计 §20）。
+    let panes = PaneLayoutModel()
     let notifier = Notifier()
     /// 推送到手机（设置 › 通知），与系统通知在同一处触发。
     let push = PhonePushCenter()
@@ -168,7 +171,7 @@ final class AppModel: ObservableObject {
     private var canListenForVoice: Bool {
         guard NSApp.isActive, let window = NSApp.keyWindow, !(window is NSPanel),
               window.attachedSheet == nil else { return false }
-        return !showNewSession && !showHistoryPalette && !conversation.isOn
+        return !showNewSession && !showHistoryPalette && panes.picker == nil && !conversation.isOn
     }
 
     // MARK: 查询

@@ -240,6 +240,13 @@ struct RowMenu: View {
                     .disabled(model.isResumingEnded(row))
                 Divider()
             }
+            if case .embedded(let tid) = row.session.host {
+                Button(L("row.menu.openRight")) { model.openInSplit(tid, edge: .right) }
+                    .disabled(!model.canOpenInSplit(tid, edge: .right))
+                Button(L("row.menu.openBelow")) { model.openInSplit(tid, edge: .bottom) }
+                    .disabled(!model.canOpenInSplit(tid, edge: .bottom))
+                Divider()
+            }
             Button(L("row.menu.revealInFinder")) { model.revealInFinder(row) }
             if row.session.sessionID != nil {
                 Button(L("row.menu.copyResumeCommand")) { model.copyResumeCommand(row) }

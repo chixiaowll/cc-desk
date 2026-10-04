@@ -17,6 +17,7 @@
 - 外部终端里的会话可以一键（或用语音）接管到 CC Desk。
 - 侧栏固定顺序，可拖拽或右键调整；重启后选回上次的会话。
 - 历史会话搜索与恢复（⇧⌘H）。
+- 分屏：详情区最多同时显示 4 个会话（⌘D 向右、⇧⌘D 向下，或把侧栏会话拖到窗格的四边 / 中间），分隔线可拖动，⇧⌘↩ 放大单个窗格；关闭分屏不结束会话，布局重启后恢复。
 
 **提醒**
 - 系统通知 + Dock 角标 + 菜单栏图标计数。
@@ -81,6 +82,10 @@ DMG 未经苹果公证，首次打开请在「应用程序」里**右键 → 打
 | 新建会话 | ⌘N |
 | 切换会话 | ⌘1 … ⌘9 |
 | 关闭会话 | ⌘W |
+| 向右 / 向下分屏 | ⌘D / ⇧⌘D |
+| 关闭分屏（会话继续运行） | ⌥⌘W |
+| 放大 / 还原窗格 | ⇧⌘↩ |
+| 在窗格间移动焦点 | ⌥⌘← / → / ↑ / ↓ |
 | 历史会话 | ⇧⌘H |
 | 改动的文件 | ⇧⌘F |
 | 助手结果 | ⇧⌘R |
@@ -110,7 +115,7 @@ swift test                   # 纯逻辑都在 CCDeskCore，可脱离界面测�
 - `Sources/CCDeskCore`：会话发现、状态合并、侧栏模型、tmux 托管规划、MCP / 控制协议、主题与配色等纯逻辑。
 - `Sources/CCDesk`：SwiftUI + AppKit 界面、终端、语音、助手。
 - 设计文档：`docs/specs/2026-10-02-cc-desk-design.md`。
-- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`。
+- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`。
 
 ## 致谢
 

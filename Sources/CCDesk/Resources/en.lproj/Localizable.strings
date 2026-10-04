@@ -445,3 +445,24 @@
 "menu.theme" = "Theme";
 "files.collapse.help" = "Hide panel (⇧⌘F)";
 "action.close" = "Close";
+
+/* 分屏（设计 §20） */
+"menu.splitRight" = "Split Right";
+"menu.splitDown" = "Split Down";
+"menu.zoomPane" = "Zoom Pane";
+"menu.unzoomPane" = "Restore Panes";
+"menu.closePane" = "Close Pane";
+"menu.focusPane" = "Move Focus";
+"menu.focusLeft" = "Pane on the Left";
+"menu.focusRight" = "Pane on the Right";
+"menu.focusUp" = "Pane Above";
+"menu.focusDown" = "Pane Below";
+"row.menu.openRight" = "Open in Split on the Right";
+"row.menu.openBelow" = "Open in Split Below";
+"pane.zoom.help" = "Zoom this pane (⇧⌘↩)";
+"pane.unzoom.help" = "Restore the split (⇧⌘↩)";
+"pane.close.help" = "Close pane (the session keeps running, ⌥⌘W)";
+"pane.picker.searchRight" = "Open in split on the right…";
+"pane.picker.searchDown" = "Open in split below…";
+"pane.picker.newSession" = "New session…";
+"pane.picker.hint.open" = "Open";

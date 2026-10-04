@@ -8,6 +8,8 @@ struct TerminalRestore {
     let plan: TerminalRestorePlan
     /// 存活会话的窗格（附着时用来查 tty）。
     let panes: [UUID: TmuxPane]
+    /// 保存的分屏布局（设计 §20）；旧文件没有。
+    var layout: PaneLayout?
 
     static func prepare(tmux: TmuxHost?, workspaceURL: URL = WorkspaceStore.defaultURL) -> TerminalRestore {
         let file = WorkspaceStore.load(from: workspaceURL)
@@ -35,7 +37,7 @@ struct TerminalRestore {
             TmuxHost.log(String(format: "tmux: restore found %d live session(s), attaching %d (%d adopted), in %.0f ms",
                                 live.count, attached, plan.adopted.count, Date().timeIntervalSince(started) * 1000))
         }
-        return TerminalRestore(plan: plan, panes: panes)
+        return TerminalRestore(plan: plan, panes: panes, layout: file?.layout)
     }
 
     private static func isDirectory(_ path: String) -> Bool {

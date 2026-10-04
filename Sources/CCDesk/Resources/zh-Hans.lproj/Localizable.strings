@@ -445,3 +445,24 @@
 "menu.theme" = "主题";
 "files.collapse.help" = "收起面板（⇧⌘F）";
 "action.close" = "关闭";
+
+/* 分屏（设计 §20） */
+"menu.splitRight" = "在右侧分屏";
+"menu.splitDown" = "在下方分屏";
+"menu.zoomPane" = "放大窗格";
+"menu.unzoomPane" = "还原窗格";
+"menu.closePane" = "关闭分屏";
+"menu.focusPane" = "移动焦点";
+"menu.focusLeft" = "左侧窗格";
+"menu.focusRight" = "右侧窗格";
+"menu.focusUp" = "上方窗格";
+"menu.focusDown" = "下方窗格";
+"row.menu.openRight" = "在右侧分屏打开";
+"row.menu.openBelow" = "在下方分屏打开";
+"pane.zoom.help" = "放大这个窗格（⇧⌘↩）";
+"pane.unzoom.help" = "还原分屏（⇧⌘↩）";
+"pane.close.help" = "关闭分屏（会话继续运行，⌥⌘W）";
+"pane.picker.searchRight" = "在右侧分屏打开…";
+"pane.picker.searchDown" = "在下方分屏打开…";
+"pane.picker.newSession" = "新建会话…";
+"pane.picker.hint.open" = "打开";
