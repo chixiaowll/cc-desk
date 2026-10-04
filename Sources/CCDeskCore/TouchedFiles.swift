@@ -5,6 +5,18 @@ public enum TouchAction: String, Equatable, Sendable {
     case created, modified, deleted
 }
 
+/// 文件是怎么进到列表里的。合并时信息量大的优先：工具写入 > 项目目录里新生成 / 改动 > 在回复里提到。
+public enum TouchOrigin: Int, Equatable, Sendable, Comparable {
+    /// Write / Edit / apply_patch 等工具调用（徽标：新 / 已改 / 已删除）。
+    case tool = 0
+    /// 选中会话期间项目目录里新出现 / 被改动的文件（FSEvents，徽标：生成 / 已改）。
+    case generated = 1
+    /// agent 在回复文字里提到、且确实存在的文件（徽标：提到）。
+    case mentioned = 2
+
+    public static func < (a: TouchOrigin, b: TouchOrigin) -> Bool { a.rawValue < b.rawValue }
+}
+
 /// agent 在一个会话里写过的一个文件（同一路径合并为一条）。
 public struct TouchedFile: Identifiable, Equatable, Sendable {
     /// 绝对路径（已展开 ~、按会话 cwd 解析相对路径、去掉 . / ..）。
@@ -18,11 +30,13 @@ public struct TouchedFile: Identifiable, Equatable, Sendable {
     public let isDocument: Bool
     /// 文件当前是否还在（快照时检查）。
     public let exists: Bool
+    /// 来源（工具写入 / 生成 / 提到）。
+    public let origin: TouchOrigin
     public var id: String { path }
     public var name: String { (path as NSString).lastPathComponent }
 
     public init(path: String, firstTouched: Date?, lastTouched: Date?, action: TouchAction, count: Int,
-                isDocument: Bool, exists: Bool) {
+                isDocument: Bool, exists: Bool, origin: TouchOrigin = .tool) {
         self.path = path
         self.firstTouched = firstTouched
         self.lastTouched = lastTouched
@@ -30,6 +44,7 @@ public struct TouchedFile: Identifiable, Equatable, Sendable {
         self.count = count
         self.isDocument = isDocument
         self.exists = exists
+        self.origin = origin
     }
 
     /// 相对 `root` 的路径（不在其下时用 ~ 缩写的绝对路径）。
@@ -67,13 +82,18 @@ public enum TouchedFiles {
         "png", "jpg", "jpeg", "gif", "svg", "webp",
         "csv", "tsv", "xlsx", "xls", "docx", "doc", "pptx", "ppt", "key", "pages", "numbers",
     ]
+    /// 图片 / 视频 / 音频产出（脚本生成的截图、视频、配音等），同样算「文档与产出」。
+    public static let mediaExtensions: Set<String> = [
+        "heic", "tif", "tiff", "bmp", "avif",
+        "mp4", "mov", "m4v", "webm", "mkv", "avi", "mp3", "wav", "m4a", "aac", "flac", "ogg",
+    ]
     /// 只有放在 docs/ 或 doc/ 目录下才算文档的数据格式。
     public static let docsOnlyExtensions: Set<String> = ["json", "yaml", "yml"]
 
-    /// 文档类产出：扩展名在 `documentExtensions` 里；或 json / yaml 且路径里有 docs / doc 目录。
+    /// 文档类产出：扩展名在 `documentExtensions` / `mediaExtensions` 里；或 json / yaml 且路径里有 docs / doc 目录。
     public static func isDocument(_ path: String) -> Bool {
         let ext = (path as NSString).pathExtension.lowercased()
-        if documentExtensions.contains(ext) { return true }
+        if documentExtensions.contains(ext) || mediaExtensions.contains(ext) { return true }
         guard docsOnlyExtensions.contains(ext) else { return false }
         let dirs = (path as NSString).deletingLastPathComponent.split(separator: "/").map { $0.lowercased() }
         return dirs.contains("docs") || dirs.contains("doc")
@@ -281,24 +301,32 @@ public struct TouchedFilesLog: Sendable {
     /// 会话的工作目录：相对路径的基准。
     public let cwd: String
 
+    /// agent 在回复里提到的文件（同一次读取里一起抽取）。
+    public private(set) var mentions: MentionedFilesLog
+
     public init(kind: AgentKind, cwd: String) {
         self.kind = kind
         self.cwd = cwd
+        self.mentions = MentionedFilesLog(kind: kind, cwd: cwd)
     }
 
     public var isEmpty: Bool { entries.isEmpty }
 
     /// 追加一段完整的行（按 \n 分隔；不完整的末行由调用方留到下次）。
-    public mutating func ingest(_ data: Data) {
+    /// isFile：提到的路径是否是存在的普通文件（测试可注入）。
+    public mutating func ingest(_ data: Data, isFile: (String) -> Bool = MentionedFiles.isRegularFile) {
         let markers = TouchedFiles.markers(for: kind)
-        guard !markers.isEmpty else { return }
+        let mentionMarkers = MentionedFiles.markers(for: kind)
+        guard !markers.isEmpty || !mentionMarkers.isEmpty else { return }
         for chunk in data.split(separator: UInt8(ascii: "\n")) {
-            guard markers.contains(where: { chunk.range(of: $0) != nil }),
+            let touches = markers.contains(where: { chunk.range(of: $0) != nil })
+            let mentionsText = mentionMarkers.contains(where: { chunk.range(of: $0) != nil })
+            guard touches || mentionsText,
                   let obj = try? JSONSerialization.jsonObject(with: Data(chunk)) as? [String: Any] else { continue }
-            let events = TouchedFiles.events(kind: kind, obj: obj, cwd: cwd)
-            guard !events.isEmpty else { continue }
             let time = Self.timestamp(obj["timestamp"])
-            for event in events { apply(event, at: time) }
+            if mentionsText { mentions.ingest(obj: obj, time: time, isFile: isFile) }
+            guard touches else { continue }
+            for event in TouchedFiles.events(kind: kind, obj: obj, cwd: cwd) { apply(event, at: time) }
         }
     }
 
@@ -366,63 +394,5 @@ public struct TouchedFilesLog: Sendable {
             return Date(timeIntervalSince1970: v > 1e12 ? v / 1000 : v)
         }
         return nil
-    }
-}
-
-/// 增量读取一个会话记录文件：记住读到的偏移，只读新增部分；文件变短（被重写）时从头再读。
-/// 非线程安全；只在一个串行队列上使用。
-public final class TouchedFilesTracker {
-    public let url: URL
-    private(set) public var log: TouchedFilesLog
-    private var offset: UInt64 = 0
-    /// 上次读到的不完整末行。
-    private var pending = Data()
-    private var lastSize: UInt64 = 0
-    private var lastModified: Date?
-    /// 一次最多读这么多，避免首次读大文件时占用过多内存（分块读完）。
-    static let chunkSize = 4 * 1024 * 1024
-
-    public init(url: URL, kind: AgentKind, cwd: String) {
-        self.url = url
-        self.log = TouchedFilesLog(kind: kind, cwd: cwd)
-    }
-
-    /// 文件大小 / 修改时间变了才读新增部分；返回记录是否可能有变化。
-    /// `shouldContinue` 在每块之间检查：返回 false 时停下（已读的部分保留，下次从停下处继续）。
-    @discardableResult
-    public func refresh(shouldContinue: () -> Bool = { true }) -> Bool {
-        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = (attrs[.size] as? NSNumber)?.uint64Value else { return false }
-        let modified = attrs[.modificationDate] as? Date
-        if size == lastSize, modified == lastModified { return false }
-        if size < offset {
-            // 文件被截断或重写：从头再来。
-            log = TouchedFilesLog(kind: log.kind, cwd: log.cwd)
-            offset = 0
-            pending = Data()
-        }
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
-        defer { try? handle.close() }
-        do {
-            try handle.seek(toOffset: offset)
-            while offset < size {
-                guard shouldContinue() else { return false }
-                let want = Int(min(UInt64(Self.chunkSize), size - offset))
-                guard let data = try handle.read(upToCount: want), !data.isEmpty else { break }
-                offset += UInt64(data.count)
-                var buffer = pending + data
-                if let lastNewline = buffer.lastIndex(of: UInt8(ascii: "\n")) {
-                    let complete = buffer[buffer.startIndex...lastNewline]
-                    log.ingest(Data(complete))
-                    buffer = Data(buffer[buffer.index(after: lastNewline)...])
-                }
-                pending = buffer
-            }
-        } catch {
-            return false
-        }
-        lastSize = size
-        lastModified = modified
-        return true
     }
 }
