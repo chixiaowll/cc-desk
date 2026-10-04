@@ -61,6 +61,8 @@ final class DetachedWindows: NSObject {
         detached.onFrameChange = { [weak model] in model?.saveWorkspace() }
         windows[tid] = detached
         model.objectWillChange.send()
+        // 登记完成后再让窗口内容重新排版一次，确保终端视图被托管进来。
+        detached.window.contentView?.needsLayout = true
         if activate {
             detached.window.makeKeyAndOrderFront(nil)
         } else {

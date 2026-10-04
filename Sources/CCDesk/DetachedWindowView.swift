@@ -77,8 +77,14 @@ struct DetachedTerminalSlot: NSViewRepresentable {
 
     func updateNSView(_ host: SingleTerminalHostView, context: Context) {
         host.layer?.backgroundColor = background.cgColor
-        let owned = model.detachedWindows.contains(terminalID)
-        let view = owned ? model.pool.terminal(terminalID)?.view : nil
+        // 窗口创建时 SwiftUI 可能在「登记为分离」之前就更新一次，此时还不归这里托管；
+        // 所以把查询交给容器，在每次排版 / 进入窗口时重新确认，而不是只在这里判断一次。
+        let model = model, terminalID = terminalID
+        host.provider = { [weak model] in
+            guard let model, model.detachedWindows.contains(terminalID) else { return nil }
+            return model.pool.terminal(terminalID)?.view
+        }
+        let view = host.provider?()
         let changed = host.host(view)
         if changed, let view {
             DispatchQueue.main.async {
@@ -93,6 +99,28 @@ struct DetachedTerminalSlot: NSViewRepresentable {
 final class SingleTerminalHostView: NSView {
     static let insets = NSEdgeInsets(top: 12, left: 16, bottom: 14, right: 16)
     private(set) weak var terminalView: NSView?
+    /// 返回此刻应由这里托管的终端视图（不归这里时为 nil）。
+    var provider: (() -> NSView?)?
+
+    /// 进入窗口 / 排版时按 provider 重新确认托管的视图（补上创建时还没登记为分离的情况）。
+    private func syncWithProvider() {
+        guard let provider else { return }
+        let wanted = provider()
+        if wanted !== terminalView || (wanted != nil && wanted?.superview !== self) {
+            host(wanted)
+            if let wanted, let window, window.isKeyWindow {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, wanted.superview === self else { return }
+                    window.makeFirstResponder(wanted)
+                }
+            }
+        }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        syncWithProvider()
+    }
 
     /// 托管 `view`（nil 时交出当前视图）；返回是否换了视图。
     @discardableResult
@@ -113,6 +141,7 @@ final class SingleTerminalHostView: NSView {
 
     override func layout() {
         super.layout()
+        syncWithProvider()
         let insets = Self.insets
         terminalView?.frame = NSRect(x: insets.left, y: insets.bottom,
                                      width: max(0, bounds.width - insets.left - insets.right),
