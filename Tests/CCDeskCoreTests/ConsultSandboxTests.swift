@@ -109,6 +109,25 @@ final class ConsultSandboxTests: XCTestCase {
         XCTAssertEqual(args[(args.firstIndex(of: "-D") ?? 0) + 1], "skip")
     }
 
+    func testCappedOutputKeepsOnlyTheHeadAndSignalsOnce() {
+        var out = CappedOutput(limit: 10)
+        XCTAssertFalse(out.append(Data("12345".utf8)))
+        XCTAssertFalse(out.append(Data("6789".utf8)))
+        XCTAssertTrue(out.append(Data("abcdef".utf8)), "first overflow: terminate the process")
+        XCTAssertEqual(String(decoding: out.data, as: UTF8.self), "123456789a")
+        XCTAssertTrue(out.exceeded)
+        XCTAssertFalse(out.append(Data(repeating: 0x41, count: 1 << 20)), "later chunks are dropped silently")
+        XCTAssertEqual(out.data.count, 10)
+        var exact = CappedOutput(limit: 3)
+        XCTAssertFalse(exact.append(Data("abc".utf8)))
+        XCTAssertFalse(exact.exceeded)
+    }
+
+    func testSearchCapsMatchesPerFile() throws {
+        let args = try sandbox.searchArguments(pattern: "x", regex: false, ignoreCase: false, path: nil).get()
+        XCTAssertEqual(args[(args.firstIndex(of: "-m") ?? 0) + 1], String(ConsultSandbox.maxMatchesPerFile))
+    }
+
     func testSearchArguments() throws {
         let args = try sandbox.searchArguments(pattern: "-rf --include=x", regex: false, ignoreCase: true, path: nil).get()
         let e = try XCTUnwrap(args.firstIndex(of: "-e"))

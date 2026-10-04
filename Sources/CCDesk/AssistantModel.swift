@@ -169,11 +169,12 @@ enum ProcessRunner {
         case timedOut
     }
 
-    /// 进程跑完的结果（任意退出码）。
+    /// 进程跑完的结果（任意退出码）。truncated：输出超过了上限，进程被提前终止，stdout / stderr 只是开头。
     struct Captured {
         let status: Int32
         let stdout: String
         let stderr: String
+        var truncated = false
     }
 
     enum Capture {
@@ -193,8 +194,9 @@ enum ProcessRunner {
         }
     }
 
+    /// maxOutputBytes：stdout / stderr 各自最多保存这么多字节；超出时终止进程（边读边丢，不会整个读进内存）。
     static func capture(_ executable: String, _ args: [String], environment: [String: String]?, cwd: URL?,
-                        timeout: TimeInterval) -> Capture {
+                        timeout: TimeInterval, maxOutputBytes: Int = .max) -> Capture {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = args
@@ -207,29 +209,44 @@ enum ProcessRunner {
         process.standardInput = FileHandle.nullDevice
         do { try process.run() } catch { return .failed(error.localizedDescription) }
 
-        let group = DispatchGroup()
-        var stdout = Data()
-        var stderr = Data()
-        group.enter()
-        DispatchQueue.global().async {
-            stdout = out.fileHandleForReading.readDataToEndOfFile()
-            group.leave()
-        }
-        group.enter()
-        DispatchQueue.global().async {
-            stderr = err.fileHandleForReading.readDataToEndOfFile()
-            group.leave()
-        }
-        if group.wait(timeout: .now() + timeout) == .timedOut {
+        let stop = {
             process.terminate()
             DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
                 if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             }
+        }
+        let group = DispatchGroup()
+        var stdout = CappedOutput(limit: maxOutputBytes)
+        var stderr = CappedOutput(limit: maxOutputBytes)
+        group.enter()
+        DispatchQueue.global().async {
+            stdout = drain(out.fileHandleForReading, limit: maxOutputBytes, onExceeded: stop)
+            group.leave()
+        }
+        group.enter()
+        DispatchQueue.global().async {
+            stderr = drain(err.fileHandleForReading, limit: maxOutputBytes, onExceeded: stop)
+            group.leave()
+        }
+        if group.wait(timeout: .now() + timeout) == .timedOut {
+            stop()
             _ = group.wait(timeout: .now() + 3)
             return .timedOut
         }
         process.waitUntilExit()
-        return .exited(Captured(status: process.terminationStatus, stdout: String(decoding: stdout, as: UTF8.self),
-                                stderr: String(decoding: stderr, as: UTF8.self)))
+        return .exited(Captured(status: process.terminationStatus, stdout: String(decoding: stdout.data, as: UTF8.self),
+                                stderr: String(decoding: stderr.data, as: UTF8.self),
+                                truncated: stdout.exceeded || stderr.exceeded))
+    }
+
+    /// 读到 EOF；超过上限后其余的读出来丢掉（进程已被终止，很快就到 EOF）。
+    private static func drain(_ handle: FileHandle, limit: Int, onExceeded: () -> Void) -> CappedOutput {
+        var buffer = CappedOutput(limit: limit)
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty { break }
+            if buffer.append(chunk) { onExceeded() }
+        }
+        return buffer
     }
 }

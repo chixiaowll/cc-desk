@@ -5,8 +5,8 @@ import Foundation
 /// - 路径：相对项目根目录（也接受落在根目录内的绝对路径）；用 realpath 解析符号链接与 `..` 后必须仍在根目录内，
 ///   指向外面的符号链接因此读不到。
 /// - read_file：只读普通文件（FIFO / 设备等拒绝，非阻塞打开，不会卡住）、最多读 `maxFileBytes`、含 NUL 的当作二进制拒绝；按行返回（带行号）。
-/// - search：`/usr/bin/grep -rnI -D skip`（参数数组，模式经 `-e` 传入，不会被当作选项；BSD grep 递归时默认不跟随符号链接），
-///   工作目录为根目录，结果条数与字数有上限。
+/// - search：`/usr/bin/grep -rnI -D skip -m 50`（参数数组，模式经 `-e` 传入，不会被当作选项；BSD grep 递归时默认不跟随符号链接），
+///   工作目录为根目录，每个文件的匹配数、结果条数与字数有上限（调用方读输出时另有字节上限，超出即终止 grep）。
 /// - git：只读子命令，固定加 `--no-ext-diff --no-textconv`，ref 只接受普通的提交 / 分支写法（不能以 `-` 开头），
 ///   路径放在 `--` 之后；环境用 `GitSafety`（由调用方提供的 runner 负责）。
 public struct ConsultSandbox: Sendable {
@@ -14,6 +14,7 @@ public struct ConsultSandbox: Sendable {
     public static let maxOutputChars = 30_000
     public static let maxListEntries = 300
     public static let maxSearchLines = 200
+    public static let maxMatchesPerFile = 50
 
     /// 根目录的真实路径。
     public let root: String
@@ -159,7 +160,9 @@ public struct ConsultSandbox: Sendable {
         case .success(let r): real = r
         }
         // -D skip：递归时跳过 FIFO / 设备 / 套接字（默认会去读，FIFO 上会一直卡住）。
-        var args = ["-rnI", "-D", "skip", "--exclude-dir=.git", "--exclude-dir=node_modules", "--exclude-dir=.build"]
+        // -m：每个文件最多这么多处（一个巨大的文件不会占满输出）。
+        var args = ["-rnI", "-D", "skip", "-m", String(Self.maxMatchesPerFile),
+                    "--exclude-dir=.git", "--exclude-dir=node_modules", "--exclude-dir=.build"]
         args.append(regex ? "-E" : "-F")
         if ignoreCase { args.append("-i") }
         args += ["-e", pattern, "--", relative(real)]

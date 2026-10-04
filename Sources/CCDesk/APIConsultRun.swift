@@ -9,6 +9,8 @@ final class APIConsultRun: ConsultRunning {
     static let maxIterations = 20
     /// grep / git 单次最长。
     static let commandTimeout: TimeInterval = 15
+    /// grep / git 的输出最多读这么多（超出就终止进程；交给模型的还会再截断到 `ConsultSandbox.maxOutputChars`）。
+    static let maxOutputBytes = 1024 * 1024
 
     private let loop: AssistantToolLoop
     private let completion: (ConsultEnding) -> Void
@@ -102,11 +104,16 @@ final class APIConsultRun: ConsultRunning {
     }
 
     /// 运行 grep / git：环境去掉会话级变量，git 用安全设置（不执行仓库配置里的外部程序）。
-    private static func run(_ exe: String, _ args: [String], cwd: String, search: Bool) -> Result<String, ConsultSandbox.Failure> {
+    static func run(_ exe: String, _ args: [String], cwd: String, search: Bool) -> Result<String, ConsultSandbox.Failure> {
         let env = GitSafety.environment(LaunchSpec.sanitizedEnvironment(base: ProcessInfo.processInfo.environment))
-        switch ProcessRunner.capture(exe, args, environment: env, cwd: URL(fileURLWithPath: cwd), timeout: commandTimeout) {
+        switch ProcessRunner.capture(exe, args, environment: env, cwd: URL(fileURLWithPath: cwd), timeout: commandTimeout,
+                                     maxOutputBytes: maxOutputBytes) {
         case .failed(let message): return .failure(.invalid("could not run: \(message)"))
         case .timedOut: return .failure(.invalid("timed out after \(Int(commandTimeout)) seconds"))
+        case .exited(let out) where out.truncated:
+            // 输出太多，进程被提前终止（退出码因此不是正常的）：用已经读到的开头。
+            let text = search ? ConsultSandbox.searchOutput(out.stdout, status: 0) : ConsultSandbox.clip(out.stdout)
+            return .success(text + "\n…(output exceeded \(maxOutputBytes / 1024 / 1024) MB and was cut off; narrow the request)")
         case .exited(let out):
             if search {
                 // grep：0 = 有结果，1 = 没有，其他 = 出错。
