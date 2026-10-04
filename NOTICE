@@ -1,5 +1,6 @@
 CC Desk
 Uses SwiftTerm (MIT License) by Miguel de Icaza and contributors: https://github.com/migueldeicaza/SwiftTerm
+Uses WhisperKit (MIT License) by Argmax, Inc.: https://github.com/argmaxinc/WhisperKit
 
 Screen detection rules (Sources/CCDeskCore/BundledManifests.swift: codex.toml, pi.toml) and the
 event mapping of the Codex hook / pi extension are derived from herdr (https://github.com/herdrdev/herdr),
@@ -10,3 +11,11 @@ Release builds embed tmux (ISC License, https://github.com/tmux/tmux) at Content
 linked with libevent (3-clause BSD License, https://libevent.org) and utf8proc (MIT License,
 https://github.com/JuliaStrings/utf8proc). Their full license texts are in
 Contents/Resources/ThirdPartyNotices/tmux.txt.
+
+Color themes adapt the published palettes of Catppuccin (MIT), Rosé Pine (MIT), Everforest (MIT),
+Tokyo Night (Apache-2.0), Solarized (MIT), Gruvbox (MIT) and Nord (MIT); some colors are adjusted for
+contrast. Sources are listed in docs/specs/2026-10-02-cc-desk-design.md.
+
+Downloaded on demand at runtime (not bundled): the Whisper large-v3 turbo CoreML model
+(argmaxinc/whisperkit-coreml, MIT), and for the optional natural voice, mlx-audio (MIT) and
+Qwen3-TTS-12Hz-0.6B-CustomVoice (Apache-2.0).
