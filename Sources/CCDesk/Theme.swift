@@ -56,13 +56,13 @@ struct Theme {
 
     static let light = Theme(
         side: Color(hex: 0xECE7DE), main: Color(hex: 0xF4EFE6), line: Color(hex: 0xDED6CA),
-        fg1: Color(hex: 0x2A2622), fg2: Color(hex: 0x6B675F), fg3: Color(hex: 0x8A857D), chip: Color(hex: 0xE3DDD2),
+        fg1: Color(hex: 0x2A2622), fg2: Color(hex: 0x5F5B54), fg3: Color(hex: 0x736E66), chip: Color(hex: 0xE3DDD2),
         sel: Color(hex: 0xFAF7F1), selLine: Color(hex: 0xDCD4C7), selShadow: Color(red: 60 / 255, green: 50 / 255, blue: 40 / 255).opacity(0.08),
         hover: Color(hex: 0xE4DED3), waitRow: Color(hex: 0xF4E4D9),
         pillWaitBg: Color(hex: 0xC4552B), pillWaitFg: Color(hex: 0xFFFFFF),
         pillWorkBg: Color(hex: 0xE5ECF3), pillWorkFg: Color(hex: 0x35618E), dot: Color(hex: 0x4A7BAD),
         chipWorkBg: Color(hex: 0x3F6E9E), chipWorkFg: Color(hex: 0xFFFFFF),
-        unread: Color(hex: 0x5E8B6A), chipUnreadBg: Color(hex: 0x5E8B6A), chipUnreadFg: Color(hex: 0xFFFFFF),
+        unread: Color(hex: 0x4F7D5B), chipUnreadBg: Color(hex: 0x4F7D5B), chipUnreadFg: Color(hex: 0xFFFFFF),
         pillIdleBg: Color(hex: 0xE5DFD5), pillIdleFg: Color(hex: 0x5C5852),
         pillMissBg: Color(hex: 0xF1E4E2), pillMissFg: Color(hex: 0x8E5A55),
         tileEmbBg: Color(hex: 0xDDD5C8), tileEmbFg: Color(hex: 0x3A362F),
@@ -78,7 +78,7 @@ struct Theme {
 
     static let dark = Theme(
         side: Color(hex: 0x1F1E1C), main: Color(hex: 0x252422), line: Color(hex: 0x34322E),
-        fg1: Color(hex: 0xEDEBE7), fg2: Color(hex: 0xA39E96), fg3: Color(hex: 0x837E76), chip: Color(hex: 0x2E2C29),
+        fg1: Color(hex: 0xEDEBE7), fg2: Color(hex: 0xA39E96), fg3: Color(hex: 0x8F8A82), chip: Color(hex: 0x2E2C29),
         sel: Color(hex: 0x33312D), selLine: Color(hex: 0x403D38), selShadow: Color.black.opacity(0.35),
         hover: Color(hex: 0x2A2825), waitRow: Color(hex: 0x2E211A),
         pillWaitBg: Color(hex: 0xE2875F), pillWaitFg: Color(hex: 0x1E120C),
