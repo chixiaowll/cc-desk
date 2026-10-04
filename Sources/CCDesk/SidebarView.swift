@@ -6,9 +6,10 @@ import CCDeskCore
 struct SidebarView: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
 
     var body: some View {
-        let theme = Theme.of(colorScheme)
+        let theme = themes.theme(for: colorScheme)
         let groups = model.groups
         VStack(spacing: 0) {
             ScrollView {

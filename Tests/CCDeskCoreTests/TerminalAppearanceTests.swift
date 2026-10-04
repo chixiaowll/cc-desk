@@ -10,35 +10,39 @@ final class TerminalAppearanceTests: XCTestCase {
         XCTAssertEqual(ColorContrast.ratio(0x123456, 0xABCDEF), ColorContrast.ratio(0xABCDEF, 0x123456))
     }
 
-    func testPalettesHaveSixteenColorsAndMatchTheTerminalBackground() {
-        for scheme in TerminalColorScheme.allCases {
-            XCTAssertEqual(scheme.palette.ansi.count, 16, scheme.rawValue)
+    func testEveryCatalogPaletteHasSixteenColors() {
+        for theme in ThemeCatalog.all {
+            XCTAssertEqual(theme.palette.ansi.count, 16, theme.id.rawValue)
         }
-        XCTAssertEqual(TerminalPalette.light.background, 0xEFF1F5)
-        XCTAssertEqual(TerminalPalette.dark.background, 0x1B1A18)
+        XCTAssertEqual(ThemeCatalog.definition(.catppuccinLatte).palette.background, 0xEFF1F5)
+        XCTAssertEqual(ThemeCatalog.definition(.ccDeskDark).palette.background, 0x1B1A18)
     }
 
     /// 浅色：普通色 0–7（含「白」）≥ 4.5:1，明亮色 8–15 ≥ 3:1；前景 ≥ 5:1
-    ///（Catppuccin Latte 风格刻意降低对比以减少刺眼，正文仍明显高于 WCAG AA 的 4.5:1）。
-    func testLightPaletteContrast() {
-        let p = TerminalPalette.light
-        XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.foreground, p.background), 5)
-        for i in 0..<8 {
-            XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[i], p.background), 4.5, "light ansi \(i)")
-        }
-        for i in 8..<16 {
-            XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[i], p.background), 3, "light ansi \(i)")
+    ///（低眩光主题刻意降低对比以减少刺眼，正文仍明显高于 WCAG AA 的 4.5:1）。
+    func testLightPaletteContrastForEveryLightTheme() {
+        for theme in ThemeCatalog.themes(.light) {
+            let p = theme.palette, name = theme.id.rawValue
+            XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.foreground, p.background), 5, name)
+            for i in 0..<8 {
+                XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[i], p.background), 4.5, "\(name) ansi \(i)")
+            }
+            for i in 8..<16 {
+                XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[i], p.background), 3, "\(name) ansi \(i)")
+            }
         }
     }
 
-    /// 深色：1–7 与 9–15 ≥ 4.5:1，8（亮黑）≥ 3:1；0 黑是背景类颜色，不要求。
-    func testDarkPaletteContrast() {
-        let p = TerminalPalette.dark
-        XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.foreground, p.background), 7)
-        for i in Array(1..<8) + Array(9..<16) {
-            XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[i], p.background), 4.5, "dark ansi \(i)")
+    /// 深色：前景 ≥ 7:1，1–7 与 9–15 ≥ 4.5:1，8（亮黑）≥ 3:1；0 黑是背景类颜色，不要求。
+    func testDarkPaletteContrastForEveryDarkTheme() {
+        for theme in ThemeCatalog.themes(.dark) {
+            let p = theme.palette, name = theme.id.rawValue
+            XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.foreground, p.background), 7, name)
+            for i in Array(1..<8) + Array(9..<16) {
+                XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[i], p.background), 4.5, "\(name) ansi \(i)")
+            }
+            XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[8], p.background), 3, name)
         }
-        XCTAssertGreaterThanOrEqual(ColorContrast.ratio(p.ansi[8], p.background), 3)
     }
 
     func testColorFGBGAndThemeReport() {

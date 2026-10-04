@@ -2,9 +2,10 @@ import SwiftUI
 import AppKit
 import CCDeskCore
 
-/// 颜色常量，取自 docs/design/sidebar-mockup.html 的 `:root`（浅色）与 dark 变量。
-/// 视图里用 `Theme.of(colorScheme)` 选择；不要在视图里写死黑 / 白。
+/// 界面配色：由 Core `ThemeCatalog` 里的主题（`ThemeTokens` + `TerminalPalette`）换算成 SwiftUI / AppKit 颜色（设计 §19）。
+/// 视图里用 `ThemeStore.shared.theme(for: colorScheme)`（并观察 `ThemeStore` 以便切换主题时刷新）；不要在视图里写死黑 / 白。
 struct Theme {
+    let id: ThemeID
     let side: Color
     let main: Color
     let line: Color
@@ -24,7 +25,7 @@ struct Theme {
     let dot: Color
     let chipWorkBg: Color
     let chipWorkFg: Color
-    /// 已完成·未读（鼠尾草绿）：文字 / 状态点、计数胶囊底色与文字。
+    /// 已完成·未读（绿）：文字 / 状态点、计数胶囊底色与文字。
     let unread: Color
     let chipUnreadBg: Color
     let chipUnreadFg: Color
@@ -52,73 +53,53 @@ struct Theme {
     let terminal: TerminalTheme
     let isDark: Bool
 
-    static func of(_ scheme: ColorScheme) -> Theme { scheme == .dark ? dark : light }
-
-    static let light = Theme(
-        side: Color(hex: 0xE6E9EF), main: Color(hex: 0xEFF1F5), line: Color(hex: 0xCCD0DA),
-        fg1: Color(hex: 0x4C4F69), fg2: Color(hex: 0x5C5F77), fg3: Color(hex: 0x6C6F85), chip: Color(hex: 0xDCE0E8),
-        sel: Color(hex: 0xF7F8FA), selLine: Color(hex: 0xCCD0DA), selShadow: Color(red: 76 / 255, green: 79 / 255, blue: 105 / 255).opacity(0.08),
-        hover: Color(hex: 0xDCE0E8), waitRow: Color(hex: 0xF5E3DE),
-        pillWaitBg: Color(hex: 0xC4552B), pillWaitFg: Color(hex: 0xFFFFFF),
-        pillWorkBg: Color(hex: 0xE5ECF3), pillWorkFg: Color(hex: 0x35618E), dot: Color(hex: 0x4A7BAD),
-        chipWorkBg: Color(hex: 0x3F6E9E), chipWorkFg: Color(hex: 0xFFFFFF),
-        unread: Color(hex: 0x4F7D5B), chipUnreadBg: Color(hex: 0x4F7D5B), chipUnreadFg: Color(hex: 0xFFFFFF),
-        pillIdleBg: Color(hex: 0xDCE0E8), pillIdleFg: Color(hex: 0x5C5F77),
-        pillMissBg: Color(hex: 0xF1E4E2), pillMissFg: Color(hex: 0x8E5A55),
-        tileEmbBg: Color(hex: 0xCCD0DA), tileEmbFg: Color(hex: 0x4C4F69),
-        tileTermBg: Color(hex: 0xDCE0E8), tileTermFg: Color(hex: 0x6C6F85),
-        tileMissBg: Color(hex: 0xF1E4E2), tileMissFg: Color(hex: 0x8E5A55),
-        accent: Color(hex: 0xB24E26), action: Color(hex: 0x4C4F69),
-        extBg: Color(hex: 0xF7F8FA), extFg: Color(hex: 0x5C5F77), extRing: Color(hex: 0xCCD0DA),
-        appIconShadow: Color(red: 76 / 255, green: 79 / 255, blue: 105 / 255).opacity(0.18), appIconShadowRadius: 1,
-        appIconRim: nil,
-        backdrop: Color(red: 50 / 255, green: 55 / 255, blue: 80 / 255).opacity(0.16),
-        popShadow: Color(red: 55 / 255, green: 60 / 255, blue: 85 / 255).opacity(0.18),
-        terminal: .light, isDark: false)
-
-    static let dark = Theme(
-        side: Color(hex: 0x1F1E1C), main: Color(hex: 0x252422), line: Color(hex: 0x34322E),
-        fg1: Color(hex: 0xEDEBE7), fg2: Color(hex: 0xA39E96), fg3: Color(hex: 0x8F8A82), chip: Color(hex: 0x2E2C29),
-        sel: Color(hex: 0x33312D), selLine: Color(hex: 0x403D38), selShadow: Color.black.opacity(0.35),
-        hover: Color(hex: 0x2A2825), waitRow: Color(hex: 0x2E211A),
-        pillWaitBg: Color(hex: 0xE2875F), pillWaitFg: Color(hex: 0x1E120C),
-        pillWorkBg: Color(hex: 0x22303D), pillWorkFg: Color(hex: 0x9DBBDA), dot: Color(hex: 0x82A8CF),
-        chipWorkBg: Color(hex: 0x82A8CF), chipWorkFg: Color(hex: 0x101C27),
-        unread: Color(hex: 0x8DB79A), chipUnreadBg: Color(hex: 0x8DB79A), chipUnreadFg: Color(hex: 0x102016),
-        pillIdleBg: Color(hex: 0x2F2D2A), pillIdleFg: Color(hex: 0xB8B3AB),
-        pillMissBg: Color(hex: 0x352826), pillMissFg: Color(hex: 0xC9A09A),
-        tileEmbBg: Color(hex: 0x3A3732), tileEmbFg: Color(hex: 0xE2DDD5),
-        tileTermBg: Color(hex: 0x2E2C29), tileTermFg: Color(hex: 0xA39E96),
-        tileMissBg: Color(hex: 0x352826), tileMissFg: Color(hex: 0xC9A09A),
-        accent: Color(hex: 0xE2875F), action: Color(hex: 0xEDEBE7),
-        extBg: Color(hex: 0x4A4741), extFg: Color(hex: 0xF2EFEA), extRing: Color(hex: 0x1F1E1C),
-        appIconShadow: Color.black.opacity(0.6), appIconShadowRadius: 2,
-        appIconRim: Color.white.opacity(0.55),
-        backdrop: Color.black.opacity(0.35),
-        popShadow: Color.black.opacity(0.45),
-        terminal: .dark, isDark: true)
+    init(_ definition: ThemeDefinition) {
+        let t = definition.tokens
+        func c(_ hex: UInt32) -> Color { Color(hex: hex) }
+        func c(_ rgba: ThemeRGBA) -> Color { Color(hex: rgba.rgb).opacity(rgba.alpha) }
+        id = definition.id
+        side = c(t.side); main = c(t.main); line = c(t.line)
+        fg1 = c(t.fg1); fg2 = c(t.fg2); fg3 = c(t.fg3); chip = c(t.chip)
+        sel = c(t.sel); selLine = c(t.selLine); selShadow = c(t.selShadow)
+        hover = c(t.hover); waitRow = c(t.waitRow)
+        pillWaitBg = c(t.pillWaitBg); pillWaitFg = c(t.pillWaitFg)
+        pillWorkBg = c(t.pillWorkBg); pillWorkFg = c(t.pillWorkFg); dot = c(t.dot)
+        chipWorkBg = c(t.chipWorkBg); chipWorkFg = c(t.chipWorkFg)
+        unread = c(t.unread); chipUnreadBg = c(t.chipUnreadBg); chipUnreadFg = c(t.chipUnreadFg)
+        pillIdleBg = c(t.pillIdleBg); pillIdleFg = c(t.pillIdleFg)
+        pillMissBg = c(t.pillMissBg); pillMissFg = c(t.pillMissFg)
+        tileEmbBg = c(t.tileEmbBg); tileEmbFg = c(t.tileEmbFg)
+        tileTermBg = c(t.tileTermBg); tileTermFg = c(t.tileTermFg)
+        tileMissBg = c(t.tileMissBg); tileMissFg = c(t.tileMissFg)
+        accent = c(t.accent); action = c(t.action)
+        extBg = c(t.extBg); extFg = c(t.extFg); extRing = c(t.extRing)
+        appIconShadow = c(t.appIconShadow)
+        appIconShadowRadius = CGFloat(t.appIconShadowRadius)
+        appIconRim = t.appIconRim.map { c($0) }
+        backdrop = c(t.backdrop); popShadow = c(t.popShadow)
+        terminal = TerminalTheme(definition)
+        isDark = definition.kind == .dark
+    }
 }
 
-/// 内嵌终端配色（SwiftTerm 用 NSColor）：底色 / 前景 / 光标与 ANSI 16 色都取自 Core 的 `TerminalPalette`（设计 §18）。
+/// 内嵌终端配色（SwiftTerm 用 NSColor）：底色 / 前景 / 光标与 ANSI 16 色都取自主题的 `TerminalPalette`（设计 §18、§19）。
 struct TerminalTheme {
+    /// 主题 id：终端池据此跳过重复换色。
+    let id: ThemeID
+    /// 明暗：决定 COLORFGBG 与 mode 2031 报告。
     let scheme: TerminalColorScheme
+    let palette: TerminalPalette
     let background: NSColor
     let foreground: NSColor
     let cursor: NSColor
 
-    init(scheme: TerminalColorScheme) {
-        let palette = scheme.palette
-        self.scheme = scheme
+    init(_ definition: ThemeDefinition) {
+        id = definition.id
+        scheme = definition.kind
+        palette = definition.palette
         background = NSColor(hex: palette.background)
         foreground = NSColor(hex: palette.foreground)
         cursor = NSColor(hex: palette.foreground)
-    }
-
-    static let light = TerminalTheme(scheme: .light)
-    static let dark = TerminalTheme(scheme: .dark)
-
-    static func of(_ appearance: NSAppearance) -> TerminalTheme {
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
     }
 }
 

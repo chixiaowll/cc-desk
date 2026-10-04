@@ -110,6 +110,8 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
 
     /// 当前的明暗（换色时据此决定是否给 tmux 发主题变化报告）。
     private(set) var colorScheme: TerminalColorScheme
+    /// 当前主题（换主题时同样发主题变化报告）。
+    private var themeID: ThemeID
 
     init(id: UUID, cwd: String, title: String, launch: TerminalLaunch, host: TmuxHost?, theme: TerminalTheme, font: NSFont) {
         self.id = id
@@ -117,6 +119,7 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         self.title = title
         self.view = DetectingTerminalView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
         self.colorScheme = theme.scheme
+        self.themeID = theme.id
         super.init()
         view.onOutput = { [weak self] in self?.scheduleDetection() }
         view.font = font
@@ -167,11 +170,13 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
         view.nativeForegroundColor = theme.foreground
         view.caretColor = theme.cursor
         // installColors 按当前底色 / 前景色推算 256 色里的灰阶，所以放在设置底色之后。
-        view.installColors(theme.scheme.palette.ansi.map(Self.terminalColor))
+        view.installColors(theme.palette.ansi.map(Self.terminalColor))
         view.getTerminal().updateFullScreen()
         view.needsDisplay = true
-        if theme.scheme != colorScheme {
+        // 明暗或主题变了都报告一次：同为浅色 / 深色时底色也可能变了，tmux 据此重新查询 OSC 10/11。
+        if theme.scheme != colorScheme || theme.id != themeID {
             colorScheme = theme.scheme
+            themeID = theme.id
             sendThemeReport()
         }
     }
@@ -353,8 +358,10 @@ final class TerminalPool {
     /// 当前终端配色；nil 时按 App 当前外观取。
     private var theme: TerminalTheme?
 
-    /// 外观变化时由视图层调用，更新所有终端。
+    /// 外观 / 主题变化时调用，更新所有终端；与当前主题相同时什么都不做（外观切换与视图层的
+    /// onChange 可能先后各调一次，避免重复 installColors / 全屏重绘）。
     func apply(_ theme: TerminalTheme) {
+        if let current = self.theme, current.id == theme.id { return }
         self.theme = theme
         for terminal in terminals { terminal.apply(theme) }
     }
@@ -395,7 +402,7 @@ final class TerminalPool {
 
     @discardableResult
     func create(id: UUID = UUID(), cwd: String, title: String, launch: TerminalLaunch) -> EmbeddedTerminal {
-        let theme = self.theme ?? TerminalTheme.of(NSApp.effectiveAppearance)
+        let theme = self.theme ?? ThemeStore.shared.terminalTheme(for: NSApp.effectiveAppearance)
         let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, launch: launch, host: tmux, theme: theme,
                                         font: TerminalFont.current())
         terminals.append(terminal)

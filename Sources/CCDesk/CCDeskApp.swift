@@ -29,7 +29,7 @@ enum AppearancePreference: String, CaseIterable, Identifiable {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         NSApp.appearance = nsAppearance
-        pool?.apply(TerminalTheme.of(NSApp.effectiveAppearance))
+        pool?.apply(ThemeStore.shared.terminalTheme(for: NSApp.effectiveAppearance))
         CATransaction.commit()
     }
 }
@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             NSApp.activate(ignoringOtherApps: true)
         }
+        ThemeStore.shared.pool = model.pool
         AppearancePreference.stored.apply(pool: model.pool)
         model.start()
         desktop.start()

@@ -5,12 +5,13 @@ import CCDeskCore
 struct SettingsUsageTab: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
 
     var body: some View {
         SettingsForm {
             Section(L("settings.usage.claude")) {
                 if let usage = model.claudeUsage {
-                    UsagePopover(usage: usage, now: model.now, theme: Theme.of(colorScheme))
+                    UsagePopover(usage: usage, now: model.now, theme: themes.theme(for: colorScheme))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
                     SettingsNote(text: L("settings.usage.none"))

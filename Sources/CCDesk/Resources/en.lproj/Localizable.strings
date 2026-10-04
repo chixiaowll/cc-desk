@@ -417,3 +417,19 @@
 "files.toggle.help" = "Changed files (⇧⌘F)";
 "files.toggle.newHelp" = "Changed files: new documents since you last looked (⇧⌘F)";
 "assistant.activity.openFile" = "→ Open a file from %@";
+
+/* 配色主题（设计 §19） */
+"theme.warmPaper" = "Warm Paper";
+"theme.catppuccinLatte" = "Catppuccin Latte";
+"theme.rosePineDawn" = "Rosé Pine Dawn";
+"theme.everforestLightSoft" = "Everforest Light (Soft)";
+"theme.tokyoNightDay" = "Tokyo Night Day";
+"theme.solarizedLight" = "Solarized Light";
+"theme.gruvboxLightSoft" = "Gruvbox Light (Soft)";
+"theme.ccDeskDark" = "CC Desk Dark";
+"theme.catppuccinMocha" = "Catppuccin Mocha";
+"theme.rosePineMoon" = "Rosé Pine Moon";
+"theme.everforestDarkMedium" = "Everforest Dark (Medium)";
+"theme.tokyoNightStorm" = "Tokyo Night Storm";
+"theme.gruvboxDark" = "Gruvbox Dark";
+"theme.nord" = "Nord";

@@ -6,6 +6,7 @@ struct ContentView: View {
     @ObservedObject var model: AppModel
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
 
     var body: some View {
         NavigationSplitView {
@@ -20,7 +21,7 @@ struct ContentView: View {
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
         .modifier(AssistantResultsPresenter(work: model.work))
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
-        .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(Theme.of(scheme).terminal) }
+        .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(themes.theme(for: scheme).terminal) }
     }
 }
 
@@ -28,6 +29,7 @@ struct ContentView: View {
 struct DetailView: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
     /// 详情区宽度，用于限制标题宽度：长标题截断，不把右侧的状态胶囊挤走。
     @State private var width: CGFloat = 0
 
@@ -38,7 +40,7 @@ struct DetailView: View {
     }
 
     var body: some View {
-        let theme = Theme.of(colorScheme)
+        let theme = themes.theme(for: colorScheme)
         let row = model.selectedRow.flatMap { $0.session.host.isEmbedded ? $0 : nil }
         VStack(spacing: 0) {
             theme.line.frame(height: 1)

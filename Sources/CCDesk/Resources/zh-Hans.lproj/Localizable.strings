@@ -417,3 +417,19 @@
 "files.toggle.help" = "改动的文件（⇧⌘F）";
 "files.toggle.newHelp" = "改动的文件：有你还没看过的新文档（⇧⌘F）";
 "assistant.activity.openFile" = "→ 打开 %@ 写的文件";
+
+/* 配色主题（设计 §19） */
+"theme.warmPaper" = "暖纸";
+"theme.catppuccinLatte" = "Catppuccin Latte";
+"theme.rosePineDawn" = "Rosé Pine Dawn";
+"theme.everforestLightSoft" = "Everforest 浅色（柔和）";
+"theme.tokyoNightDay" = "Tokyo Night Day";
+"theme.solarizedLight" = "Solarized 浅色";
+"theme.gruvboxLightSoft" = "Gruvbox 浅色（柔和）";
+"theme.ccDeskDark" = "CC Desk 深色";
+"theme.catppuccinMocha" = "Catppuccin Mocha";
+"theme.rosePineMoon" = "Rosé Pine Moon";
+"theme.everforestDarkMedium" = "Everforest 深色（中等）";
+"theme.tokyoNightStorm" = "Tokyo Night Storm";
+"theme.gruvboxDark" = "Gruvbox 深色";
+"theme.nord" = "Nord";

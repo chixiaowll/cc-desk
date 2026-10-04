@@ -10,10 +10,11 @@ struct HistoryPopover: View {
     let onSearchAll: () -> Void
     let onResume: (HistoryItem) -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
     @State private var query = ""
 
     var body: some View {
-        let theme = Theme.of(colorScheme)
+        let theme = themes.theme(for: colorScheme)
         let entries = model.history(forRoot: root)
         let filtered = entries.filter { query.isEmpty || $0.item.title.localizedCaseInsensitiveContains(query) }
         VStack(alignment: .leading, spacing: 0) {
@@ -118,6 +119,7 @@ struct HistoryPopoverRow: View {
 struct HistoryPalette: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
     @State private var query = ""
     @State private var selection = 0
     /// 按 agent 过滤；nil 为全部。
@@ -130,7 +132,7 @@ struct HistoryPalette: View {
     }
 
     var body: some View {
-        let theme = Theme.of(colorScheme)
+        let theme = themes.theme(for: colorScheme)
         let sections = makeSections()
         let flat = sections.flatMap(\.entries)
         ZStack(alignment: .top) {

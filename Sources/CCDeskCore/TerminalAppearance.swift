@@ -11,8 +11,6 @@ public enum TerminalColorScheme: String, Sendable, CaseIterable {
     /// 外层终端发给 tmux 的主题变化报告（DEC mode 2031 的 `CSI ? 997 ; 1|2 n`，1 = 深色、2 = 浅色）。
     /// tmux ≥ 3.6 收到后重新查询外层终端的前景 / 背景色（OSC 10/11），并转发给开启了 2031 的窗格程序。
     public var themeReport: String { self == .dark ? "\u{1b}[?997;1n" : "\u{1b}[?997;2n" }
-
-    public var palette: TerminalPalette { self == .light ? .light : .dark }
 }
 
 /// 一套终端配色：底色、前景色与 ANSI 16 色（0–7 普通、8–15 明亮），均为 0xRRGGBB。
@@ -21,27 +19,46 @@ public struct TerminalPalette: Equatable, Sendable {
     public let foreground: UInt32
     public let ansi: [UInt32]
 
-    /// 浅色：为 #EFF1F5 Catppuccin Latte 底设计（色相取自 Catppuccin Latte，对比度不足的颜色按要求加深）。普通色（含 0 黑、7 白）对底色 ≥ 4.5:1，明亮色 ≥ 3:1；
-    /// 色相取自 App 的陶土红 / 雾蓝 / 鼠尾草绿，「白」是暖灰（浅底上纯白看不见）。
-    public static let light = TerminalPalette(
-        background: 0xEFF1F5, foreground: 0x4C4F69,
-        ansi: [
-            0x5C5F77, 0xD20F39, 0x317B21, 0x976014, 0x145FF5, 0xC51E99, 0x13777D, 0x666C82,
-            0x6C6F85, 0xDE293E, 0x419B36, 0xC07910, 0x456EFF, 0xCF4FAE, 0x2A969E, 0x81889F,
-        ])
-
-    /// 深色：为 #1B1A18 设计。普通色 1–7 与明亮色 9–15 对底色 ≥ 4.5:1，8（亮黑，常用作注释）≥ 3:1；
-    /// 0 黑接近底色（程序多用它作选中 / 状态栏底色）。
-    public static let dark = TerminalPalette(
-        background: 0x1B1A18, foreground: 0xD8D3CB,
-        ansi: [
-            0x4A4640, 0xE06C5A, 0x8DB79A, 0xD9B061, 0x82A8CF, 0xC792BF, 0x7DB8B6, 0xCFC9BF,
-            0x7A746B, 0xF08A70, 0xA6CDB1, 0xE9C77D, 0xA3C2E2, 0xDBA9D3, 0x9DD0CD, 0xF2EEE8,
-        ])
+    public init(background: UInt32, foreground: UInt32, ansi: [UInt32]) {
+        self.background = background
+        self.foreground = foreground
+        self.ansi = ansi
+    }
 
     /// 0xRRGGBB 拆成 8 位分量。
     public static func components(_ hex: UInt32) -> (red: UInt8, green: UInt8, blue: UInt8) {
         (UInt8((hex >> 16) & 0xFF), UInt8((hex >> 8) & 0xFF), UInt8(hex & 0xFF))
+    }
+}
+
+extension TerminalPalette {
+    /// 前景色对底色的最低对比度：浅色 5:1（低眩光主题刻意略低于 7:1），深色 7:1。
+    public static func minimumForegroundContrast(_ kind: TerminalColorScheme) -> Double {
+        kind == .light ? 5 : 7
+    }
+
+    /// ANSI 色对底色的最低对比度（nil = 不要求）。
+    /// 浅色：普通色 0–7（含「白」）≥ 4.5:1，明亮色 8–15 ≥ 3:1；
+    /// 深色：1–7 与 9–15 ≥ 4.5:1，8（亮黑，常用作注释）≥ 3:1，0 黑是背景类颜色，不要求。
+    public static func minimumContrast(ansi index: Int, kind: TerminalColorScheme) -> Double? {
+        switch kind {
+        case .light: return index < 8 ? 4.5 : 3
+        case .dark:
+            if index == 0 { return nil }
+            return index == 8 ? 3 : 4.5
+        }
+    }
+
+    /// 按上面的下限修正：不达标的颜色保持色相，浅色主题加深、深色主题提亮（设计 §19）；已达标的原样保留。
+    public func enforcingContrast(for kind: TerminalColorScheme) -> TerminalPalette {
+        let lighten = kind == .dark
+        let fg = ColorMath.ensuring(foreground, contrast: Self.minimumForegroundContrast(kind),
+                                    against: [background], lighten: lighten)
+        let colors = ansi.enumerated().map { index, color -> UInt32 in
+            guard let minimum = Self.minimumContrast(ansi: index, kind: kind) else { return color }
+            return ColorMath.ensuring(color, contrast: minimum, against: [background], lighten: lighten)
+        }
+        return TerminalPalette(background: background, foreground: fg, ansi: colors)
     }
 }
 

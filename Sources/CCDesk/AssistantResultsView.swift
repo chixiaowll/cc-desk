@@ -7,10 +7,11 @@ import CCDeskCore
 struct AssistantResultsSheet: View {
     @ObservedObject var work: AssistantWork
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
     @State private var expanded: Set<String> = []
 
     var body: some View {
-        let theme = Theme.of(colorScheme)
+        let theme = themes.theme(for: colorScheme)
         VStack(alignment: .leading, spacing: 12) {
             Text(L("results.title")).font(.headline)
             Text(L("results.intro"))

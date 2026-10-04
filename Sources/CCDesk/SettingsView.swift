@@ -66,9 +66,10 @@ private struct SettingsIntegrationsTab: View {
 struct SettingsForm<Content: View>: View {
     @ViewBuilder let content: Content
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
 
     var body: some View {
-        let theme = Theme.of(colorScheme)
+        let theme = themes.theme(for: colorScheme)
         Form { content }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
@@ -86,8 +87,10 @@ struct SettingsNote: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    @ObservedObject private var themes = ThemeStore.shared
+
     var body: some View {
-        let theme = Theme.of(colorScheme)
+        let theme = themes.theme(for: colorScheme)
         Text(text)
             .font(.system(size: 11))
             .foregroundStyle(color(theme))
