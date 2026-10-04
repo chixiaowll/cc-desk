@@ -28,6 +28,7 @@
 **看 agent 的产出**
 - 「改动的文件」面板（⇧⌘F）：列出当前会话里 agent 新建或修改过的文件，文档类排在前面；空格快速查看，双击用默认 App 打开。
 - 终端里 ⌘ 点文件路径直接快速查看。
+- 技能库（⇧⌘K）：只读汇总本机 Claude Code（个人、claude.ai 同步、已安装插件、项目）、Codex、pi 的技能和 CC Desk 专业 agent，按来源分组，标出已停用的插件和能用它的 agent；可搜索、按 agent 过滤或只看当前会话能用的，查看 SKILL.md 内容、快速查看或用编辑器打开。
 
 **语音**
 - 按住右 ⌥ 说话：本地 Whisper（WhisperKit / CoreML）识别，只填入不发送。
@@ -89,6 +90,7 @@ DMG 未经苹果公证，首次打开请在「应用程序」里**右键 → 打
 | 在窗格间移动焦点 | ⌥⌘← / → / ↑ / ↓ |
 | 历史会话 | ⇧⌘H |
 | 改动的文件 | ⇧⌘F |
+| 技能库 | ⇧⌘K |
 | 助手结果 | ⇧⌘R |
 | 对话模式 | ⌥⌘V（全局 ⌃⌥V） |
 | 呼出 / 隐藏 CC Desk | ⌃⌥C（全局） |
@@ -116,7 +118,7 @@ swift test                   # 纯逻辑都在 CCDeskCore，可脱离界面测�
 - `Sources/CCDeskCore`：会话发现、状态合并、侧栏模型、tmux 托管规划、MCP / 控制协议、主题与配色等纯逻辑。
 - `Sources/CCDesk`：SwiftUI + AppKit 界面、终端、语音、助手。
 - 设计文档：`docs/specs/2026-10-02-cc-desk-design.md`。
-- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`。
+- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --skills-selftest`、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`。
 
 ## 致谢
 

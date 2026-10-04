@@ -620,3 +620,35 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 - **关闭**：关闭独立窗口（红色按钮、⌘W——⌘W 在非主窗口上一律关闭那个窗口、不结束会话——或「放回主窗口」）把终端放回主窗口：布局为空时成为唯一窗格，焦点窗格右侧放得下时分屏放在右侧，否则替换焦点窗格，并选中它。把已分离的会话拖到窗格上、或右键「在右侧 / 下方分屏打开」，则关掉窗口直接放到指定位置。会话关闭 / 结束（终端被移除）时它的窗口直接关闭。
 - **侧栏**：已分离的会话在名字后面显示小窗口图标；分屏选择面板不列出已分离的会话。
 - **持久化**：`WorkspaceFile.detached`（可选，terminalID + 屏幕坐标的窗口位置）；窗口移动 / 调整大小结束时写 workspace。退出时先标记「正在退出」，窗口被逐个关闭也不再放回主窗口，记录保留。启动恢复时没能恢复的终端忽略，其余从布局里去掉并在普通启动后立即打开（不抢焦点）；登录启动时等用户第一次打开主窗口再打开；保存的位置已不在任何屏幕上时重新摆放。
+
+## 21. 技能库（v1.11）
+
+只读地汇总本机各 agent 能用到的技能，回答「我装了哪些技能 / 这个会话能用哪些」。这一版不做任何管理动作（不启用 / 停用 / 新建 / 复制 / 删除），也从不写 `~/.claude`、`~/.codex`、`~/.agents`、`~/.pi`。
+
+### 21.1 扫描（Core，`SkillScanner` / `SkillCatalog` / `SkillFrontmatter`）
+
+- **来源**（目录由 `SkillLocations` 传入，测试用临时目录）：
+  - Claude 个人：`~/.claude/skills/<name>/SKILL.md`（只认含 SKILL.md 的目录，子目录可以是符号链接；`synced`、`.git` 等跳过），另有 `~/.claude/commands/*.md`、`~/.claude/agents/*.md`。
+  - Claude · claude.ai 同步：`~/.claude/skills/synced/<bucket>/<name>/SKILL.md`。
+  - Claude 插件：只认 `~/.claude/plugins/installed_plugins.json` 里登记的安装位置（每个插件一个，优先 user 范围；市场克隆和旧版本缓存不算，避免重复），列出 `<root>/skills/*/SKILL.md`、`commands/*.md`（种类「命令」）、`agents/*.md`（种类「子 agent」）。启用状态只读 `~/.claude/settings.json` 的 `enabledPlugins["name@marketplace"]`（项目范围的安装另看该项目的 `.claude/settings*.json`），没写为停用。
+  - 项目：侧栏每个项目根目录的 `.claude/skills`（及 `.claude/commands`、`.claude/agents`）与 `.agents/skills`。
+  - 共享：`~/.agents/skills`（Codex 与 pi 都读）；Codex：`~/.codex/skills`（含 `.system` 内置技能）；pi：`~/.pi/agent/skills`（含根部的 `.md`）。
+  - CC Desk 专业 agent：`~/.cc-desk/agents/*.md`（`AgentProfileParser` 解析，取 title；格式不对时退回通用解析）。
+- **frontmatter**：宽松的 YAML 子集——顶层 `key: value`（单 / 双引号）、`|` / `>`（含 `-` 变体）块标量、续写在缩进行上的多行普通标量；嵌套映射 / 列表忽略。没有 name 用目录名（命令用文件名），没有 description 用正文第一段（跳过标题、代码块、注释、表格）。只读文件开头 64 KB。
+- **去重**：同一个文件（解析符号链接后）从多处出现时合并成一项，先扫到的来源为主来源，适用的 agent 取并集（如 `~/.claude/skills/market-data -> ~/.agents/skills/market-data` 显示为一项，Claude / Codex / pi 都能用）。
+- **排序**：来源分区（个人 → 同步 → 插件 → 项目 → 共享 → 项目共享 → Codex → pi → 专业 agent）→ 插件名 / 项目路径 → 种类 → 名字（不区分大小写）→ 路径。
+- **对会话生效**（`SkillEntry.applies(to:cwd:projectRoot:)`）：Claude = 个人 + 同步 + 已启用插件 + 这个项目的 `.claude`；Codex = `~/.codex/skills` + `.agents/skills`（个人与这个项目）；pi = `~/.pi/agent/skills` + `.agents/skills`。专业 agent 不算会话里的技能。cwd 在项目根目录之下也算这个项目。
+- **搜索**：query 的每个词都要出现在名字 / 显示名 / 描述里（不区分大小写）。
+
+### 21.2 窗口（App，`SkillLibrary` / `SkillsLibraryView` / `SkillDetailView`）
+
+- **打开**：菜单「显示 → 技能库」（⇧⌘K）或侧栏工具栏的书架按钮（`books.vertical`）。独立的 AppKit `NSWindow`（标准标题栏，不改标题栏 / 窗口底色，位置自动保存），内容是 SwiftUI，配色跟随主题；红色按钮或 ⌘W 关闭（⌘W 在非主窗口上一律关闭那个窗口）。
+- **扫描**：在后台队列进行、结果缓存在 `SkillLibrary`；每次打开窗口和点刷新按钮时重扫（本机实测约 40 项、几十毫秒）。
+- **左侧**：顶部搜索框、agent 过滤（全部 / Claude / Codex / pi）与「只看当前会话可用」（用主窗口的焦点窗格，没有时为全局选中；须是 agent 会话，窗口变成 key 时重新读取）。列表按来源分区，可折叠，带数量；插件分区显示市场与版本，停用的插件标「已停用」。每行：名字、一行描述、徽章（个人 / 云同步 / 插件名 / 项目 / 共享 / 专业 agent，命令 / 子 agent，已停用）与能用它的 agent。
+- **右侧详情**：名字、徽章、完整描述、来源与路径（相对 `~`）、按钮「用编辑器打开」（默认 App；会直接运行的文件改为在访达中显示，见 `FileOpenPolicy`）/「在 Finder 中显示」/「复制路径」/「快速查看」，技能目录里的文件（单击快速查看、双击打开，最多 200 个），以及文件内容（等宽纯文本、可选择，超过 256 KB 截断）。
+- **空状态**：扫描中显示进度；什么都没找到时列出会扫描的目录；过滤后没有结果时提示「没有匹配的技能」。
+- **验证**：`SkillCatalogTests` 用临时目录覆盖 frontmatter 各种写法、插件启用 / 停用 / 未写 / 安装位置不存在 / JSON 损坏、市场克隆与旧缓存不重复、符号链接合并与断链 / 自环、项目 / Codex / pi / 专业 agent 来源与对会话生效的规则；`CCDesk --skills-selftest` 只读扫描真实的 home，打印各来源的数量与名字（不打印内容）。
+
+### 21.3 语音助手 `list_skills`
+
+只读工具（任何消息里都可调用）：`query`（可选，名字 / 描述里的词）、`agent`（可选，claude / codex / pi）。返回 name、description（截到 160 字）、kind、source、enabled、agents、path（`~/…`），最多 60 项另给 total / truncated。使用 30 秒内的缓存，否则重扫。提示词版本随之升到 5（常驻会话会换新）。
