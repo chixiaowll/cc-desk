@@ -148,12 +148,22 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
             }
         }
         attachTmuxClient()
+        hideScrollerIfPersistent()
     }
 
     /// 用来查 tty 的 pid：tmux 托管时为窗格 shell（agent 的 tty 是窗格的 tty），否则为 SwiftTerm 直接启动的 shell。
     var ttyPID: Int32 {
         if case .tmux(_, let panePID) = backend { return panePID }
         return view.process.shellPid
+    }
+
+    /// tmux 托管时滚动历史由 tmux（复制模式）负责，SwiftTerm 自带的滚动条用不上；系统设为「始终显示滚动条」时
+    /// 它会显示成一条不跟随主题的系统色竖条，所以隐藏掉。直连 PTY 的终端保留（历史在 SwiftTerm 里）。
+    func hideScrollerIfPersistent() {
+        guard isPersistent else { return }
+        for case let scroller as NSScroller in view.subviews where !scroller.isHidden {
+            scroller.isHidden = true
+        }
     }
 
     /// App 退出 / 崩溃后会话仍在运行（tmux 托管）。
@@ -166,6 +176,7 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     /// 明暗变了且由 tmux（≥ 3.6）托管时，像真实终端一样给 tmux 发主题变化报告：tmux 重新查询底色
     /// （SwiftTerm 按新的底色回答 OSC 11），并通知订阅了 mode 2031 的窗格程序。
     func apply(_ theme: TerminalTheme) {
+        hideScrollerIfPersistent()
         view.nativeBackgroundColor = theme.background
         view.nativeForegroundColor = theme.foreground
         view.caretColor = theme.cursor

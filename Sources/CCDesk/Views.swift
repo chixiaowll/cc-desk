@@ -20,6 +20,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
         .modifier(AssistantResultsPresenter(work: model.work))
+        .background(WindowChrome(color: NSColor(themes.theme(for: colorScheme).main)))
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
         .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(themes.theme(for: scheme).terminal) }
     }

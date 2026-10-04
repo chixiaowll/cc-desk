@@ -23,6 +23,8 @@ struct SettingsView: View {
     let model: AppModel
     let selectLanguage: (LanguagePreference) -> Void
     @AppStorage(SettingsTab.defaultsKey) private var tab = SettingsTab.general.rawValue
+    @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themes = ThemeStore.shared
 
     var body: some View {
         TabView(selection: $tab) {
@@ -43,6 +45,7 @@ struct SettingsView: View {
                 .tag(SettingsTab.usage.rawValue)
         }
         .frame(width: 600, height: 560)
+        .background(WindowChrome(color: NSColor(themes.theme(for: colorScheme).main)))
     }
 }
 
