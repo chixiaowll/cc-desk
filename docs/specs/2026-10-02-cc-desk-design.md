@@ -546,20 +546,23 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
   - Claude：`assistant` 行的 `tool_use` Write / Edit / MultiEdit（`file_path`）、NotebookEdit（`notebook_path`）；`user` 行的 `toolUseResult.type == "update"` 表示刚才的 Write 覆盖的是已有文件。相对路径按该行的 `cwd`（没有时按会话 cwd）解析。
   - Codex：`response_item` 里的 apply_patch（`custom_tool_call`、`function_call` apply_patch，或 exec_command / shell 里的补丁）：`*** Add File:` 新建、`*** Update File:` 修改（后跟 `*** Move to:` 时视为删旧建新）、`*** Delete File:` 删除；相对路径按调用的 `workdir`，没有时按会话 cwd。
   - pi：`message` 的 `toolCall` write（新建或覆盖）/ edit（`path` / `file_path`）。
-  - 不识别 shell 命令（`cat >`、`sed -i`、`mv`）改的文件；Claude 子 agent 写在单独记录文件里的改动也不在内。
+  - 工具调用之外不识别 shell 命令（`cat >`、`sed -i`、`mv`）改的文件；这类文件由下面的「提到」与「生成」两个来源补上。Claude 子 agent 写在单独记录文件里的改动不在内。
+- **提到的文件**（`MentionedFiles` / `MentionedFilesLog`，与上面同一次增量读取）：只看 agent 自己的回复文字——Claude `assistant` 行的 `text` 块、Codex `response_item` 里 assistant 的 `output_text` 与 `event_msg` 的 `agent_message`、pi assistant `message` 的 `text` 块（工具输出、思考、用户输入都不看）。切分与清理沿用 `TerminalPaths`（空白 / 引号 / 反引号 / 括号 / 中文标点为边界，去掉 `file://`、末尾标点、`:行[:列]`、`#L行`，排除 URL 与纯数字），另去掉 Markdown 的 `*`；片段须含 `/` 或以 1–8 位字母数字扩展名结尾；紧贴中文的片段（「已保存到out/a.png里」）再试去掉两端非 ASCII 文字的写法。相对路径按该行 `cwd`（没有时按会话 cwd）解析，`~/` 展开，git diff 的 `a/` `b/` 前缀再试一次；**只收当时存在的普通文件**（目录不收）。每条消息最多看 2 万字符 / 300 个片段，每个会话最多保留最近提到的 200 个；快照时再检查是否还在。按特征串（Claude / pi `"type":"text"`，Codex `"output_text"` / `"agent_message"`）预筛，200MB 的 Claude 记录首次全量扫描（调试构建）约 5 秒。
+- **生成的文件**（App `ProjectWatcher`，Core `ProjectWatchRules` / `GeneratedFilesLog`）：选中 agent 会话时用 FSEvents 监视它的项目根目录（git 顶层，没有时为 cwd），文件级事件、延迟 1 秒合并一阵连续写入；一次只有一个监视，选中变化时停掉（流的创建、回调、停止都在 `cc-desk.project-watcher` 串行队列上）。只记普通文件的新建 / 改动（时间取文件修改时间；删除 / 移走的去掉）；「新建」还要求文件的创建时间晚于监视起点（FSEvents 的 ItemCreated 标志会粘在同一文件后来的事件上）。忽略路径上含 `.git` `.hg` `.svn` `node_modules` `.build` `build` `dist` `DerivedData` `__pycache__` `.venv` `venv` `target` `.next` `.nuxt` `.cache` `.pytest_cache` `.mypy_cache` `.ruff_cache` `.gradle` `.swiftpm` `.tox` `.parcel-cache` `.turbo` `.idea` 的文件，以及 `.DS_Store`、`4913`、`*.swp/swo/swx`、`*~`、`.#*`、`.~lock.*`、`*.tmp`、`*.pyc`、`*.crdownload`、`*.part`。最多保留最近的 200 个。根目录是 `/`、家目录或其上层、家目录下的 Desktop / Documents / Downloads / Library / Movies / Music / Pictures / Public / iCloud Drive、`/Users` `/Volumes` `/tmp` 等时不监视，面板末尾说明原因。**起点**：侧栏第一次出现某会话时（`AppModel` 只在会话集合变化时调用 `noteNewSessions`）记下 FSEvents 全局事件编号，第一次选中时从这里回放；切走时记下停下的位置与已有记录（最多 16 个会话），切回来从那里回放，中间生成的文件也能补上。限制：CC Desk 启动前就开始的会话只从启动时算起；无法区分是 agent 还是用户自己（编辑器保存）改的文件——编辑器用「写临时文件再改名」保存时会显示为「生成」；只监视项目根目录内，写到项目外的文件靠「提到」。
+- **合并**（`TouchedFilesMerge`）：同一路径只出现一次，留信息量最大的来源：工具写入（新 / 已改 / 已删除）> 生成（生成 / 已改）> 提到（提到）。被工具写过的文件留在原来的分组；只被生成 / 提到的进「提到 / 生成的文件」分组，文档（含图片 / 视频 / 音频）在前、其余在后，各自按时间倒序。
 - **合并**：同一绝对路径（展开 ~、去掉 . / ..，不解析符号链接）一条：首次 / 最后改动时间（行首 `timestamp`）、次数、最终动作。动作：最后一次是删除 → 已删除；首次出现是新建（Add File，或 Write 且没有被 `toolUseResult` 纠正为覆盖）→ 新；否则 → 已改。删除后再写回到新 / 已改。
-- **分类**（`TouchedFiles.isDocument`，规则刻意简单）：扩展名是 md / markdown / txt / rtf / html / htm / pdf / png / jpg / jpeg / gif / svg / webp / csv / tsv / xlsx / xls / docx / doc / pptx / ppt / key / pages / numbers 的是「文档与产出」；json / yaml / yml 只有路径里有 `docs/` 或 `doc/` 目录时才算；其余是「代码」。
+- **分类**（`TouchedFiles.isDocument`，规则刻意简单）：扩展名是 md / markdown / txt / rtf / html / htm / pdf / png / jpg / jpeg / gif / svg / webp / csv / tsv / xlsx / xls / docx / doc / pptx / ppt / key / pages / numbers，或图片 / 视频 / 音频（heic / tif / tiff / bmp / avif / mp4 / mov / m4v / webm / mkv / avi / mp3 / wav / m4a / aac / flac / ogg）的是「文档与产出」；json / yaml / yml 只有路径里有 `docs/` 或 `doc/` 目录时才算；其余是「代码」。
 - **排序与过滤**：文档在前、代码在后，各自按最后改动时间倒序（时间相同按出现顺序，后出现的在前）。`/tmp`、`/private/tmp`、`/var/folders`、`/private/var` 下的临时文件只在没有别的文件时才列出。快照时检查文件是否还在，不在的标「不存在」。
 - **增量读取**：`TouchedFilesTracker` 记住读到的字节偏移与不完整的末行，只读新增部分（4MB 一块）；文件大小与修改时间都没变时不读；文件变短（被重写）时从头再来。每行先按字节找特征串（Claude `"file_path"` / `"notebook_path"` / `"filePath"`，Codex `*** Add File` 等，pi `"toolCall"`），找不到不做 JSON 解析。实测 200MB 的 Claude 记录首次全量扫描在调试构建下约 4.6 秒（后台），之后每次只读几 KB。
 
 ### 17.2 面板（App，`TouchedFilesModel` / `TouchedFilesPanel`）
 
 - **位置**：详情区终端右侧，宽 300pt，与侧栏同底色，左侧 1pt 分隔线；只对 agent 会话显示。开关：标题栏右侧（状态胶囊左边）的线条图标按钮（`sidebar.right`，fg2，打开时加浅底）、菜单「显示 → 改动的文件」（⇧⌘F）；开关状态存 UserDefaults `touchedFilesPanelShown`。
-- **内容**：标题「改动的文件」+ 数量；超过 15 个文件时显示筛选框（文件名 / 相对路径包含即可）；分「文档与产出 · n」「代码 · n」两组。每行：系统文件图标（`NSWorkspace.icon(forFile:)`，不存在时按扩展名）、文件名、徽标（新 / 已改 / 已删除 / 不存在）、相对时间（悬停 / 选中时换成眼睛按钮），第二行是所在目录（`TouchedFiles.displayDirectory`）：项目根目录（git 顶层，见 §4）内为相对路径，项目外为 `~/…`（或绝对路径），超长时按路径段从中间省略，保留开头与离文件最近的几层（如 `~/Documents/…/cc-desk/docs/design/`）。已删除的文件名加删除线、图标变淡。空状态分别提示没有 agent 会话、正在读取、还没找到会话记录、还没有改动文件、没有匹配项。
+- **内容**：标题「改动的文件」+ 数量；超过 15 个文件时显示筛选框（文件名 / 相对路径包含即可）；分「文档与产出 · n」「代码 · n」「提到 / 生成的文件 · n」三组（第三组同样的行、动作与快速查看列表）。每行：系统文件图标（`NSWorkspace.icon(forFile:)`，不存在时按扩展名）、文件名、徽标（新 / 已改 / 已删除 / 不存在；第三组为生成 / 已改 / 提到）、相对时间（悬停 / 选中时换成眼睛按钮），第二行是所在目录（`TouchedFiles.displayDirectory`）：项目根目录（git 顶层，见 §4）内为相对路径，项目外为 `~/…`（或绝对路径），超长时按路径段从中间省略，保留开头与离文件最近的几层（如 `~/Documents/…/cc-desk/docs/design/`）。已删除的文件名加删除线、图标变淡。空状态分别提示没有 agent 会话、正在读取、还没找到会话记录、还没有改动文件、没有匹配项。
 - **动作**：单击选中；空格 / 眼睛按钮快速查看（`QLPreviewPanel`）；双击 / 回车用默认 App 打开（`NSWorkspace.open`；会直接运行的文件——.app / .command / .tool / .terminal / .workflow / .pkg 等，以及带可执行位的脚本 / 无扩展名程序——改为在访达里显示，`FileOpenPolicy`，⇧⌘-点击与 `open_file(app=true)` 同样）；↑ / ↓ 移动选中。右键：快速查看、用默认 App 打开、在访达中显示（`activateFileViewerSelecting`）、用 VS Code 打开（仅当装了 VS Code，`Jumper.vsCodeURL`）、复制路径、复制相对路径；已删除 / 不存在的文件只有「复制路径」。
 - **快速查看**（`FilePreviewController`）：作为 QLPreviewPanel 的控制者插到主窗口响应链末尾（`window.nextResponder`），面板列表与终端 ⌘-点击共用。预览列表是当前可见且存在的文件；面板打开时 ↑ / ↓（← / →）切换并同步列表选中，空格关闭，与访达一致；列表刷新或选中变化时跟着更新。
 - **刷新**：只跟踪选中的会话。会话记录的定位复用轮询队列上的 `TranscriptIndex` / `AgentSessionIndex`（`AppModel.locateTranscript`，带 miss 缓存），读取在单独的串行队列 `cc-desk.touched-files` 上。面板显示时每 2 秒、隐藏时每 6 秒检查一次文件大小 / 修改时间，变了才读新增部分；显示时每次重新检查文件是否还在。切换会话后正在进行的大文件读取在块之间停下。
-- **新文档提示**：选中会话的 agent 新建了文档、而你上次打开面板时还没有它，面板开关按钮右上角显示陶土色小圆点；打开面板即清除。第一次加载某个会话时已有的文档作为基准，不算新的（只在内存里记，重启后重新以当时为基准）。
+- **新文档提示**：选中会话的 agent 新建了文档（工具新建、项目里新生成的文档 / 图片 / 视频、回复里新提到的文档）、而你上次打开面板时还没有它，面板开关按钮右上角显示陶土色小圆点；打开面板即清除。第一次加载某个会话时已有的文档作为基准，不算新的（只在内存里记，重启后重新以当时为基准）。
 
 ### 17.3 终端里 ⌘-点击文件路径
 
@@ -568,7 +571,7 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 
 ### 17.4 语音助手 `open_file`
 
-- 工具（`AssistantTools`）：`open_file(session?, query?, app?)`——会话里最近改动且仍存在的文件，优先文档类；`query` 匹配路径里的文字；默认快速查看，`app=true` 用默认 App 打开。选中会话直接用面板已加载的结果，其他会话一次性读取。人设提示里加一句：「打开它写的文档 / 给我看看那个报告」→ open_file。
+- 工具（`AssistantTools`）：`open_file(session?, query?, app?)`——会话里最近改动 / 生成 / 提到且仍存在的文件，优先文档类（含图片 / 视频），按时间取最近的一个（「打开它刚生成的图片」）；生成的文件只有选中会话才有（项目监视只开一个），其他会话为工具写入 + 提到；`query` 匹配路径里的文字；默认快速查看，`app=true` 用默认 App 打开。选中会话直接用面板已加载的结果，其他会话一次性读取。人设提示里加一句：「打开它写的文档 / 给我看看那个报告」→ open_file。
 
 ## 18. 终端外观：浅色 / 深色与中文字体（v1.8）
 

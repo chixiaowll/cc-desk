@@ -12,7 +12,7 @@
 
 **会话管理**
 - 自动发现本机所有 Claude Code、Codex、pi 会话（包括在 Terminal、VS Code 里启动的），按项目目录分组；git worktree 单独成组并显示分支。
-- 状态一目了然：处理中 / 等你批准 / 已完成未读 / 空闲 / 已结束。状态来自 agent 的 hook、会话记录和屏幕规则三路合并。
+- 状态一目了然：处理中 / 等你批准 / 已完成未读 / 空闲 / 已结束；Claude 这一轮结束但后台 shell 还在跑时显示「空闲 · 后台任务」。状态来自 agent 的 hook、会话记录和屏幕规则三路合并。
 - 内嵌终端（SwiftTerm）托管在独立的 tmux 服务器里：**退出、重启、更新甚至崩溃都不会中断 agent**，重开后直接接回。
 - 外部终端里的会话可以一键（或用语音）接管到 CC Desk。
 - 侧栏固定顺序，可拖拽或右键调整；重启后选回上次的会话。
@@ -26,7 +26,7 @@
 - 推送到手机：Bark、ntfy 或自定义 Webhook（只在你离开电脑时推送，有频率限制）。
 
 **看 agent 的产出**
-- 「改动的文件」面板（⇧⌘F）：列出当前会话里 agent 新建或修改过的文件，文档类排在前面；空格快速查看，双击用默认 App 打开。
+- 「改动的文件」面板（⇧⌘F）：列出当前会话里 agent 新建或修改过的文件，文档类排在前面；另有「提到 / 生成的文件」：agent 在回复里提到的文件，以及选中会话期间脚本 / 命令在项目目录里生成的文件（图片、视频、文档在前）。空格快速查看，双击用默认 App 打开。
 - 终端里 ⌘ 点文件路径直接快速查看。
 - 技能库（⇧⌘K）：只读汇总本机 Claude Code（个人、claude.ai 同步、已安装插件、项目）、Codex、pi 的技能和 CC Desk 专业 agent，按来源分组，标出已停用的插件和能用它的 agent；可搜索、按 agent 过滤或只看当前会话能用的，查看 SKILL.md 内容、快速查看或用编辑器打开。
 
@@ -119,7 +119,7 @@ swift test                   # 纯逻辑都在 CCDeskCore，可脱离界面测�
 - `Sources/CCDeskCore`：会话发现、状态合并、侧栏模型、tmux 托管规划、MCP / 控制协议、主题与配色等纯逻辑。
 - `Sources/CCDesk`：SwiftUI + AppKit 界面、终端、语音、助手。
 - 设计文档：`docs/specs/2026-10-02-cc-desk-design.md`。
-- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --skills-selftest`、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`、`CCDesk --assistant-api-selftest`（本机假接口，不调用真实服务）。
+- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --skills-selftest`、`CCDesk --files-selftest`（临时目录里检查项目监视与提到的文件）、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`、`CCDesk --assistant-api-selftest`（本机假接口，不调用真实服务）。
 
 ## 致谢
 
