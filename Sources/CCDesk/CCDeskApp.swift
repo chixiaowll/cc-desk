@@ -139,7 +139,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 /// 入口：`--mcp` 时作为助手的 stdio MCP 工具服务器运行（不启动界面，设计 §13）；`--tts-test` 时验证自然语音引擎后退出；
-/// `--tmux-selftest` 时在隔离的 tmux 服务器上自检会话托管层后退出（设计 §4.9）；`--layout-selftest` 时在屏幕外自检分屏（设计 §20）；`--consult-test` 时用真实的
+/// `--tmux-selftest` 时在隔离的 tmux 服务器上自检会话托管层后退出（设计 §4.9）；`--layout-selftest` 时在屏幕外自检分屏（设计 §20）；
+/// `--skills-selftest` 时只读扫描本机技能并打印各来源的数量与名字（设计 §21）；`--consult-test` 时用真实的
 /// claude 验证顾问的只读参数后退出（设计 §14）；
 /// 否则拿单实例锁（已有实例时激活它并退出）后启动 App。
 @main
@@ -152,6 +153,7 @@ enum CCDeskMain {
         NaturalSpeechTest.runIfRequested()
         TmuxSelfTest.runIfRequested()
         LayoutSelfTest.runIfRequested()
+        SkillsSelfTest.runIfRequested()
         ConsultTest.runIfRequested()
         PushSecretImport.runIfRequested()
         SingleInstance.acquireOrHandOff()
@@ -207,6 +209,8 @@ struct CCDeskApp: App {
                 }
                 .keyboardShortcut("h", modifiers: [.command, .shift])
                 TouchedFilesMenuItem(files: delegate.model.touchedFiles)
+                Button(L("menu.skills")) { delegate.model.skills.showWindow() }
+                    .keyboardShortcut("k", modifiers: [.command, .shift])
                 ThemeMenu()
             }
             // 偏好开关都在设置窗口（⌘,）里；这里只留常用动作。

@@ -53,6 +53,10 @@ struct SidebarView: View {
                 Button { model.showHistoryPalette = true } label: { Image(systemName: "clock") }
                     .help(L("toolbar.history.help"))
             }
+            ToolbarItem {
+                Button { model.skills.showWindow() } label: { Image(systemName: "books.vertical") }
+                    .help(L("toolbar.skills.help"))
+            }
             ToolbarItem { AssistantResultsButton(work: model.work) }
         }
     }
