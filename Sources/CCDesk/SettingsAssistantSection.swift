@@ -118,7 +118,9 @@ struct SettingsAssistantSection: View {
                 }
                 SettingsNote(text: L("settings.assistant.key.note"))
             }
-            if draftSettings.sendsKeyInPlaintext(hasKey: hasKey && !selectedPreset.isLocal) {
+            if draftSettings.endpoint != nil, !draftSettings.isTransportAllowed {
+                SettingsNote(text: L("settings.assistant.httpsRequired"), tone: .warning)
+            } else if draftSettings.sendsKeyInPlaintext(hasKey: hasKey && !selectedPreset.isLocal) {
                 SettingsNote(text: L("settings.assistant.plaintext"), tone: .warning)
             }
             if let keyError { SettingsNote(text: L("settings.assistant.key.saveFailed", keyError), tone: .warning) }
@@ -250,6 +252,7 @@ struct SettingsAssistantSection: View {
         switch error {
         case .http(let code, let detail?): return "HTTP \(code) · \(detail)"
         case .provider(let detail): return detail
+        case .httpsRequired: return L("settings.assistant.httpsRequired")
         default: return error.short
         }
     }

@@ -546,7 +546,8 @@
 "settings.assistant.key.note" = "Stored in the Keychain, one per service, and only sent to that service.";
 "settings.assistant.key.saveFailed" = "Could not save the key: %@";
 "settings.assistant.localNote" = "Runs on this Mac, no key needed. Pull a model that supports tool calling first, e.g. ollama pull qwen3:14b.";
-"settings.assistant.plaintext" = "The URL uses http and is not on this Mac: the key is sent in plain text.";
+"settings.assistant.plaintext" = "The URL uses http on the local network: the key is sent in plain text.";
+"settings.assistant.httpsRequired" = "macOS only allows plain http to this Mac or the local network (localhost, IP addresses, .local names); use an https address.";
 "settings.assistant.test" = "Test connection";
 "settings.assistant.test.toolsOK" = "Connected · %@ s · calls tools";
 "settings.assistant.test.noTools" = "Connected · %@ s · the model did not call the tool; the assistant will probably not work";

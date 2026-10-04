@@ -108,6 +108,8 @@ public enum ChatAPIError: Error, Equatable, Sendable {
     case invalidResponse(String)
     /// 服务端在 200 响应里报错。
     case provider(String)
+    /// macOS 不允许用 http 连这个地址（ATS，NSURLError -1022）：要用 https。
+    case httpsRequired
 
     /// 简短说明（给提示条 / 设置页；不含密钥与消息内容）。
     public var short: String {
@@ -118,6 +120,7 @@ public enum ChatAPIError: Error, Equatable, Sendable {
         case .cancelled: return "cancelled"
         case .invalidResponse: return "invalid response"
         case .provider: return "provider error"
+        case .httpsRequired: return "https required"
         }
     }
 }

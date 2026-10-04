@@ -232,9 +232,21 @@ public struct AssistantAPISettings: Equatable, Sendable {
         return consult.isEmpty ? trimmedModel : consult
     }
 
-    /// 能发请求：地址有效、填了模型、需要密钥的服务有密钥。
+    /// 能发请求：地址有效且 macOS 允许连、填了模型、需要密钥的服务有密钥。
     public func isConfigured(hasKey: Bool) -> Bool {
-        endpoint != nil && !trimmedModel.isEmpty && (hasKey || !preset.requiresKey)
+        endpoint != nil && isTransportAllowed && !trimmedModel.isEmpty && (hasKey || !preset.requiresKey)
+    }
+
+    /// App 的 ATS 只开了 `NSAllowsLocalNetworking`：http 只能连本地网络——localhost / 回环、IP 地址、
+    /// 不带点的主机名、`.local`；其他主机必须 https（否则请求直接失败，NSURLError -1022）。地址无效时 false。
+    public var isTransportAllowed: Bool {
+        guard let url = endpoint, let scheme = url.scheme?.lowercased() else { return false }
+        if scheme == "https" { return true }
+        let host = (url.host ?? "").lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if host == "localhost" || !host.contains(".") || host.hasSuffix(".local") { return true }
+        // IPv4 / IPv6 字面量。
+        var v4 = in_addr(), v6 = in6_addr()
+        return inet_pton(AF_INET, host, &v4) == 1 || inet_pton(AF_INET6, host, &v6) == 1
     }
 
     /// 密钥会以明文发到别的机器上（http 且不是本机）。

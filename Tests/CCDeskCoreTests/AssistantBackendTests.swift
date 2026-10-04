@@ -87,4 +87,19 @@ final class AssistantBackendTests: XCTestCase {
         _ = sw.activate(.local, busy: { _ in false })
         XCTAssertEqual(sw.activate(.claude, busy: { _ in false }), [])
     }
+
+    /// ATS：http 只能连本地网络；公网主机的 http 地址不算配置好（设置页提示要用 https）。
+    func testPlainHTTPOnlyToTheLocalNetwork() {
+        for ok in ["https://api.deepseek.com/v1", "http://localhost:11434/v1", "http://127.0.0.1:1234/v1",
+                   "http://[::1]:8000/v1", "http://192.168.1.9:8000/v1", "http://gpu-box:8000/v1", "http://studio.local/v1"] {
+            XCTAssertTrue(settings(.custom, ok).isTransportAllowed, ok)
+            XCTAssertTrue(settings(.custom, ok).isConfigured(hasKey: true), ok)
+        }
+        for bad in ["http://api.example.com/v1", "http://llm.mycompany.internal:8000/v1"] {
+            XCTAssertFalse(settings(.custom, bad).isTransportAllowed, bad)
+            XCTAssertFalse(settings(.custom, bad).isConfigured(hasKey: true), bad)
+        }
+        XCTAssertFalse(settings(.custom, "nonsense").isTransportAllowed)
+        XCTAssertEqual(ChatAPIError.httpsRequired.short, "https required")
+    }
 }

@@ -546,7 +546,8 @@
 "settings.assistant.key.note" = "存在钥匙串里，每个服务一份，只发给这个服务。";
 "settings.assistant.key.saveFailed" = "保存密钥失败：%@";
 "settings.assistant.localNote" = "本机服务，不需要密钥。先拉一个支持工具调用的模型，例如 ollama pull qwen3:14b。";
-"settings.assistant.plaintext" = "地址是 http 且不在本机：密钥会明文发送。";
+"settings.assistant.plaintext" = "地址是 http（局域网）：密钥会明文发送。";
+"settings.assistant.httpsRequired" = "macOS 只允许用 http 连本机或局域网（localhost、IP 地址、.local）；其他地址请用 https。";
 "settings.assistant.test" = "测试连接";
 "settings.assistant.test.toolsOK" = "连接正常 · %@ 秒 · 会调用工具";
 "settings.assistant.test.noTools" = "连接正常 · %@ 秒 · 模型没有调用工具，助手多半用不了";

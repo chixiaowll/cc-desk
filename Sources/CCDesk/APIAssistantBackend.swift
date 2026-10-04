@@ -228,6 +228,8 @@ final class ChatHTTPClient: @unchecked Sendable {
                     result = .failure(.timeout)
                 } else if ns.domain == NSURLErrorDomain, ns.code == NSURLErrorCancelled {
                     result = .failure(.cancelled)
+                } else if ns.domain == NSURLErrorDomain, ns.code == NSURLErrorAppTransportSecurityRequiresSecureConnection {
+                    result = .failure(.httpsRequired)
                 } else {
                     // 只记域与错误码（userInfo 里有完整地址）。
                     result = .failure(.network("\(ns.domain) \(ns.code)"))
