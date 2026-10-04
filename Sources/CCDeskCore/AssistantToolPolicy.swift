@@ -36,6 +36,13 @@ public enum AssistantToolPolicy {
         return spec.readOnly || turn == .utterance
     }
 
+    /// 工具调用的统一检查（控制接口 / MCP 与 OpenAI 兼容接口两条路径都经过这里，见设计 §22）：
+    /// nil = 放行；否则是给模型看的拒绝说明。未知的方法不在这里拒绝（由分发处回复「unknown method」）。
+    public static func check(_ tool: String, turn: AssistantTurnKind?) -> String? {
+        guard AssistantTools.spec(named: tool) != nil, !isAllowed(tool, turn: turn) else { return nil }
+        return denial(tool, turn: turn)
+    }
+
     /// 被拒绝时给模型看的说明。
     public static func denial(_ tool: String, turn: AssistantTurnKind?) -> String {
         let where_ = turn.map { "a [\(tag($0))] message" } ?? "no active request"
