@@ -652,3 +652,32 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 ### 21.3 语音助手 `list_skills`
 
 只读工具（任何消息里都可调用）：`query`（可选，名字 / 描述里的词）、`agent`（可选，claude / codex / pi）。返回 name、description（截到 160 字）、kind、source、enabled、agents、path（`~/…`），最多 60 项另给 total / truncated。使用 30 秒内的缓存，否则重扫。提示词版本随之升到 5（常驻会话会换新）。
+
+## 22. 助手后端可选：Claude Code / OpenAI 兼容接口 / 仅本地规则（v1.12）
+
+**目标**：没装 Claude Code（或不想用订阅额度）时，语音助手照样能用——接任意 OpenAI 兼容的 `/chat/completions`（函数调用），包括本机 Ollama / LM Studio；都没有时退回本地规则。Claude 路径的行为不变。
+
+**结构**
+- **后端抽象**（Core `AssistantBackend`）：`ask(message, turn, timeout)`（恰好一次的回调、请求串行、`currentTurn` 给工具权限用）、`warmUp` / `reset` / `shutdown`、`generation`（换了一段新对话时加一，VoiceAssistant 据此重发完整侧栏上下文）、`kind`。`AssistantReply` / `AssistantError`（新增 `.api(简短说明)`）移到 Core。三个实现：常驻 Claude 会话（`AssistantSession` 直接遵循，行为不变）、`APIAssistantBackend`、`LocalAssistantBackend`（一律 `.notInstalled` → 原话填入，与找不到 claude 时相同）。
+- **选择**（`AssistantBackendSelector`，设置 › 语音 › 助手模型，UserDefaults `assistantBackend`）：自动（默认）= claude 解析到就用 Claude Code，否则接口配置好了就用接口，否则仅本地规则；明确选 Claude Code / 通用 API 而它不可用时退回仅本地规则（不偷偷换成另一家：话发到哪里由用户决定）。`AssistantClient.backend` 每次按当前设置选，换后端时停掉不再用的那个（Claude 进程不白白常驻）；设置改动停下 0.5 秒后通知对话模式重新选择。
+- **工具的统一入口**：`AssistantToolbox.call(method, params, turn:)`——控制接口（MCP，turn 取 Claude 会话正在等回复的那条）与接口后端（turn 取发起这一轮的请求）都走它；权限检查也只有 `AssistantToolPolicy.check(tool, turn:)` 这一个函数（会改变东西的工具只在 [UTTERANCE] 里执行，见 §13）。接口后端的工具循环在调用执行器之前再用同一个函数检查一次。`respond_approval` 的「用户开始说话的时刻」随 turn 传入（`ToolArgs.turn`），不再从对话模式读。
+
+**OpenAI 兼容接口**（Core `ChatCompletions` / `AssistantToolLoop` / `AssistantChatHistory`，App `APIAssistantBackend`）
+- 配置：服务预设（OpenRouter `https://openrouter.ai/api/v1`、DeepSeek `https://api.deepseek.com/v1`、通义千问 DashScope 兼容模式 `https://dashscope.aliyuncs.com/compatible-mode/v1`、Kimi `https://api.moonshot.cn/v1`、Ollama `http://localhost:11434/v1`、LM Studio `http://localhost:1234/v1`、自定义）、接口地址、模型（`GET /models` 拿列表供选择，拿不到就手填）、顾问模型（空 = 与助手相同）。密钥在钥匙串（service `dev.local.ccdesk.assistant`，**每个服务一个账户** `assistant.api.key.<preset>`，换服务不会把一家的密钥发给另一家；条目由 CC Desk 自己创建，读取不弹授权），第一次用到时在主线程读出缓存在内存。本机服务不需要密钥；http 且不在本机时提示密钥会明文发送。Info.plist 加 `NSAllowsLocalNetworking`（局域网 / `.local` 地址可用 http）。
+- 请求：非流式 `/chat/completions`，`tools` = `AssistantTools.all` 的函数工具（参数 JSON Schema 与 MCP `inputSchema` 相同），temperature 0.3；系统提示词 = 常驻提示词（同样的标签、规则、不可信数据说明）+ 一段「工具是函数调用，不要把调用写成文字」的补充（`AssistantPrompt.apiSystem`）。消息就是 Claude 路径的同一串 [UTTERANCE] / [EVENT] / [CONSULT_RESULT] / [SUMMARIZE] 文字。
+- **工具循环**（`AssistantToolLoop`，纯逻辑、可注入传输层与时钟）：模型返回 `tool_calls` → 按顺序逐个执行（需确认的工具会等语音确认）→ 结果作为 `tool` 消息接回去再请求。未知工具、参数不是 JSON 对象、权限拒绝都作为 `Error: …` 结果交回模型，不执行。最多 8 次带工具的请求，用完再发一次 `tool_choice: "none"` 逼出文字回复，仍要调工具就失败；每次请求只给剩余时间（兜底 120 秒，真正的超时仍由请求队列控制：一句话 60 秒，事件 / 摘要至少 45 秒）。服务端不给 id 的调用补 `call_<n>`，参数是对象也接受。朗读的是最后一次请求（没有工具调用）的文字，去掉 `<think>…</think>`；调用工具时夹带的话不朗读也不存；只打字不发送的一轮仍然不朗读（同一个 `toolStarted(quiet:)`）。单个工具结果最多 12k 字符。
+- **历史**：内存里按「轮」保存（一轮从 user 消息开始，含工具调用、结果与回复），成功的一轮才追加；超过 6 万字符或 40 轮时从最早的整轮丢弃（不会留下没有结果的工具调用），丢弃后 `generation` 加一让下一句重发侧栏上下文。存 `~/.cc-desk/assistant/api-history.json`（先建 0600 临时文件再改名，目录 0700），带提示词版本（`apiVersion`），版本不同就从头开始；「重置助手对话」清空并删除文件。
+- **失败**：HTTP 错误 → `.api("HTTP 401")` 等：播报「助手没响应」并在提示条显示「助手接口出错（HTTP 401）」；超时 / 网络错误同 Claude 失败；没配置 → `.notInstalled` → 原话填入。本地规则（发送 / 取消 / 休息 / 转述 / 「哪些在等我」「有哪些会话」）不依赖任何模型。摘要 / 事件 / 顾问结论失败时用原有的本地文案。
+- **日志**（AssistantDiag）：每次请求记用途、状态码、耗时、主机名、prompt / completion token、工具调用数、finish_reason；每轮记种类、请求数、工具数、被拒数。不记密钥、地址路径与消息内容。
+
+**顾问（接口版）**（App `APIConsultRun`，Core `ConsultSandbox` / `APIConsultTools`）
+- 同一个服务、「顾问模型」，一次性对话（最多 20 次请求），系统提示词与 Claude 版要求相同的「结论：」首行格式；level（sonnet / opus）不适用。任务记录、进度（已调用工具数）、2 个并发上限、5 分钟超时、取消、结果面板与播报都与 Claude 版共用（`ConsultRunning` 协议，`ConsultEnding`）。顾问引擎跟着当前助手后端走；仅本地规则时 consult 返回「不可用」。
+- 只读工具全部在进程内执行、限定在项目目录：`list_dir`、`read_file`（256 KB 读取上限，含 NUL 视为二进制，带行号分页）、`search`（`/usr/bin/grep -rnI`，参数数组，模式经 `-e`，`-F` / `-E`，排除 .git / node_modules / .build，最多 200 行）、`git_status` / `git_diff` / `git_log`（`git -C <根> --no-pager`，固定 `--no-ext-diff --no-textconv`，ref 只接受字母数字开头的普通写法，路径放在 `--` 之后，环境用 `GitSafety`）。路径用 realpath 解析后必须仍在根目录内（拒绝 `..`、绝对路径与指向外面的符号链接）；BSD grep 递归时不跟随符号链接（已实测）。输出最多 3 万字符。
+
+**设置界面**（设置 › 语音 › 助手模型）：选择器（自动 / Claude Code / 通用 API / 仅本地规则）+「当前使用」（如「DeepSeek · deepseek-chat」「Claude Code (haiku)」「仅本地规则」）+ 说明；选了 Claude Code 但找不到、或选了通用 API 但没配置好时给出提示。自动 / 通用 API 时显示「通用 API」分组：服务、接口地址、模型（文本框 +「选择」菜单，菜单第一项「获取模型列表」）、顾问模型、API 密钥（安全输入框，停下 0.5 秒存钥匙串）、「测试连接」（只给一个 `ping` 工具并要求调用：显示耗时与「会调用工具」/「模型没有调用工具」/ 失败原因）、模型建议与隐私说明。「助手结果」面板显示当前助手。
+
+**模型建议（如实）**：助手完全靠函数调用操作会话。DeepSeek-V3（deepseek-chat）、通义千问 qwen-max / qwen-plus、32B 以上的 qwen3、Kimi K2 一般能稳定调用工具；本机 qwen3 8B–14B 勉强可用（会调错工具、漏调用或把调用写成文字）；更小的模型基本不行。系统提示词约 6.6k 字符、函数工具定义约 9.9k 字符（合计约 4k token），每句话都要带上，本机模型第一句（还没有前缀缓存时）会明显慢。
+
+**验证**：Core 单测覆盖请求体与函数工具 Schema、响应解析（多个调用、参数是对象 / 缺 id / 不合法、finish_reason、错误体、模型列表）、工具循环（权限矩阵与 MCP 路径一致、[EVENT] 里的 type_text 不执行、迭代上限、超时、取消、重复回调、结果截断）、历史裁剪 / 结构校验 / 持久化权限、后端选择、沙箱（`..`、绝对路径、符号链接逃逸、同前缀目录、大小上限、二进制、真实 grep 不跟随符号链接、git 参数）。`CCDesk --assistant-api-selftest` 在回环接口上起一个假的 OpenAI 兼容服务（Network.framework），驱动真实的 `APIAssistantBackend` / `APIConsultRun` / 测试连接 / 模型列表：一句话 → list_sessions → 回复、[EVENT] 里 type_text 被拒、参数不合法、HTTP 500、超时后队列继续、Bearer 密钥、历史 0600 与读回 / 重置、顾问读不到项目外的文件、没配置 → 本地规则、日志里没有密钥与消息内容；本机 Ollama 有模型时附带一次真实的工具调用检查（没有就跳过，不会拉模型）。
+
+**限制**：只支持非流式请求；不支持把工具调用写在文字里的模型（部分本机模型 / 服务端模板如此）；`tool_choice: "none"` 有的服务忽略；顾问没有 Claude Code 的 Glob / git show，也不支持 Opus 档位；自定义 http 域名需在局域网 / `.local` 内（ATS 只放开本地网络）；接口后端的上下文按字符估算裁剪，不读服务端的上下文长度。
