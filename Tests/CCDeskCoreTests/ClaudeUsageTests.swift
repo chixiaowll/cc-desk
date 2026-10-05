@@ -135,7 +135,7 @@ final class ClaudeUsageTests: ZhHansTestCase {
         XCTAssertEqual(usage(true, "out_of_credits").extraUsageText, "未开启（out_of_credits）")
     }
 
-    func testFooterPicksSessionAndHighestWeekly() throws {
+    func testFooterPicksSessionAndAllModelsWeekly() throws {
         let usage = try XCTUnwrap(ClaudeUsage.parse(json(withLimits)))
         XCTAssertEqual(usage.footerLimits.map(\.kind), ["session", "weekly_all"])
         func limit(_ kind: String, _ percent: Double, active: Bool = false, scope: String? = nil) -> UsageLimit {
@@ -144,10 +144,13 @@ final class ClaudeUsageTests: ZhHansTestCase {
         }
         let u = ClaudeUsage(planLabel: "", limits: [limit("weekly_all", 50), limit("weekly_scoped", 70, scope: "Opus")],
                             fetchedAt: Date(), extraUsageEnabled: false, extraUsageDisabledReason: nil)
-        XCTAssertEqual(u.footerLimits.map(\.label), ["7 天 · Opus"])
-        let tie = ClaudeUsage(planLabel: "", limits: [limit("weekly_all", 70), limit("weekly_scoped", 70, active: true, scope: "Opus")],
-                              fetchedAt: Date(), extraUsageEnabled: false, extraUsageDisabledReason: nil)
-        XCTAssertEqual(tie.footerLimits.first?.scopeLabel, "Opus")
+        // 有「全部模型」时底部总是显示它，即使某个模型的周额度更高。
+        XCTAssertEqual(u.footerLimits.map(\.label), ["7 天（全部）"])
+        // 只有模型周额度时退回最高的那个。
+        let scopedOnly = ClaudeUsage(planLabel: "", limits: [limit("weekly_scoped", 40, scope: "Fable"),
+                                                             limit("weekly_scoped", 70, scope: "Opus")],
+                                     fetchedAt: Date(), extraUsageEnabled: false, extraUsageDisabledReason: nil)
+        XCTAssertEqual(scopedOnly.footerLimits.first?.scopeLabel, "Opus")
     }
 
     func testLevelUsesSeverityThenPercent() {

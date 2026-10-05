@@ -99,12 +99,15 @@ public struct ClaudeUsage: Equatable {
         return reason.hasPrefix("org_level_disabled") ? L("usage.extra.offByOrg") : L("usage.extra.offReason", reason)
     }
 
-    /// 侧栏底部显示的额度：会话额度 + 百分比最高的周额度（并列时取当前限制的那个）。
+    /// 侧栏底部显示的额度：会话额度 + 「7 天（全部模型）」；没有全部模型那一项时才退回百分比最高的周额度。
+    /// 只限某个模型的周额度（如 Fable）在用量详情里看。
     public var footerLimits: [UsageLimit] {
         var result: [UsageLimit] = []
         if let session = limits.first(where: \.isSession) { result.append(session) }
         let weekly = limits.filter { $0.isWeekly && !$0.isSession }
-        if let top = weekly.max(by: { a, b in
+        if let all = weekly.first(where: { $0.kind == "weekly_all" || ($0.kind.hasPrefix("weekly") && $0.scopeLabel == nil) }) {
+            result.append(all)
+        } else if let top = weekly.max(by: { a, b in
             a.percent != b.percent ? a.percent < b.percent : (!a.isActive && b.isActive)
         }) {
             result.append(top)
