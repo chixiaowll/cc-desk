@@ -2,10 +2,11 @@ import SwiftUI
 import AppKit
 import CCDeskCore
 
-/// 「助手结果」面板（设计 §14）：顾问任务列表——问题、模型、用时、token、状态；运行中可取消，完成的显示结论与完整回答（可选中、可复制）。
-/// 与「集成」面板一样以表单形式出现在主窗口上。
+/// 「助手结果」面板（设计 §14 / §24）：两类结果——顾问任务（问题、模型、用时、token、状态；运行中可取消，完成的显示结论
+/// 与完整回答）和通用助手的问答（CompanionResultsList）。与「集成」面板一样以表单形式出现在主窗口上。
 struct AssistantResultsSheet: View {
     @ObservedObject var work: AssistantWork
+    @ObservedObject var companion: CompanionWork
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var themes = ThemeStore.shared
     @State private var expanded: Set<String> = []
@@ -18,7 +19,13 @@ struct AssistantResultsSheet: View {
                 Spacer()
                 CloseButton { work.showResults = false }
             }
-            Text(L("results.intro"))
+            Picker("", selection: $work.resultsTab) {
+                Text(L("results.tab.consults")).tag(AssistantWork.ResultsTab.consults)
+                Text(L("results.tab.companion")).tag(AssistantWork.ResultsTab.companion)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            Text(work.resultsTab == .consults ? L("results.intro") : L("results.companion.intro"))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -26,7 +33,9 @@ struct AssistantResultsSheet: View {
                 .font(.system(size: 11))
                 .foregroundStyle(theme.fg3)
 
-            if work.consults.jobs.isEmpty {
+            if work.resultsTab == .companion {
+                CompanionResultsList(companion: companion, theme: theme)
+            } else if work.consults.jobs.isEmpty {
                 Text(L("results.empty"))
                     .font(.system(size: 12))
                     .foregroundStyle(theme.fg3)
@@ -45,7 +54,7 @@ struct AssistantResultsSheet: View {
             }
 
             HStack {
-                Text(L("results.quotaNote"))
+                Text(work.resultsTab == .consults ? L("results.quotaNote") : L("results.companion.quotaNote"))
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                 Spacer()
@@ -68,7 +77,7 @@ struct AssistantResultsSheet: View {
     }
 }
 
-private struct ConsultJobRow: View {
+struct ConsultJobRow: View {
     let job: ConsultJob
     let theme: Theme
     @Binding var expanded: Bool
@@ -173,14 +182,16 @@ private struct ConsultJobRow: View {
     }
 }
 
-/// 工具栏按钮：打开「助手结果」；有顾问在运行时高亮。
+/// 工具栏按钮：打开「助手结果」；有顾问在运行 / 通用助手在回答时高亮。
 struct AssistantResultsButton: View {
     @ObservedObject var work: AssistantWork
+    @ObservedObject var companion: CompanionWork
 
     var body: some View {
+        let busy = !work.consults.running.isEmpty || companion.book.hasActive
         Button { work.showResults = true } label: {
             Image(systemName: "sparkles")
-                .foregroundStyle(work.consults.running.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+                .foregroundStyle(busy ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
         }
         .help(L("toolbar.results.help"))
     }
@@ -189,8 +200,9 @@ struct AssistantResultsButton: View {
 /// 在主窗口上挂「助手结果」表单。
 struct AssistantResultsPresenter: ViewModifier {
     @ObservedObject var work: AssistantWork
+    let companion: CompanionWork
 
     func body(content: Content) -> some View {
-        content.sheet(isPresented: $work.showResults) { AssistantResultsSheet(work: work) }
+        content.sheet(isPresented: $work.showResults) { AssistantResultsSheet(work: work, companion: companion) }
     }
 }

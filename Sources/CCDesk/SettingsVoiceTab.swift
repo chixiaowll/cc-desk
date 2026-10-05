@@ -56,6 +56,7 @@ struct SettingsVoiceTab: View {
                 }
             }
             SettingsAssistantSection(conversation: conversation)
+            SettingsCompanionSection(companion: model.companion)
             Section(L("settings.voice.assistant")) {
                 HStack {
                     Button(L("settings.voice.resetAssistant")) { conversation.resetAssistant() }

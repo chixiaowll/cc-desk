@@ -57,7 +57,7 @@ struct SidebarView: View {
                 Button { model.skills.showWindow() } label: { Image(systemName: "books.vertical") }
                     .help(L("toolbar.skills.help"))
             }
-            ToolbarItem { AssistantResultsButton(work: model.work) }
+            ToolbarItem { AssistantResultsButton(work: model.work, companion: model.companion) }
         }
     }
 }

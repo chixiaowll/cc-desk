@@ -22,7 +22,7 @@ struct ContentView: View {
         }
         .overlay { PanePickerSlot(model: model, panes: model.panes) }
         .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
-        .modifier(AssistantResultsPresenter(work: model.work))
+        .modifier(AssistantResultsPresenter(work: model.work, companion: model.companion))
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
         .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(themes.theme(for: scheme).terminal) }
     }
