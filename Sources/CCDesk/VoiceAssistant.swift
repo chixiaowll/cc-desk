@@ -15,8 +15,6 @@ protocol AssistantHost: AnyObject {
     /// 会话标题与状态；不存在时 nil。
     func assistantRow(_ rowID: String) -> (title: String, status: AgentStatus, isEmbedded: Bool)?
     func assistantSwitch(to rowID: String)
-    /// 「切到第 N 个」：按侧栏编号（与 ⌘1–9 一致）切换，返回会话标题；没有这一个时 nil。
-    func assistantSelectNumbered(_ number: Int) -> String?
     /// 关闭内嵌会话（不再弹确认框）。
     func assistantClose(_ rowID: String)
     /// 回应某个会话的等批准：仍是内嵌终端、仍在等批准、等待原因与 expectedReason 相同且仍是同一次等待

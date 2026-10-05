@@ -18,9 +18,12 @@ public struct AssistantSessionInfo: Equatable, Sendable {
     public let delegatedTask: String?
     /// 会话当前使用的模型；还没有模型信息时为 nil。
     public let model: AgentModelInfo?
+    /// 侧栏里从上到下的位置（1 起，与 ⌘1–9 一致）；用来理解「第一个 / 最上面那个 / 1 号」。0 = 未知。
+    public let position: Int
 
     public init(rowID: String, shortID: String = "", title: String, dir: String, agent: AgentKind, status: AgentStatus,
-                isSelected: Bool, isEmbedded: Bool = true, delegatedTask: String? = nil, model: AgentModelInfo? = nil) {
+                isSelected: Bool, isEmbedded: Bool = true, delegatedTask: String? = nil, model: AgentModelInfo? = nil,
+                position: Int = 0) {
         self.rowID = rowID
         self.shortID = shortID
         self.title = title
@@ -31,11 +34,13 @@ public struct AssistantSessionInfo: Equatable, Sendable {
         self.isEmbedded = isEmbedded
         self.delegatedTask = delegatedTask
         self.model = model
+        self.position = position
     }
 
     func with(shortID: String) -> AssistantSessionInfo {
         AssistantSessionInfo(rowID: rowID, shortID: shortID, title: title, dir: dir, agent: agent, status: status,
-                             isSelected: isSelected, isEmbedded: isEmbedded, delegatedTask: delegatedTask, model: model)
+                             isSelected: isSelected, isEmbedded: isEmbedded, delegatedTask: delegatedTask, model: model,
+                             position: position)
     }
 
     /// 给模型看的一项（list_sessions / 上下文共用）。
@@ -44,6 +49,7 @@ public struct AssistantSessionInfo: Equatable, Sendable {
             "id": .string(shortID), "title": .string(AssistantContext.clip(title, AssistantContext.titleLimit)),
             "dir": .string(dir), "agent": .string(agent.rawValue), "status": .string(AssistantContext.statusCode(status)),
         ]
+        if position > 0 { item["position"] = .number(Double(position)) }
         if isSelected { item["selected"] = true }
         if !isEmbedded { item["embedded"] = false }
         if let delegatedTask { item["delegatedTask"] = .string(AssistantContext.clip(delegatedTask, AssistantContext.titleLimit)) }
@@ -157,7 +163,7 @@ public struct AssistantContext: Equatable, Sendable {
 
 public enum AssistantPrompt {
     /// 系统提示词的版本：变了就换新的常驻会话（旧会话按旧提示词说话）。
-    public static let residentVersion = 5
+    public static let residentVersion = 6
 
     /// 常驻助手会话的系统提示词（设计 §13）：用 CC Desk 的工具做事，最后的文字回复会被朗读。
     public static let residentSystem = """
@@ -198,6 +204,9 @@ public enum AssistantPrompt {
     verbatim: fix obvious transcription errors and drop filler words, but never rephrase, expand, translate or \
     answer it yourself. Relayed speech ("问他一下X", "跟它说X", "告诉它X", "让它X") is content X for that session. \
     Use submit=true only when the user also says to send it ("…然后发出去", "直接发").
+    - Ordinal references to sessions ("第一个", "第3个窗口", "最上面那个", "最后一个", "倒数第二个", "1 号", "switch to session 2") \
+    mean the session's `position` in the latest Context (sidebar order, top = 1, the same numbers as ⌘1–9): find it \
+    and call switch_to with that session's id.
     - new_session only when explicitly asked ("新开", "新建", "开一个"; default agent claude). Its prompt is the \
     user's words for the new agent, verbatim like type_text (e.g. "让它看下 README" → prompt "看下 README").
     - "发了吧" / "提交" / "send it" → press_key enter in the session you last typed into (else the selected one). \
@@ -354,36 +363,6 @@ public struct AssistantTurnText: Equatable, Sendable {
 // MARK: - 本地快速回答
 
 public enum AssistantLocal {
-    /// 「切到第一个窗口」「第 3 个会话」「打开第二个」「switch to session 2」：返回侧栏编号 1–9（与 ⌘1–9 一致）。
-    /// 要求带「第」、或切换类动词、或「窗口 / 会话」等字样，避免把单独的「一」当成指令。
-    public static func numberedSwitch(_ utterance: String) -> Int? {
-        let n = ConversationCommands.normalize(utterance)
-        let digits: [Character: Int] = ["1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
-                                         "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9]
-        let verbs = ["切换到", "切到", "跳到", "转到", "回到", "打开", "看看", "看", "去", "switchtosession", "switchtowindow",
-                     "switchto", "goto", "open"]
-        var rest = Substring(n)
-        var hasVerb = false
-        for verb in verbs where rest.hasPrefix(verb) {
-            rest = rest.dropFirst(verb.count)
-            hasVerb = true
-            break
-        }
-        var hasOrdinal = false
-        if rest.hasPrefix("第") { rest = rest.dropFirst(); hasOrdinal = true }
-        guard let first = rest.first, let number = digits[first] else { return nil }
-        rest = rest.dropFirst()
-        if rest.hasPrefix("个") || rest.hasPrefix("号") { rest = rest.dropFirst() }
-        var hasNoun = false
-        for noun in ["窗口", "会话", "终端", "session", "window", "tab"] where rest.hasPrefix(noun) {
-            rest = rest.dropFirst(noun.count)
-            hasNoun = true
-            break
-        }
-        for tail in ["吧", "了", "呢", "啊"] where rest.hasPrefix(tail) { rest = rest.dropFirst(tail.count) }
-        guard rest.isEmpty, hasVerb || hasOrdinal || hasNoun else { return nil }
-        return number
-    }
 
     /// 「哪些在等我」类问题：不调用模型，直接从侧栏状态回答。
     public static func isWaitingQuestion(_ utterance: String) -> Bool {

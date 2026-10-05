@@ -9,12 +9,15 @@ extension AppModel: AssistantHost {
 
     /// 侧栏会话（带稳定短 id），按侧栏顺序。
     func assistantSessions() -> [AssistantSessionInfo] {
-        groups.flatMap { group in
+        var position = 0
+        return groups.flatMap { group in
             group.rows.map { row in
-                AssistantSessionInfo(rowID: row.id, shortID: toolbox.shortID(forRow: row.id), title: row.displayName,
+                position += 1
+                return AssistantSessionInfo(rowID: row.id, shortID: toolbox.shortID(forRow: row.id), title: row.displayName,
                                      dir: group.title, agent: row.session.kind, status: row.session.status,
                                      isSelected: row.id == selectedID, isEmbedded: row.session.host.isEmbedded,
-                                     delegatedTask: work.delegatedTask(rowID: row.id), model: row.model)
+                                     delegatedTask: work.delegatedTask(rowID: row.id), model: row.model,
+                                     position: position)
             }
         }
     }
@@ -34,14 +37,6 @@ extension AppModel: AssistantHost {
 
     func assistantRow(_ rowID: String) -> (title: String, status: AgentStatus, isEmbedded: Bool)? {
         sidebarRow(rowID).map { ($0.displayName, $0.session.status, $0.session.host.isEmbedded) }
-    }
-
-    func assistantSelectNumbered(_ number: Int) -> String? {
-        let rows = numberedRows
-        guard rows.indices.contains(number - 1) else { return nil }
-        let title = rows[number - 1].displayName
-        selectNumbered(index: number - 1)
-        return title
     }
 
     func assistantSwitch(to rowID: String) {

@@ -562,5 +562,3 @@
 "settings.assistant.recommend" = "The assistant works through function (tool) calling, so the model must call tools reliably. Usually fine: DeepSeek-V3 (deepseek-chat), Qwen qwen-max / qwen-plus or qwen3 32B and up, Kimi K2. Local qwen3 8B–14B is borderline and often calls the wrong tool or none; smaller models mostly do not work. Try Test connection first.";
 "settings.assistant.privacy" = "With an API, what you say, the sidebar session list and the screens / transcript excerpts the assistant reads are sent to that service; the advisor also sends the project files it reads. Ollama and LM Studio run on this Mac and keep everything local.";
 "results.backend" = "Assistant: %@";
-"assistant.switch.numbered" = "Switched to #%1$d: %2$@";
-"assistant.switch.numberedNone" = "There is no session #%d";
