@@ -562,3 +562,5 @@
 "settings.assistant.recommend" = "助手靠函数调用（tool calling）操作会话，模型要能稳定地按要求调用工具。一般够用：DeepSeek-V3（deepseek-chat）、通义千问 qwen-max / qwen-plus 或 32B 以上的 qwen3、Kimi K2。本机 qwen3 8B–14B 勉强可用，常会调错工具或不调用；更小的模型基本不行。先点「测试连接」看看。";
 "settings.assistant.privacy" = "用接口时，你说的话、侧栏会话列表、助手读到的屏幕与会话记录摘录会发给这个服务；顾问还会发送它读到的项目文件内容。Ollama / LM Studio 在本机运行，不出本机。";
 "results.backend" = "当前助手：%@";
+"assistant.switch.numbered" = "切到第 %1$d 个：%2$@";
+"assistant.switch.numberedNone" = "没有第 %d 个会话";

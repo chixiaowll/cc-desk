@@ -36,6 +36,14 @@ extension AppModel: AssistantHost {
         sidebarRow(rowID).map { ($0.displayName, $0.session.status, $0.session.host.isEmbedded) }
     }
 
+    func assistantSelectNumbered(_ number: Int) -> String? {
+        let rows = numberedRows
+        guard rows.indices.contains(number - 1) else { return nil }
+        let title = rows[number - 1].displayName
+        selectNumbered(index: number - 1)
+        return title
+    }
+
     func assistantSwitch(to rowID: String) {
         if let row = sidebarRow(rowID) { activate(row) }
     }

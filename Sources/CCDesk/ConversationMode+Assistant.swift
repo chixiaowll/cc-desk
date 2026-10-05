@@ -12,6 +12,16 @@ extension ConversationMode {
         if AssistantLocal.isWaitingQuestion(text) {
             return speak(AssistantLocal.waitingAnswer(sessions: context.sessions))
         }
+        if let number = AssistantLocal.numberedSwitch(text) {
+            // 「切到第 N 个」：本地直接按侧栏编号切换（与 ⌘N 一致），不经过模型。
+            if let title = host.assistantSelectNumbered(number) {
+                showToast(L("assistant.switch.numbered", number, title))
+                assistant.note("user said \"\(text)\"; CC Desk switched to sidebar session #\(number) \(title)")
+            } else {
+                speak(L("assistant.switch.numberedNone", number))
+            }
+            return
+        }
         if let content = AssistantLocal.relayContent(text) {
             AssistantDiag.log("relay -> insert \"\(content)\"")
             // 「让它继续」：正在等批准时就是批准。

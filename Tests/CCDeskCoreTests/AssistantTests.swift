@@ -182,4 +182,17 @@ final class AssistantTests: ZhHansTestCase {
         XCTAssertNil(AssistantLocal.relayContent("它刚才改了哪些文件"))
         XCTAssertNil(AssistantLocal.relayContent("问他"))
     }
+
+    func testNumberedSwitch() {
+        XCTAssertEqual(AssistantLocal.numberedSwitch("切到第一个窗口"), 1)
+        XCTAssertEqual(AssistantLocal.numberedSwitch("切换到第3个会话吧"), 3)
+        XCTAssertEqual(AssistantLocal.numberedSwitch("打开第二个"), 2)
+        XCTAssertEqual(AssistantLocal.numberedSwitch("第五个"), 5)
+        XCTAssertEqual(AssistantLocal.numberedSwitch("去 2 号会话"), 2)
+        XCTAssertEqual(AssistantLocal.numberedSwitch("switch to session 4"), 4)
+        XCTAssertNil(AssistantLocal.numberedSwitch("一"))
+        XCTAssertNil(AssistantLocal.numberedSwitch("切到 poems 那个"))
+        XCTAssertNil(AssistantLocal.numberedSwitch("第一个问题是什么"))
+        XCTAssertNil(AssistantLocal.numberedSwitch("切到第十个"))
+    }
 }

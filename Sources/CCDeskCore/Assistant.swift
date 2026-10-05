@@ -354,6 +354,37 @@ public struct AssistantTurnText: Equatable, Sendable {
 // MARK: - 本地快速回答
 
 public enum AssistantLocal {
+    /// 「切到第一个窗口」「第 3 个会话」「打开第二个」「switch to session 2」：返回侧栏编号 1–9（与 ⌘1–9 一致）。
+    /// 要求带「第」、或切换类动词、或「窗口 / 会话」等字样，避免把单独的「一」当成指令。
+    public static func numberedSwitch(_ utterance: String) -> Int? {
+        let n = ConversationCommands.normalize(utterance)
+        let digits: [Character: Int] = ["1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
+                                         "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9]
+        let verbs = ["切换到", "切到", "跳到", "转到", "回到", "打开", "看看", "看", "去", "switchtosession", "switchtowindow",
+                     "switchto", "goto", "open"]
+        var rest = Substring(n)
+        var hasVerb = false
+        for verb in verbs where rest.hasPrefix(verb) {
+            rest = rest.dropFirst(verb.count)
+            hasVerb = true
+            break
+        }
+        var hasOrdinal = false
+        if rest.hasPrefix("第") { rest = rest.dropFirst(); hasOrdinal = true }
+        guard let first = rest.first, let number = digits[first] else { return nil }
+        rest = rest.dropFirst()
+        if rest.hasPrefix("个") || rest.hasPrefix("号") { rest = rest.dropFirst() }
+        var hasNoun = false
+        for noun in ["窗口", "会话", "终端", "session", "window", "tab"] where rest.hasPrefix(noun) {
+            rest = rest.dropFirst(noun.count)
+            hasNoun = true
+            break
+        }
+        for tail in ["吧", "了", "呢", "啊"] where rest.hasPrefix(tail) { rest = rest.dropFirst(tail.count) }
+        guard rest.isEmpty, hasVerb || hasOrdinal || hasNoun else { return nil }
+        return number
+    }
+
     /// 「哪些在等我」类问题：不调用模型，直接从侧栏状态回答。
     public static func isWaitingQuestion(_ utterance: String) -> Bool {
         let n = ConversationCommands.normalize(utterance)
