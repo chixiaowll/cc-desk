@@ -48,29 +48,45 @@ public enum AgentTranscriptReader {
         return nil
     }
 
-    /// firstPrompt 取自头部，lastPrompt / 会话名取自尾部（尾部首行可能残缺，解析失败的行会被跳过）。
+    /// firstPrompt 取自头部，lastPrompt / 会话名 / 模型取自尾部（尾部首行可能残缺，解析失败的行会被跳过）。
+    /// 模型字段尾部缺的（pi 的 thinkingLevel、Codex 的 model_provider 常只在开头）再从头部补齐。
     public static func meta(kind: AgentKind, head: Data, tail: Data) -> TranscriptMeta {
-        let first = TranscriptReader.lines(in: head).lazy.compactMap { userPrompt(kind: kind, line: $0) }.first
+        let headLines = TranscriptReader.lines(in: head)
+        let first = headLines.lazy.compactMap { userPrompt(kind: kind, line: $0) }.first
         var last: String?
         var name: String?
+        var models = AgentModelScanner(kind: kind)
         for line in TranscriptReader.lines(in: tail) {
-            if let prompt = userPrompt(kind: kind, line: line) { last = prompt }
-            if kind == .pi, let obj = TranscriptReader.jsonObject(line), obj["type"] as? String == "session_info" {
+            guard let obj = TranscriptReader.jsonObject(line) else { continue }
+            if let prompt = userPrompt(kind: kind, obj: obj) { last = prompt }
+            if kind == .pi, obj["type"] as? String == "session_info" {
                 name = (obj["name"] as? String).flatMap(trimmedNonEmpty)
             }
+            models.consume(obj)
         }
         if kind == .pi, name == nil {
-            for line in TranscriptReader.lines(in: head) {
+            for line in headLines {
                 guard let obj = TranscriptReader.jsonObject(line), obj["type"] as? String == "session_info" else { continue }
                 name = (obj["name"] as? String).flatMap(trimmedNonEmpty)
             }
         }
-        return TranscriptMeta(customTitle: name, aiTitle: nil, lastPrompt: last, firstPrompt: first)
+        var model = models.info
+        if models.id == nil || models.effort == nil || models.provider == nil {
+            var base = AgentModelScanner(kind: kind)
+            for line in headLines where line.contains("model") || line.contains("thinkingLevel") {
+                if let obj = TranscriptReader.jsonObject(line) { base.consume(obj) }
+            }
+            model = models.merged(over: base)
+        }
+        return TranscriptMeta(customTitle: name, aiTitle: nil, lastPrompt: last, firstPrompt: first, model: model)
     }
 
     /// 一行记录若是用户真正输入的消息，返回其文本。
     static func userPrompt(kind: AgentKind, line: String) -> String? {
-        guard let obj = TranscriptReader.jsonObject(line) else { return nil }
+        TranscriptReader.jsonObject(line).flatMap { userPrompt(kind: kind, obj: $0) }
+    }
+
+    static func userPrompt(kind: AgentKind, obj: [String: Any]) -> String? {
         switch kind {
         case .codex:
             guard let p = obj["payload"] as? [String: Any] else { return nil }

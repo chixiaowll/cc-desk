@@ -124,8 +124,9 @@ public final class TranscriptIndex {
             return cached
         }
 
-        let meta = TranscriptReader.meta(fromTail: TranscriptReader.readTail(url))
-        let cwd = TranscriptReader.cwd(fromHead: TranscriptReader.readHead(url))
+        let head = TranscriptReader.readHead(url)
+        let meta = TranscriptReader.meta(fromTail: TranscriptReader.readTail(url), head: head)
+        let cwd = TranscriptReader.cwd(fromHead: head)
         let fresh = CacheEntry(mtime: mtime, size: size, cwd: cwd, meta: meta)
         cache[path] = fresh
         return fresh

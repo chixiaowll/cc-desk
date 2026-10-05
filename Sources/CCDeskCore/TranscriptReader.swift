@@ -7,12 +7,16 @@ public struct TranscriptMeta: Equatable, Sendable {
     public let lastPrompt: String?
     /// 第一条用户消息（Codex / pi 没有 AI 标题，用它作稳定标题；Claude 不填）。
     public let firstPrompt: String?
+    /// 最近一次使用的模型（还没有 assistant 回复 / 模型记录时为 nil）。
+    public let model: AgentModelInfo?
 
-    public init(customTitle: String? = nil, aiTitle: String? = nil, lastPrompt: String? = nil, firstPrompt: String? = nil) {
+    public init(customTitle: String? = nil, aiTitle: String? = nil, lastPrompt: String? = nil, firstPrompt: String? = nil,
+                model: AgentModelInfo? = nil) {
         self.customTitle = customTitle
         self.aiTitle = aiTitle
         self.lastPrompt = lastPrompt
         self.firstPrompt = firstPrompt
+        self.model = model
     }
 
     /// 标题规则：customTitle → aiTitle → firstPrompt / lastPrompt 前 20 个字符（单行化）→ 非派生的 fallbackName → "新会话"。
@@ -64,19 +68,27 @@ public enum TranscriptReader {
         return (try? handle.read(upToCount: max(0, bytes))) ?? Data()
     }
 
-    /// 逐行解析，取最后出现的 customTitle / aiTitle / 带文本的 lastPrompt。
+    /// 逐行解析，取最后出现的 customTitle / aiTitle / 带文本的 lastPrompt 与模型（见 AgentModelScanner）。
     /// 容忍首行残缺（tail 截断导致）：残缺行无法解析为 JSON，直接跳过。
-    public static func meta(fromTail data: Data) -> TranscriptMeta {
+    /// 尾部没有模型记录时（如尾部全是很长的工具输出）再扫一遍调用方已读好的头部。
+    public static func meta(fromTail data: Data, head: Data = Data()) -> TranscriptMeta {
         var customTitle: String?
         var aiTitle: String?
         var lastPrompt: String?
+        var models = AgentModelScanner(kind: .claude)
         for line in lines(in: data) {
             guard let obj = jsonObject(line) else { continue }
             if let v = obj["customTitle"] as? String { customTitle = v }
             if let v = obj["aiTitle"] as? String { aiTitle = v }
             if let v = obj["lastPrompt"] as? String, !v.isEmpty { lastPrompt = v }
+            models.consume(obj)
         }
-        return TranscriptMeta(customTitle: customTitle, aiTitle: aiTitle, lastPrompt: lastPrompt)
+        if models.id == nil {
+            for line in lines(in: head) where line.contains("\"model\"") {
+                if let obj = jsonObject(line) { models.consume(obj) }
+            }
+        }
+        return TranscriptMeta(customTitle: customTitle, aiTitle: aiTitle, lastPrompt: lastPrompt, model: models.info)
     }
 
     /// 第一个含非空 cwd 字段的记录。

@@ -80,3 +80,36 @@ final class LivePipelineTests: XCTestCase {
         for item in history.prefix(4) { print("LIVE-PIPELINE history \(item.kind.rawValue) \(item.sessionID.prefix(13)) \(item.title)") }
     }
 }
+
+/// 实测辅助：CCDESK_LIVE_MODELS=1 时只读地取本机最近的 Claude / Codex / pi 会话记录，
+/// 打印每个会话的 agent 与提取到的模型（不打印消息内容）；未设置时跳过。
+final class LiveModelProbeTests: XCTestCase {
+    func testProbeModelsFromRealTranscripts() throws {
+        guard ProcessInfo.processInfo.environment["CCDESK_LIVE_MODELS"] != nil else {
+            throw XCTSkip("CCDESK_LIVE_MODELS 未设置")
+        }
+        let fm = FileManager.default
+        func recent(_ root: URL, depth: Int, limit: Int = 8) -> [URL] {
+            var dirs = [root]
+            for _ in 0..<depth {
+                dirs = dirs.flatMap { (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil)) ?? [] }
+            }
+            let files = dirs.flatMap { (try? fm.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil)) ?? [] }
+                .filter { $0.pathExtension == "jsonl" }
+            let mtime = { (u: URL) in (try? fm.attributesOfItem(atPath: u.path)[.modificationDate] as? Date) ?? .distantPast }
+            return Array(files.sorted { mtime($0) > mtime($1) }.prefix(limit))
+        }
+        func report(_ kind: AgentKind, _ url: URL, _ model: AgentModelInfo?) {
+            let id = String(url.deletingPathExtension().lastPathComponent.suffix(12))
+            print("LIVE-MODEL agent=\(kind.rawValue) session=…\(id) model=\(model?.detail ?? "-") short=\(model?.shortName ?? "-")")
+        }
+        for url in recent(TranscriptIndex.defaultRoot, depth: 1) {
+            let meta = TranscriptReader.meta(fromTail: TranscriptReader.readTail(url), head: TranscriptReader.readHead(url))
+            report(.claude, url, meta.model)
+        }
+        let index = AgentSessionIndex()
+        for (kind, root, depth) in [(AgentKind.codex, AgentSessionIndex.defaultCodexRoot, 3), (.pi, AgentSessionIndex.defaultPiRoot, 1)] {
+            for url in recent(root, depth: depth, limit: 5) { report(kind, url, index.meta(path: url.path, kind: kind)?.model) }
+        }
+    }
+}
