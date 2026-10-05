@@ -382,10 +382,13 @@ final class TerminalPool {
         for terminal in terminals { terminal.apply(theme) }
     }
 
-    /// 终端字体设置变化时调用，所有终端立即换字体。
+    /// 终端字体设置变化时调用，所有终端（主窗口窗格与独立窗口）在同一个事务里换字体，每个终端只重排一次。
     func applyFont() {
         let font = TerminalFont.current()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         for terminal in terminals { terminal.apply(font: font) }
+        CATransaction.commit()
     }
 
     /// tmux 托管层；nil 时所有终端直连 PTY。

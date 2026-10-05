@@ -79,8 +79,36 @@ final class TerminalAppearanceTests: XCTestCase {
     func testFontSizeIsClampedAndRounded() {
         XCTAssertEqual(TerminalFontChoice.clampedSize(0), 13)
         XCTAssertEqual(TerminalFontChoice.clampedSize(.nan), 13)
-        XCTAssertEqual(TerminalFontChoice.clampedSize(9), 11)
-        XCTAssertEqual(TerminalFontChoice.clampedSize(30), 18)
+        XCTAssertEqual(TerminalFontChoice.clampedSize(9), 9)
+        XCTAssertEqual(TerminalFontChoice.clampedSize(8), 9)
+        XCTAssertEqual(TerminalFontChoice.clampedSize(-3), 13)
+        XCTAssertEqual(TerminalFontChoice.clampedSize(24), 24)
+        XCTAssertEqual(TerminalFontChoice.clampedSize(30), 24)
+        XCTAssertEqual(TerminalFontChoice.clampedSize(.infinity), 13)
         XCTAssertEqual(TerminalFontChoice.clampedSize(14.4), 14)
+    }
+
+    func testFontSizeStepsByOnePointWithinRange() {
+        XCTAssertEqual(TerminalFontChoice.steppedSize(13, by: 1), 14)
+        XCTAssertEqual(TerminalFontChoice.steppedSize(13, by: -1), 12)
+        XCTAssertEqual(TerminalFontChoice.steppedSize(13, by: 3), 16)
+        // 未设置（0）从默认 13 起步；非整数先取整。
+        XCTAssertEqual(TerminalFontChoice.steppedSize(0, by: 1), 14)
+        XCTAssertEqual(TerminalFontChoice.steppedSize(12.6, by: -1), 12)
+        // 到边界后停住。
+        XCTAssertEqual(TerminalFontChoice.steppedSize(24, by: 1), 24)
+        XCTAssertEqual(TerminalFontChoice.steppedSize(9, by: -1), 9)
+        XCTAssertEqual(TerminalFontChoice.steppedSize(23, by: 5), 24)
+        XCTAssertEqual(TerminalFontChoice.steppedSize(40, by: -1), 23)
+    }
+
+    func testFontSizeCanStepOnlyInsideRange() {
+        XCTAssertTrue(TerminalFontChoice.canStep(13, by: 1))
+        XCTAssertTrue(TerminalFontChoice.canStep(13, by: -1))
+        XCTAssertFalse(TerminalFontChoice.canStep(24, by: 1))
+        XCTAssertFalse(TerminalFontChoice.canStep(9, by: -1))
+        XCTAssertTrue(TerminalFontChoice.canStep(24, by: -1))
+        XCTAssertEqual(TerminalFontChoice.sizeRange, 9...24)
+        XCTAssertTrue(TerminalFontChoice.sizeRange.contains(TerminalFontChoice.defaultSize))
     }
 }

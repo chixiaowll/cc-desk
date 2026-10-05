@@ -33,7 +33,9 @@ enum TerminalFont {
     }
 }
 
-/// 设置 › 通用 › 终端字体绑定的偏好（设置页在改动后让终端池立即换字体）。只在主线程使用。
+/// 设置 › 通用 › 终端字体绑定的偏好；菜单「显示 › 放大 / 缩小终端文字」也改这里的字号，设置页随之显示新值。
+/// 改动后合并到下一轮主循环再通知一次 `onFontChange`（终端池换字体）：连按快捷键、或设置页与菜单同时改，
+/// 每个终端也只重排一次。只在主线程使用。
 final class TerminalFontPreferences: ObservableObject {
     static let shared = TerminalFontPreferences()
 
@@ -42,19 +44,46 @@ final class TerminalFontPreferences: ObservableObject {
         didSet {
             guard family != oldValue else { return }
             defaults.set(family, forKey: TerminalFontChoice.familyKey)
+            scheduleFontChange()
         }
     }
     @Published var size: Double {
         didSet {
             guard size != oldValue else { return }
             defaults.set(size, forKey: TerminalFontChoice.sizeKey)
+            scheduleFontChange()
         }
     }
+    /// 字体或字号变化后调用（App 启动时接到终端池的 `applyFont`）。
+    var onFontChange: (() -> Void)?
     private let defaults: UserDefaults
+    private var changeScheduled = false
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         family = defaults.string(forKey: TerminalFontChoice.familyKey) ?? ""
         size = TerminalFontChoice.clampedSize(defaults.double(forKey: TerminalFontChoice.sizeKey))
+    }
+
+    /// 放大 / 缩小一步（到边界时不变），返回新字号。
+    @discardableResult
+    func step(by steps: Int) -> Double {
+        size = TerminalFontChoice.steppedSize(size, by: steps)
+        return size
+    }
+
+    /// 恢复默认字号（13 pt）。
+    func resetSize() {
+        size = TerminalFontChoice.defaultSize
+    }
+
+    private func scheduleFontChange() {
+        guard !changeScheduled else { return }
+        changeScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.changeScheduled = false
+            self.onFontChange?()
+        }
     }
 }

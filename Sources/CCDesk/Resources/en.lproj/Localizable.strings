@@ -449,6 +449,12 @@
 "settings.general.lightTheme" = "Light Theme";
 "settings.general.darkTheme" = "Dark Theme";
 "settings.general.showModelInSidebar" = "Show model in sidebar";
+"menu.terminalFont.bigger" = "Bigger Terminal Text";
+"menu.terminalFont.smaller" = "Smaller Terminal Text";
+"menu.terminalFont.reset" = "Default Terminal Text Size";
+"hud.terminalFont.size" = "Terminal text %d pt";
+"hud.terminalFont.max" = "Terminal text is at its largest (%d pt)";
+"hud.terminalFont.min" = "Terminal text is at its smallest (%d pt)";
 "menu.theme" = "Theme";
 "files.collapse.help" = "Hide panel (⇧⌘F)";
 "action.close" = "Close";

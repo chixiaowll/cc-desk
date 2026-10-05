@@ -86,7 +86,9 @@ public enum TerminalFontChoice {
     public static let familyKey = "terminalFontFamily"
     public static let sizeKey = "terminalFontSize"
     public static let defaultSize: Double = 13
-    public static let sizeRange: ClosedRange<Double> = 11...18
+    public static let sizeRange: ClosedRange<Double> = 9...24
+    /// 快捷键放大 / 缩小一次的步长（pt）。
+    public static let sizeStep: Double = 1
 
     /// 「自动」时按顺序找的中文等宽字体族。
     public static let preferredCJKFamilies = [
@@ -109,9 +111,19 @@ public enum TerminalFontChoice {
         preferredCJKFamilies.first { installed.contains($0) }
     }
 
-    /// 字号取整并限制在 11–18 之间；没有设置（0 / 非数）时用默认 13。
+    /// 字号取整并限制在 9–24 之间；没有设置（0 / 非数）时用默认 13。
     public static func clampedSize(_ size: Double) -> Double {
         guard size.isFinite, size > 0 else { return defaultSize }
         return min(max(size.rounded(), sizeRange.lowerBound), sizeRange.upperBound)
+    }
+
+    /// 放大（steps > 0）/ 缩小（steps < 0）若干步后的字号，先按 `clampedSize` 规整再限制在范围内。
+    public static func steppedSize(_ size: Double, by steps: Int) -> Double {
+        clampedSize(clampedSize(size) + Double(steps) * sizeStep)
+    }
+
+    /// 还能再放大 / 缩小（菜单项据此禁用）。
+    public static func canStep(_ size: Double, by steps: Int) -> Bool {
+        steppedSize(size, by: steps) != clampedSize(size)
     }
 }

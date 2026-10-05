@@ -64,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 点通知等用户主动打开主窗口的路径都走 showMainWindow（会结束登录启动时的收起）。
         model.revealMainWindow = { [weak self] in self?.showMainWindow() }
         ThemeStore.shared.pool = model.pool
+        TerminalFontPreferences.shared.onFontChange = { [weak pool = model.pool] in pool?.applyFont() }
+        TerminalFontShortcuts.install()
         AppearancePreference.stored.apply(pool: model.pool)
         model.start()
         // 上次分离的独立窗口：登录启动时等用户打开主窗口再显示（showMainWindow）。
@@ -234,6 +236,8 @@ struct CCDeskApp: App {
                 Button(L("menu.skills")) { delegate.model.skills.showWindow() }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
                 ThemeMenu()
+                Divider()
+                TerminalFontMenuItems()
             }
             // 偏好开关都在设置窗口（⌘,）里；这里只留常用动作。
             CommandMenu(L("menu.session")) {

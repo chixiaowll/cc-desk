@@ -449,6 +449,12 @@
 "settings.general.lightTheme" = "浅色主题";
 "settings.general.darkTheme" = "深色主题";
 "settings.general.showModelInSidebar" = "在侧栏显示模型";
+"menu.terminalFont.bigger" = "放大终端文字";
+"menu.terminalFont.smaller" = "缩小终端文字";
+"menu.terminalFont.reset" = "恢复默认字号";
+"hud.terminalFont.size" = "终端字号 %d pt";
+"hud.terminalFont.max" = "终端字号已是最大（%d pt）";
+"hud.terminalFont.min" = "终端字号已是最小（%d pt）";
 "menu.theme" = "主题";
 "files.collapse.help" = "收起面板（⇧⌘F）";
 "action.close" = "关闭";

@@ -83,8 +83,6 @@ struct SettingsGeneralTab: View {
             fontFamilies = TerminalFont.pickableFamilies()
             autoFamily = TerminalFontChoice.autoFamily(installed: TerminalFont.installedFamilies())
         }
-        .onChange(of: terminalFont.family) { _, _ in model.pool.applyFont() }
-        .onChange(of: terminalFont.size) { _, _ in model.pool.applyFont() }
     }
 
     private func hotkeyRow(_ action: GlobalHotkey.Action, _ title: String) -> some View {
