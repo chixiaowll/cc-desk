@@ -92,6 +92,8 @@ enum CompanionTest {
             check(name.text.contains("老板") || name.text.contains("批评"), "memory survives the restart (resumed session)")
         }
         session.shutdown()
+        // claude 收到 SIGTERM 后还会写几行记录：等它退出再删目录。
+        RunLoop.main.run(until: Date().addingTimeInterval(3))
     }
 
     /// 单独起一次 claude（stdin 传问题）只为看 init 事件里的工具列表。
@@ -126,7 +128,7 @@ enum CompanionTest {
 
     private static func finish(root: URL, directory: URL) {
         let projects = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude/projects")
-            .appendingPathComponent(ClaudeProjectDirectory.name(for: directory.path))
+            .appendingPathComponent(ClaudeProjectDirectory.name(for: CompanionWork.realPath(directory.path)))
         if FileManager.default.fileExists(atPath: projects.path) {
             try? FileManager.default.removeItem(at: projects)
             say("removed \(projects.path)")

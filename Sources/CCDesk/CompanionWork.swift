@@ -272,7 +272,7 @@ final class CompanionWork: ObservableObject {
         book.clear()
         save()
         let projects = URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".claude/projects", isDirectory: true)
-            .appendingPathComponent(ClaudeProjectDirectory.name(for: directory.path), isDirectory: true)
+            .appendingPathComponent(ClaudeProjectDirectory.name(for: Self.realPath(directory.path)), isDirectory: true)
         // 稍等：被停掉的进程可能还在写最后几行。
         Self.ioQueue.asyncAfter(deadline: .now() + 1) {
             let files = (try? FileManager.default.contentsOfDirectory(at: projects, includingPropertiesForKeys: nil)) ?? []
@@ -283,6 +283,13 @@ final class CompanionWork: ObservableObject {
 
     func shutdown() {
         claude.shutdown()
+    }
+
+    /// claude 用工作目录的真实路径（/var → /private/var）编码记录目录；`resolvingSymlinksInPath` 会去掉 /private，不能用。
+    static func realPath(_ path: String) -> String {
+        guard let resolved = realpath(path, nil) else { return path }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
 
     // MARK: 持久化
