@@ -17,6 +17,7 @@
 
 /* Sidebar tooltip & source */
 "tooltip.agent" = "Agent: %@";
+"tooltip.model" = "Model: %@";
 "tooltip.recent" = "Recent: %@";
 "where.embedded" = "Running in CC Desk";
 "where.terminalApp" = "Running in Terminal — click to jump";

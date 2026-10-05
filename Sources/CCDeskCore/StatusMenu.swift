@@ -12,7 +12,7 @@ public enum StatusMenu {
         public let row: SidebarRow
         /// 显示名（单行化并截断）。
         public let title: String
-        /// 「等批准 · Claude」：状态文字 + agent 名（普通 shell 没有 agent 名）。
+        /// 「等批准 · Claude · Fable 5.1」：状态文字 + agent 名 + 模型短名（普通 shell 没有 agent 名，没有模型信息时不带模型）。
         public let detail: String
         public let tone: Tone
         public var id: String { row.id }
@@ -44,7 +44,7 @@ public enum StatusMenu {
     static func entry(for row: SidebarRow) -> Entry {
         let title = SidebarBuilder.singleLine(row.displayName, maxLength: maxTitleLength)
         var detail = row.statusLabel
-        if let agent = row.agentLabel { detail += " · " + agent }
+        if let agent = row.agentModelLabel { detail += " · " + agent }
         return Entry(row: row, title: title.isEmpty ? row.displayName : title, detail: detail, tone: tone(of: row))
     }
 

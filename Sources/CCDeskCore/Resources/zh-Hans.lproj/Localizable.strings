@@ -17,6 +17,7 @@
 
 /* Sidebar tooltip & source */
 "tooltip.agent" = "Agent：%@";
+"tooltip.model" = "模型：%@";
 "tooltip.recent" = "最近：%@";
 "where.embedded" = "在 CC Desk 内运行";
 "where.terminalApp" = "在 Terminal 中运行，点击跳转";

@@ -65,7 +65,8 @@ public enum AssistantTools {
         AssistantToolSpec(
             name: "list_sessions",
             description: "List the sidebar sessions: id, title, dir, agent, status (waiting_for_approval includes " +
-                "what it wants), selected, embedded (false = runs in an external terminal: read-only, can be taken over).",
+                "what it wants), selected, embedded (false = runs in an external terminal: read-only, can be taken over), " +
+                "model (name + full id of the model it currently uses, when known).",
             readOnly: true),
         AssistantToolSpec(
             name: "read_screen",

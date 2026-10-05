@@ -9,20 +9,24 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
     public let sourceLabel: String?
     /// agent 名（如 "Claude"）；普通 shell 为 nil。
     public let agentLabel: String?
-    /// 悬停提示：完整标题 + 运行位置 + （若有）最近一条 prompt。
+    /// 会话当前使用的模型（取自会话记录；还没有回复时为 nil）。
+    public let model: AgentModelInfo?
+    /// 悬停提示：完整标题 + agent + （若有）模型 + 运行位置 + （若有）最近一条 prompt。
     public let tooltip: String
     /// Claude 完成一轮（working → idle）时用户没在看它：「已完成·未读」。仅内存中保存，由 App 层维护。
     public var unread: Bool
     public var id: String { session.id }
 
     public init(session: AgentSession, displayName: String, groupTitle: String, subtitle: String?,
-                sourceLabel: String?, agentLabel: String? = nil, tooltip: String = "", unread: Bool = false) {
+                sourceLabel: String?, agentLabel: String? = nil, model: AgentModelInfo? = nil, tooltip: String = "",
+                unread: Bool = false) {
         self.session = session
         self.displayName = displayName
         self.groupTitle = groupTitle
         self.subtitle = subtitle
         self.sourceLabel = sourceLabel
         self.agentLabel = agentLabel
+        self.model = model
         self.tooltip = tooltip
         self.unread = unread
     }
@@ -48,6 +52,18 @@ public struct SidebarRow: Identifiable, Equatable, Sendable {
         if session.status == .unknown, session.host.isEmbedded, !session.kind.isAgent { return L("status.terminal") }
         if session.showsBackgroundWork { return L("status.idleBackground") }
         return session.status.label
+    }
+
+    /// 模型短名（如 "Fable 5.1"）；普通 shell 或还没有模型信息时为 nil。
+    public var modelName: String? {
+        guard agentLabel != nil else { return nil }
+        return model?.shortName
+    }
+
+    /// 「Claude · Fable 5.1」：agent 名 + 模型短名（没有模型时只有 agent 名）；普通 shell 为 nil。
+    public var agentModelLabel: String? {
+        guard let agent = agentLabel else { return nil }
+        return modelName.map { "\(agent) · \($0)" } ?? agent
     }
 
     /// 通知标题用的名字。标题已取自 transcript（不再有 "#xx" 缩写），直接使用 displayName。
@@ -156,6 +172,7 @@ public enum SidebarBuilder {
                           subtitle: subtitle(s, ref: ref),
                           sourceLabel: sourceLabel(s.host),
                           agentLabel: agentLabel(s),
+                          model: s.kind.isAgent ? meta?.model : nil,
                           tooltip: tooltip(s, displayName: name, meta: meta),
                           unread: unread)
     }
@@ -171,10 +188,14 @@ public enum SidebarBuilder {
         return s.kind.isAgent ? s.kind.displayName : nil
     }
 
-    /// "<完整标题>\n[Agent：<名>\n]<运行位置>"，若有 lastPrompt 再加一行 "最近：…"（单行化，最长 80 字）。
+    /// "<完整标题>\n[Agent：<名>\n][模型：<完整 id · effort · provider>\n]<运行位置>"，
+    /// 若有 lastPrompt 再加一行 "最近：…"（单行化，最长 80 字）。
     static func tooltip(_ s: AgentSession, displayName: String, meta: TranscriptMeta?) -> String {
         var text = displayName
-        if let agent = agentLabel(s) { text += "\n" + L("tooltip.agent", agent) }
+        if let agent = agentLabel(s) {
+            text += "\n" + L("tooltip.agent", agent)
+            if let model = meta?.model { text += "\n" + L("tooltip.model", model.detail) }
+        }
         text += "\n\(whereText(s))"
         if let prompt = meta?.lastPrompt {
             let collapsed = singleLine(prompt, maxLength: 80)

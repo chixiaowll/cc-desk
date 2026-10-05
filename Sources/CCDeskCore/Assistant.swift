@@ -16,9 +16,11 @@ public struct AssistantSessionInfo: Equatable, Sendable {
     public let isEmbedded: Bool
     /// 助手派出的任务（设计 §14 delegate）；nil = 不是派出的。
     public let delegatedTask: String?
+    /// 会话当前使用的模型；还没有模型信息时为 nil。
+    public let model: AgentModelInfo?
 
     public init(rowID: String, shortID: String = "", title: String, dir: String, agent: AgentKind, status: AgentStatus,
-                isSelected: Bool, isEmbedded: Bool = true, delegatedTask: String? = nil) {
+                isSelected: Bool, isEmbedded: Bool = true, delegatedTask: String? = nil, model: AgentModelInfo? = nil) {
         self.rowID = rowID
         self.shortID = shortID
         self.title = title
@@ -28,11 +30,12 @@ public struct AssistantSessionInfo: Equatable, Sendable {
         self.isSelected = isSelected
         self.isEmbedded = isEmbedded
         self.delegatedTask = delegatedTask
+        self.model = model
     }
 
     func with(shortID: String) -> AssistantSessionInfo {
         AssistantSessionInfo(rowID: rowID, shortID: shortID, title: title, dir: dir, agent: agent, status: status,
-                             isSelected: isSelected, isEmbedded: isEmbedded, delegatedTask: delegatedTask)
+                             isSelected: isSelected, isEmbedded: isEmbedded, delegatedTask: delegatedTask, model: model)
     }
 
     /// 给模型看的一项（list_sessions / 上下文共用）。
@@ -44,6 +47,7 @@ public struct AssistantSessionInfo: Equatable, Sendable {
         if isSelected { item["selected"] = true }
         if !isEmbedded { item["embedded"] = false }
         if let delegatedTask { item["delegatedTask"] = .string(AssistantContext.clip(delegatedTask, AssistantContext.titleLimit)) }
+        if let model { item["model"] = .object(["name": .string(model.shortName), "id": .string(model.id)]) }
         if case .waiting(let reason?) = status { item["waitingFor"] = .string(AssistantContext.clip(reason, AssistantContext.titleLimit)) }
         return .object(item)
     }
