@@ -10,6 +10,11 @@ extension AppModel {
             NSApp.activate(ignoringOtherApps: true)
             openMainWindow?()
         }
+        if key == CompanionWork.notificationKey {
+            work.resultsTab = .companion
+            work.showResults = true
+            return
+        }
         if let row = groups.lazy.flatMap(\.rows).first(where: { $0.id == key }) { activate(row) }
     }
 

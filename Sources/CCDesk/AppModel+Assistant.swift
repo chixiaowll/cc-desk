@@ -32,7 +32,20 @@ extension AppModel: AssistantHost {
 
     func assistantContext(pendingText: String, lastSummary: String?) -> AssistantContext {
         AssistantContext(sessions: assistantSessions(), projects: assistantProjects(), pendingText: pendingText,
-                         lastTurnSummary: lastSummary, language: Localization.currentLanguage)
+                         lastTurnSummary: lastSummary, language: Localization.currentLanguage,
+                         companion: companion.assistantContext())
+    }
+
+    func companionCancel() -> Bool {
+        companion.cancel(reason: "user")
+    }
+
+    func companionContinuation() -> String? {
+        companion.continuation()
+    }
+
+    func companionConversationEnded() {
+        companion.cancel(reason: "conversation mode off")
     }
 
     func assistantRow(_ rowID: String) -> (title: String, status: AgentStatus, isEmbedded: Bool)? {

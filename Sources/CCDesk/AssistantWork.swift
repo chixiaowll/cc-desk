@@ -11,6 +11,8 @@ import CCDeskCore
 final class AssistantWork: ObservableObject {
     @Published private(set) var consults = ConsultBook()
     @Published var showResults = false
+    /// 「助手结果」面板显示哪一类（顾问 / 通用助手）。
+    @Published var resultsTab: ResultsTab = .consults
     @Published private(set) var profiles: [AgentProfile] = []
     private(set) var delegations = DelegationBook()
 
@@ -24,6 +26,10 @@ final class AssistantWork: ObservableObject {
     private var drainTimer: Timer?
     /// 最近播报过的等批准（按行），respond_approval 用它复核「批准的是用户听到的那个请求」。
     private var announcements: [String: AnnouncedApproval] = [:]
+
+    enum ResultsTab: Hashable {
+        case consults, companion
+    }
 
     init(model: AppModel?, directory: URL = AssistantClient.workingDirectory,
          profileStore: AgentProfileStore = AgentProfileStore()) {

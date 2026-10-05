@@ -25,6 +25,8 @@ extension ConversationMode {
             showToast(L("conversation.toast.sent"))
             assistant.note("pressed Enter (sent) in \(targetTitle)")
         case .cancel:
+            // 通用助手在回答 / 朗读时，「算了」是对它说的。
+            if cancelCompanion() { return }
             if let terminal { inputs.clear(terminal) }
             showToast(L("conversation.toast.cleared"))
             assistant.note("cleared the pending text in \(targetTitle)")

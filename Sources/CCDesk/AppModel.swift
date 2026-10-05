@@ -78,6 +78,8 @@ final class AppModel: ObservableObject {
     private(set) lazy var toolbox = AssistantToolbox(model: self)
     /// 顾问、派活、专业 agent 与主动提醒（设计 §14）。
     private(set) lazy var work = AssistantWork(model: self)
+    /// 通用助手：生活、常识、新闻天气、情绪与闲聊（设计 §24）。
+    private(set) lazy var companion = CompanionWork(model: self)
     /// 「改动的文件」面板（设计 §17）。
     private(set) lazy var touchedFiles = TouchedFilesModel(model: self)
     /// 技能库（设计 §21）。
@@ -165,6 +167,7 @@ final class AppModel: ObservableObject {
         conversation.host = self
         startCommandHintMonitor()
         work.start()
+        companion.start()
         startControlServer()
         // OpenAI 兼容接口后端在进程内执行同一套工具（与控制接口同一个入口与权限检查，设计 §22）。
         let toolbox = self.toolbox

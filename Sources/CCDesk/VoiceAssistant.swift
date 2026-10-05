@@ -23,6 +23,12 @@ protocol AssistantHost: AnyObject {
                                   approve: Bool) -> ApprovalNotification.Decision
     /// 读会话记录尾部（后台），completion 在主线程。rowID 为 nil 时取选中的会话；turns > 0 时只取最近几轮。
     func assistantDigest(rowID: String?, turns: Int, completion: @escaping (AssistantDigest?) -> Void)
+    /// 通用助手（设计 §24）：取消排队 / 回答中的问题与等着念的回答；返回是否取消了什么。
+    func companionCancel() -> Bool
+    /// 通用助手上一个回答剩下的下一段（「继续说」）；没有时 nil。
+    func companionContinuation() -> String?
+    /// 对话模式关闭了。
+    func companionConversationEnded()
 }
 
 /// 每句话 / 摘要都发给当前的助手后端（Claude 常驻会话或 OpenAI 兼容接口，设计 §22；都有上下文），结果在主线程回调。

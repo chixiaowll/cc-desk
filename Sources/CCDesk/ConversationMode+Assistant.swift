@@ -9,6 +9,7 @@ extension ConversationMode {
         guard let host else { return perform(.insert(text), target: target) }
         let context = host.assistantContext(pendingText: target.map(inputs.pending) ?? "",
                                             lastSummary: target.flatMap { lastSummaries[$0] })
+        if continueCompanion(text) { return }
         if AssistantLocal.isWaitingQuestion(text) {
             return speak(AssistantLocal.waitingAnswer(sessions: context.sessions))
         }
@@ -35,6 +36,8 @@ extension ConversationMode {
             switch result {
             case .success(let reply):
                 // 只是往输入框打字（逐句口述）时不朗读，免得太吵；回复显示在提示条上。
+                // SILENT：交给了通用助手，它的回答由 CompanionWork 直接朗读。
+                if AssistantPrompt.isSilent(reply.text) { break }
                 if let spoken = AssistantSpeech.clean(reply.text) { quiet ? self.showToast(spoken) : self.speak(spoken) }
             case .failure(.notInstalled):
                 self.perform(.insert(text), target: target)

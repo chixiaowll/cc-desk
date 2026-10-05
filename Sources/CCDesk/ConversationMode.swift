@@ -62,6 +62,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     var announcedApproval: AnnouncedApproval?
     /// 正在处理的这句话开始说的时刻（systemUptime），随这一轮交给助手（respond_approval 据此判断用户是否在请求出现后才说）。
     var utteranceStartedAt: TimeInterval?
+    /// 正在朗读通用助手的回答（设计 §24）：「算了」会打断它。
+    var speakingCompanion = false
 
     var session = ConversationSession()
     /// 等待识别的片段（与说话时选中的终端、开始说话的时刻 systemUptime）。
@@ -202,6 +204,9 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         activity = nil
         resolveConfirmation(false)
         announcedApproval = nil
+        speakingCompanion = false
+        // 关闭对话模式：取消通用助手排队 / 回答中的问题。
+        host?.companionConversationEnded()
         level = 0
         queue = []
         observed = nil
@@ -272,6 +277,7 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
     // MARK: 播报
 
     func speak(_ text: String) {
+        speakingCompanion = false
         resumeWork?.cancel()
         setPaused(true)
         speaking = true
@@ -287,10 +293,16 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         let work = DispatchWorkItem { [weak self] in
             guard let self, !self.output.isSpeaking else { return }
             self.speaking = false
+            self.speakingCompanion = false
             if self.isOn { self.setPaused(false) }
         }
         resumeWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
+    /// 停止朗读（「算了」打断通用助手的回答）。
+    func stopSpeaking() {
+        output.stop()
     }
 
     private func setPaused(_ value: Bool) {

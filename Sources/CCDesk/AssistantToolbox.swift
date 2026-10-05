@@ -84,6 +84,7 @@ final class AssistantToolbox {
         case "list_skills": listSkills(args, done)
         case "list_consults": listConsults(done)
         case "cancel_consult": cancelConsult(args, done)
+        case "ask_companion": askCompanion(args, done)
         default: done(.failure(ControlError(.unknownMethod, "unknown method \(method)")))
         }
     }
