@@ -6,6 +6,7 @@ import CCDeskCore
 /// 最后是「提到 / 生成的文件」（agent 回复里提到的、命令在项目目录里生成的；文档与图片 / 视频在前）。
 /// 单击选中；空格 / 眼睛按钮快速查看；双击 / 回车用默认 App 打开；右键更多动作。查看都交给系统（快速查看、默认 App）。
 struct TouchedFilesPanel: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var files: TouchedFilesModel
     let now: Date
     let theme: Theme
@@ -77,23 +78,23 @@ struct TouchedFilesPanel: View {
     private var header: some View {
         HStack(spacing: 6) {
             Text(L("files.title"))
-                .font(.system(size: 12, weight: .semibold))
+                .uiFont(size: 12, weight: .semibold)
                 .foregroundStyle(theme.fg1)
             if !files.allFiles.isEmpty {
                 Text("\(files.allFiles.count)")
-                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    .uiFont(size: 10.5, weight: .semibold, monospacedDigit: true)
                     .foregroundStyle(theme.fg2)
                     .padding(.horizontal, 6)
-                    .frame(height: 16)
+                    .frame(height: uiScale.metric(16))
                     .background(Capsule().fill(theme.chip))
             }
             Spacer(minLength: 0)
             Button {
                 files.toggleQuickLook(window: window)
             } label: {
-                Image(systemName: "eye").font(.system(size: 12))
+                Image(systemName: "eye").uiFont(size: 12)
                     .foregroundStyle(files.selection == nil ? theme.fg3 : theme.fg2)
-                    .frame(width: 22, height: 22)
+                    .frame(width: uiScale.metric(22), height: uiScale.metric(22))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -102,9 +103,9 @@ struct TouchedFilesPanel: View {
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { files.isShown = false }
             } label: {
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                Image(systemName: "chevron.right").uiFont(size: 11, weight: .semibold)
                     .foregroundStyle(theme.fg2)
-                    .frame(width: 22, height: 22)
+                    .frame(width: uiScale.metric(22), height: uiScale.metric(22))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -112,18 +113,18 @@ struct TouchedFilesPanel: View {
         }
         .padding(.leading, 14)
         .padding(.trailing, 8)
-        .frame(height: 36)
+        .frame(height: uiScale.metric(36))
     }
 
     private var filterField: some View {
         HStack(spacing: 5) {
-            Image(systemName: "line.3.horizontal.decrease").font(.system(size: 10)).foregroundStyle(theme.fg3)
+            Image(systemName: "line.3.horizontal.decrease").uiFont(size: 10).foregroundStyle(theme.fg3)
             TextField(L("files.filter.placeholder"), text: $files.filter)
                 .textFieldStyle(.plain)
-                .font(.system(size: 11.5))
+                .uiFont(size: 11.5)
         }
         .padding(.horizontal, 8)
-        .frame(height: 24)
+        .frame(height: uiScale.metric(24))
         .background(RoundedRectangle(cornerRadius: 6).fill(theme.main))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(theme.line, lineWidth: 1))
         .padding(.horizontal, 10)
@@ -132,7 +133,7 @@ struct TouchedFilesPanel: View {
 
     private func sectionTitle(_ title: String, count: Int) -> some View {
         Text("\(title) · \(count)")
-            .font(.system(size: 10.5, weight: .semibold))
+            .uiFont(size: 10.5, weight: .semibold)
             .foregroundStyle(theme.fg3)
             .padding(.leading, 6)
             .padding(.vertical, 4)
@@ -141,7 +142,7 @@ struct TouchedFilesPanel: View {
     /// 项目监视没开时的说明（列表末尾的小字）。
     private func watchNote(_ note: TouchedFilesModel.WatchNote) -> some View {
         Text(note == .tooBroad ? L("files.watch.tooBroad") : L("files.watch.failed"))
-            .font(.system(size: 10.5))
+            .uiFont(size: 10.5)
             .foregroundStyle(theme.fg3)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 6)
@@ -178,7 +179,7 @@ struct TouchedFilesPanel: View {
                 }
             }()
             Text(text)
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(theme.fg3)
                 .padding(.horizontal, 24)
@@ -188,6 +189,7 @@ struct TouchedFilesPanel: View {
 
 /// 一行：图标 + 文件名 + 徽标 + 时间；第二行是所在目录（淡色，见 `TouchedFiles.displayDirectory`）。
 struct TouchedFileRow: View {
+    @Environment(\.uiScale) private var uiScale
     let file: TouchedFile
     let directory: String
     let selected: Bool
@@ -206,12 +208,12 @@ struct TouchedFileRow: View {
         HStack(spacing: 8) {
             Image(nsImage: FileActions.icon(for: file.path, exists: file.exists))
                 .resizable()
-                .frame(width: 20, height: 20)
+                .frame(width: uiScale.metric(20), height: uiScale.metric(20))
                 .opacity(file.exists ? 1 : 0.45)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
                     Text(file.name)
-                        .font(.system(size: 12.5, weight: .medium))
+                        .uiFont(size: 12.5, weight: .medium)
                         .foregroundStyle(file.exists ? theme.fg1 : theme.fg3)
                         .strikethrough(file.action == .deleted, color: theme.fg3)
                         .lineLimit(1)
@@ -220,24 +222,24 @@ struct TouchedFileRow: View {
                     Spacer(minLength: 0)
                     if (hovering || selected) && file.exists {
                         Button(action: onQuickLook) {
-                            Image(systemName: "eye").font(.system(size: 11)).foregroundStyle(theme.fg2)
+                            Image(systemName: "eye").uiFont(size: 11).foregroundStyle(theme.fg2)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .help(L("files.quickLook.help"))
                     } else if let last = file.lastTouched {
                         Text(RelativeTime.short(from: last, now: now))
-                            .font(.system(size: 10.5).monospacedDigit())
+                            .uiFont(size: 10.5, monospacedDigit: true)
                             .foregroundStyle(theme.fg3)
                     }
                 }
-                .frame(height: 16)
+                .frame(height: uiScale.metric(16))
                 Text(directory)
-                    .font(.system(size: 11))
+                    .uiFont(size: 11)
                     .foregroundStyle(theme.fg3)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(height: 14)
+                    .frame(height: uiScale.metric(14))
             }
         }
         .padding(.horizontal, 8)
@@ -266,10 +268,10 @@ struct TouchedFileRow: View {
     private var badge: some View {
         let style = badgeStyle
         return Text(style.text)
-            .font(.system(size: 10, weight: .semibold))
+            .uiFont(size: 10, weight: .semibold)
             .foregroundStyle(style.fg)
             .padding(.horizontal, 5)
-            .frame(height: 15)
+            .frame(height: uiScale.metric(15))
             .background(Capsule().fill(style.bg))
             .fixedSize()
     }
@@ -301,6 +303,7 @@ struct TouchedFileMenu: View {
 /// 标题栏里的面板开关：线条图标（与标题栏其他控件同一字重 / 字号，fg2），打开时加一层浅底表示选中；
 /// 选中会话新建了没看过的文档时右上角显示陶土色小圆点。
 struct TouchedFilesToggle: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var files: TouchedFilesModel
     let theme: Theme
     @State private var hovering = false
@@ -310,9 +313,9 @@ struct TouchedFilesToggle: View {
             files.isShown.toggle()
         } label: {
             Image(systemName: "sidebar.right")
-                .font(.system(size: 13, weight: .regular))
+                .uiFont(size: 13, weight: .regular)
                 .foregroundStyle(files.isShown || hovering ? theme.fg1 : theme.fg2)
-                .frame(width: 28, height: 22)
+                .frame(width: uiScale.metric(28), height: uiScale.metric(22))
                 .background(RoundedRectangle(cornerRadius: 6).fill(background))
                 .overlay(alignment: .topTrailing) {
                     if files.hasUnseenDocument && !files.isShown {

@@ -35,7 +35,7 @@ struct SidebarView: View {
             .overlay {
                 if groups.isEmpty {
                     Text(L("sidebar.empty"))
-                        .font(.system(size: 12))
+                        .uiFont(size: 12)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(theme.fg3)
                 }
@@ -129,6 +129,7 @@ struct GroupHeaderView: View {
     let theme: Theme
     @State private var hovering = false
     @State private var showHistory = false
+    @Environment(\.uiScale) private var uiScale
 
     private var allMissing: Bool {
         group.rows.allSatisfy {
@@ -140,46 +141,11 @@ struct GroupHeaderView: View {
     private var showActions: Bool { hovering || showHistory }
 
     var body: some View {
-        HStack(spacing: 4) {
-            HStack(spacing: 10) {
-                Image(systemName: "folder")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(theme.fg2)
-                    .frame(width: 30)
-                HStack(spacing: 6) {
-                    Text(group.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(theme.fg1)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .layoutPriority(1)
-                    if let branch = group.branch {
-                        Label(branch, systemImage: "arrow.triangle.branch")
-                            .labelStyle(.titleAndIcon)
-                            .font(.system(size: 11))
-                            .foregroundStyle(theme.fg3)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                }
-            }
-            .padding(.leading, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            GroupCounts(group: group, collapsed: collapsed, theme: theme)
-                .opacity(showActions ? 0 : 1)
-            Image(systemName: "chevron.down")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(theme.fg3)
-                .rotationEffect(.degrees(collapsed ? -90 : 0))
-                .animation(.easeInOut(duration: 0.15), value: collapsed)
-                .frame(width: 16)
-        }
-        .padding(.trailing, 6)
-        .frame(height: 28)
+        GroupHeaderLabel(group: group, collapsed: collapsed, countsHidden: showActions, theme: theme)
         .background(RoundedRectangle(cornerRadius: 8).fill(showActions ? theme.hover : Color.clear))
         .overlay(alignment: .trailing) {
             if showActions {
-                actions.padding(.trailing, 22)
+                actions.padding(.trailing, uiScale.metric(22))
             }
         }
         .contentShape(Rectangle())
@@ -191,12 +157,12 @@ struct GroupHeaderView: View {
                 let numbers = group.rows.compactMap { model.shortcutNumber(of: $0.id) }
                 if !numbers.isEmpty {
                     Text(numbers.map { "⌘\($0)" }.joined(separator: " "))
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .uiFont(size: 11, weight: .semibold, monospacedDigit: true)
                         .foregroundStyle(theme.chipWorkFg)
                         .padding(.horizontal, 6)
-                        .frame(height: 18)
+                        .frame(height: uiScale.metric(18))
                         .background(Capsule().fill(theme.accent))
-                        .padding(.trailing, 26)
+                        .padding(.trailing, uiScale.metric(26))
                 }
             }
         }
@@ -228,6 +194,7 @@ struct GroupHeaderView: View {
                             showHistory = false
                             model.resumeHistory(item)
                         })
+                    .uiScaleRoot()
                 }
             }
             if !allMissing {
@@ -256,72 +223,6 @@ struct GroupHeaderView: View {
     }
 }
 
-/// 目录行右侧的状态计数：等批准实心橙、已完成·未读实心鼠尾草绿、处理中实心雾蓝带呼吸白点、空闲灰色（仅收起时）。
-struct GroupCounts: View {
-    let group: SessionGroup
-    let collapsed: Bool
-    let theme: Theme
-
-    var body: some View {
-        HStack(spacing: 3) {
-            if group.waitingCount > 0 {
-                CountChip(text: "\(group.waitingCount)", bg: theme.pillWaitBg, fg: theme.pillWaitFg)
-            }
-            if group.unreadCount > 0 {
-                CountChip(text: "\(group.unreadCount)", bg: theme.chipUnreadBg, fg: theme.chipUnreadFg)
-            }
-            if group.workingCount > 0 {
-                HStack(spacing: 4) {
-                    BreathingDot(color: theme.chipWorkFg, size: 5)
-                    Text("\(group.workingCount)")
-                }
-                .modifier(CountChipStyle(bg: theme.chipWorkBg, fg: theme.chipWorkFg, leading: 5, trailing: 6))
-            }
-            if collapsed && group.idleCount > 0 {
-                CountChip(text: "\(group.idleCount)", bg: theme.chip, fg: theme.fg2)
-            }
-        }
-        .fixedSize()
-        .help(helpText)
-    }
-
-    private var helpText: String {
-        [group.waitingCount > 0 ? L("group.help.waiting", group.waitingCount) : nil,
-         group.unreadCount > 0 ? L("group.help.unread", group.unreadCount) : nil,
-         group.workingCount > 0 ? L("group.help.working", group.workingCount) : nil,
-         group.idleCount > 0 ? L("group.help.idle", group.idleCount) : nil]
-            .compactMap { $0 }
-            .joined(separator: L("list.separator.clause"))
-    }
-}
-
-struct CountChip: View {
-    let text: String
-    let bg: Color
-    let fg: Color
-
-    var body: some View {
-        Text(text).modifier(CountChipStyle(bg: bg, fg: fg, leading: 5, trailing: 5))
-    }
-}
-
-struct CountChipStyle: ViewModifier {
-    let bg: Color
-    let fg: Color
-    let leading: CGFloat
-    let trailing: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-            .foregroundStyle(fg)
-            .padding(.leading, leading)
-            .padding(.trailing, trailing)
-            .frame(minWidth: 16, minHeight: 16, maxHeight: 16)
-            .background(Capsule().fill(bg))
-    }
-}
-
 /// 22pt 图标按钮（目录行上的历史 / 新建）；`on` 表示对应的弹出层已打开。
 struct SidebarIconButton: View {
     let systemName: String
@@ -330,13 +231,14 @@ struct SidebarIconButton: View {
     let theme: Theme
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .foregroundStyle(on ? theme.fg1 : theme.fg2)
-                .frame(width: 22, height: 22)
+                .frame(width: uiScale.metric(22), height: uiScale.metric(22))
                 .background(RoundedRectangle(cornerRadius: 6).fill(
                     on ? theme.fg1.opacity(0.08) : (hovering ? theme.chip : Color.clear)))
                 .contentShape(Rectangle())
@@ -354,6 +256,7 @@ struct SidebarFooter: View {
     let now: Date
     let theme: Theme
     var onOpenUsage: () -> Void = {}
+    @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         VStack(spacing: 0) {
@@ -361,7 +264,7 @@ struct SidebarFooter: View {
                 UsageFooterLine(usage: usage, now: now, theme: theme, onOpen: onOpenUsage)
                     .padding(.horizontal, 18)
                     .padding(.top, 9)
-                    .frame(height: 26)
+                    .frame(height: uiScale.metric(26))
             }
             counts
         }
@@ -392,10 +295,11 @@ struct SidebarFooter: View {
                 Text(L("footer.unread", unread)).fontWeight(.medium).foregroundStyle(theme.unread)
             }
         }
-        .font(.system(size: 11.5))
+        .uiFont(size: 11.5)
         .foregroundStyle(theme.fg2)
         .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, minHeight: hasUsage ? 32 : 40, maxHeight: hasUsage ? 32 : 40, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: uiScale.metric(hasUsage ? 32 : 40),
+               maxHeight: uiScale.metric(hasUsage ? 32 : 40), alignment: .leading)
     }
 
     private var separator: some View {

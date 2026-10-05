@@ -4,6 +4,7 @@ import CCDeskCore
 
 /// 目录行时钟按钮弹出的历史会话列表（界面稿 `.pop`）。
 struct HistoryPopover: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var model: AppModel
     let root: String
     let title: String
@@ -23,28 +24,28 @@ struct HistoryPopover: View {
                 Spacer(minLength: 6)
                 Text(L("history.popover.count", entries.count)).fontWeight(.medium).foregroundStyle(theme.fg3)
             }
-            .font(.system(size: 12, weight: .semibold))
+            .uiFont(size: 12, weight: .semibold)
             .foregroundStyle(theme.fg2)
             .padding(.horizontal, 6)
             .padding(.top, 4)
             .padding(.bottom, 8)
 
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").font(.system(size: 11)).foregroundStyle(theme.fg3)
+                Image(systemName: "magnifyingglass").uiFont(size: 11).foregroundStyle(theme.fg3)
                 TextField("", text: $query, prompt: Text(L("history.popover.search")).foregroundColor(theme.fg3))
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12.5))
+                    .uiFont(size: 12.5)
                     .foregroundStyle(theme.fg1)
             }
             .padding(.horizontal, 10)
-            .frame(height: 30)
+            .frame(height: uiScale.metric(30))
             .background(RoundedRectangle(cornerRadius: 8).fill(theme.side))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
             .padding(.bottom, 4)
 
             if filtered.isEmpty {
                 Text(L("history.noMatches"))
-                    .font(.system(size: 12))
+                    .uiFont(size: 12)
                     .foregroundStyle(theme.fg3)
                     .padding(.vertical, 14)
                     .padding(.horizontal, 8)
@@ -58,7 +59,7 @@ struct HistoryPopover: View {
                         }
                     }
                 }
-                .frame(height: min(CGFloat(filtered.count) * 32, 260))
+                .frame(height: min(CGFloat(filtered.count) * uiScale.metric(32), uiScale.metric(260)))
             }
 
             Button(action: onSearchAll) {
@@ -67,9 +68,9 @@ struct HistoryPopover: View {
                     Spacer()
                     KeyCap(text: "⌘⇧H", theme: theme)
                 }
-                .font(.system(size: 11.5))
+                .uiFont(size: 11.5)
                 .padding(.horizontal, 8)
-                .frame(height: 30)
+                .frame(height: uiScale.metric(30))
                 .contentShape(Rectangle())
             }
             .buttonStyle(HoverTextButtonStyle(normal: theme.fg2, hover: theme.fg1))
@@ -77,12 +78,13 @@ struct HistoryPopover: View {
             .padding(.top, 4)
         }
         .padding(8)
-        .frame(width: 300)
+        .frame(width: uiScale.metric(300))
         .background(theme.main)
     }
 }
 
 struct HistoryPopoverRow: View {
+    @Environment(\.uiScale) private var uiScale
     let item: HistoryItem
     let now: Date
     let theme: Theme
@@ -92,7 +94,7 @@ struct HistoryPopoverRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(item.title)
-                .font(.system(size: 12.5, weight: .medium))
+                .uiFont(size: 12.5, weight: .medium)
                 .foregroundStyle(hovering ? theme.fg1 : theme.fg2)
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -102,12 +104,12 @@ struct HistoryPopoverRow: View {
                 ResumeLabel(theme: theme)
             } else {
                 Text(RelativeTime.short(from: item.modifiedAt, now: now))
-                    .font(.system(size: 11).monospacedDigit())
+                    .uiFont(size: 11, monospacedDigit: true)
                     .foregroundStyle(theme.fg3)
             }
         }
         .padding(.horizontal, 8)
-        .frame(height: 32)
+        .frame(height: uiScale.metric(32))
         .background(RoundedRectangle(cornerRadius: 7).fill(hovering ? theme.hover : Color.clear))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
@@ -117,6 +119,7 @@ struct HistoryPopoverRow: View {
 
 /// 全局历史搜索面板（⌘⇧H / 工具栏时钟）：按「今天 / 昨天 / 更早」分组；↑↓ 选择、↩ 恢复、esc 关闭。
 struct HistoryPalette: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var themes = ThemeStore.shared
@@ -151,7 +154,7 @@ struct HistoryPalette: View {
         let active = flat.indices.contains(selection) ? flat[selection].id : nil
         return VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").font(.system(size: 14)).foregroundStyle(theme.fg3)
+                Image(systemName: "magnifyingglass").uiFont(size: 14).foregroundStyle(theme.fg3)
                 PaletteSearchField(
                     text: $query,
                     placeholder: L("history.palette.search"),
@@ -169,7 +172,7 @@ struct HistoryPalette: View {
                 CloseButton { close() }
             }
             .padding(.horizontal, 16)
-            .frame(height: 50)
+            .frame(height: uiScale.metric(50))
             .overlay(alignment: .bottom) { theme.line.frame(height: 1) }
 
             let kinds = AgentKind.launchable.filter { kind in model.history.contains { $0.item.kind == kind } }
@@ -191,7 +194,7 @@ struct HistoryPalette: View {
 
             if flat.isEmpty {
                 Text(L("history.noMatches"))
-                    .font(.system(size: 12))
+                    .uiFont(size: 12)
                     .foregroundStyle(theme.fg3)
                     .padding(.vertical, 24)
                     .padding(.horizontal, 16)
@@ -202,7 +205,7 @@ struct HistoryPalette: View {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             ForEach(sections) { section in
                                 Text(section.label)
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .uiFont(size: 11, weight: .semibold)
                                     .foregroundStyle(theme.fg3)
                                     .padding(.horizontal, 10)
                                     .padding(.top, 10)
@@ -224,7 +227,7 @@ struct HistoryPalette: View {
                         .padding(.top, 6)
                         .padding(.bottom, 8)
                     }
-                    .frame(height: min(contentHeight(sections: sections), 560 - 50 - 34))
+                    .frame(height: min(contentHeight(sections: sections), uiScale.metric(560) - uiScale.metric(50) - 34))
                     .onChange(of: selection) { _, newValue in
                         if flat.indices.contains(newValue) { proxy.scrollTo(flat[newValue].id) }
                     }
@@ -237,13 +240,13 @@ struct HistoryPalette: View {
                 HStack(spacing: 3) { KeyCap(text: "esc", theme: theme); Text(L("history.hint.close")) }
                 Spacer()
             }
-            .font(.system(size: 11))
+            .uiFont(size: 11)
             .foregroundStyle(theme.fg3)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .overlay(alignment: .top) { theme.line.frame(height: 1) }
         }
-        .frame(maxWidth: 560)
+        .frame(maxWidth: uiScale.metric(560))
         .background(theme.main)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.line, lineWidth: 1))
@@ -253,7 +256,8 @@ struct HistoryPalette: View {
 
     /// 估算列表内容高度，使面板随内容收缩（最大 560）。
     private func contentHeight(sections: [Section]) -> CGFloat {
-        14 + CGFloat(sections.count) * 28 + CGFloat(sections.reduce(0) { $0 + $1.entries.count }) * 36
+        14 + CGFloat(sections.count) * uiScale.metric(28)
+            + CGFloat(sections.reduce(0) { $0 + $1.entries.count }) * uiScale.metric(36)
     }
 
     private func makeSections() -> [Section] {
@@ -279,6 +283,7 @@ struct HistoryPalette: View {
 }
 
 struct PaletteRow: View {
+    @Environment(\.uiScale) private var uiScale
     let entry: HistoryEntry
     let active: Bool
     let now: Date
@@ -288,13 +293,13 @@ struct PaletteRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(entry.item.title)
-                .font(.system(size: 13))
+                .uiFont(size: 13)
                 .foregroundStyle(theme.fg1)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text(Self.tagText(entry.projectTitle))
-                .font(.system(size: 11))
+            Text(Self.tagText(entry.projectTitle, scale: uiScale))
+                .uiFont(size: 11)
                 .foregroundStyle(theme.fg2)
                 .lineLimit(1)
                 .fixedSize()
@@ -309,20 +314,20 @@ struct PaletteRow: View {
                     Text(RelativeTime.short(from: entry.item.modifiedAt, now: now)).foregroundStyle(theme.fg3)
                 }
             }
-            .font(.system(size: 11).monospacedDigit())
-            .frame(minWidth: 40, alignment: .trailing)
+            .uiFont(size: 11, monospacedDigit: true)
+            .frame(minWidth: uiScale.metric(40), alignment: .trailing)
         }
         .padding(.horizontal, 10)
-        .frame(height: 36)
+        .frame(height: uiScale.metric(36))
         .background(RoundedRectangle(cornerRadius: 8).fill(active ? theme.hover : Color.clear))
         .contentShape(Rectangle())
         .help(historyHelp(entry.item))
     }
 
-    /// 目录标签最宽 160pt（含 12pt 内边距）：按 11pt 字号估算宽度，超出时截断并加省略号。
-    static func tagText(_ text: String) -> String {
-        let font = NSFont.systemFont(ofSize: 11)
-        let limit: CGFloat = 148
+    /// 目录标签最宽 160pt（含 12pt 内边距）：按 11pt 字号估算宽度，超出时截断并加省略号（都随界面文字倍率缩放）。
+    static func tagText(_ text: String, scale: UIScale = .standard) -> String {
+        let font = NSFont.systemFont(ofSize: scale.font(11))
+        let limit: CGFloat = scale.metric(148)
         func width(_ s: String) -> CGFloat { (s as NSString).size(withAttributes: [.font: font]).width }
         guard width(text) > limit else { return text }
         var prefix = ""
@@ -344,7 +349,7 @@ struct AgentFilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                .uiFont(size: 11, weight: selected ? .semibold : .regular)
                 .foregroundStyle(selected ? theme.fg1 : theme.fg3)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 3)
@@ -362,7 +367,7 @@ struct AgentTag: View {
 
     var body: some View {
         Text(kind.displayName)
-            .font(.system(size: 10.5))
+            .uiFont(size: 10.5)
             .foregroundStyle(theme.fg3)
             .lineLimit(1)
             .fixedSize()
@@ -375,10 +380,10 @@ struct ResumeLabel: View {
 
     var body: some View {
         HStack(spacing: 3) {
-            Image(systemName: "arrow.uturn.backward").font(.system(size: 9, weight: .semibold))
+            Image(systemName: "arrow.uturn.backward").uiFont(size: 9, weight: .semibold)
             Text(L("action.resume"))
         }
-        .font(.system(size: 11, weight: .semibold))
+        .uiFont(size: 11, weight: .semibold)
         .foregroundStyle(theme.action)
     }
 }
@@ -390,7 +395,7 @@ struct KeyCap: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10.5, weight: .medium))
+            .uiFont(size: 10.5, weight: .medium)
             .foregroundStyle(theme.fg3)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
@@ -490,8 +495,9 @@ struct PaletteSearchField: NSViewRepresentable {
         context.coordinator.parent = self
         if field.stringValue != text { field.stringValue = text }
         field.textColor = textColor
+        let font = NSFont.systemFont(ofSize: context.environment.uiScale.font(15))
+        if field.font != font { field.font = font }
         field.placeholderAttributedString = NSAttributedString(
-            string: placeholder,
-            attributes: [.foregroundColor: placeholderColor, .font: NSFont.systemFont(ofSize: 15)])
+            string: placeholder, attributes: [.foregroundColor: placeholderColor, .font: font])
     }
 }

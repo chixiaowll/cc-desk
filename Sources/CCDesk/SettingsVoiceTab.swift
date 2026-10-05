@@ -21,7 +21,7 @@ struct SettingsVoiceTab: View {
         SettingsForm {
             Section(L("settings.voice.input")) {
                 LabeledContent(L("settings.voice.pushToTalk")) {
-                    Text(L("settings.voice.pushToTalk.key")).font(.system(size: 12, design: .monospaced))
+                    Text(L("settings.voice.pushToTalk.key")).uiFont(size: 12, design: .monospaced)
                 }
                 SettingsNote(text: L("settings.voice.pushToTalk.note"))
                 LabeledContent(L("settings.voice.model")) { modelStatus }

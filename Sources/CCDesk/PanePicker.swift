@@ -16,6 +16,7 @@ struct PanePickerSlot: View {
 }
 
 struct PanePicker: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var model: AppModel
     let request: PaneSplitRequest
     @Environment(\.colorScheme) private var colorScheme
@@ -62,7 +63,7 @@ struct PanePicker: View {
         return VStack(spacing: 0) {
             HStack(spacing: 10) {
                 Image(systemName: request.edge == .bottom ? "rectangle.split.1x2" : "rectangle.split.2x1")
-                    .font(.system(size: 14))
+                    .uiFont(size: 14)
                     .foregroundStyle(theme.fg3)
                 PaletteSearchField(
                     text: $query,
@@ -76,7 +77,7 @@ struct PanePicker: View {
                 CloseButton { model.cancelSplitPicker() }
             }
             .padding(.horizontal, 16)
-            .frame(height: 50)
+            .frame(height: uiScale.metric(50))
             .overlay(alignment: .bottom) { theme.line.frame(height: 1) }
 
             ScrollView {
@@ -90,7 +91,7 @@ struct PanePicker: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
             }
-            .frame(height: min(CGFloat(items.count) * 36 + 12, 420))
+            .frame(height: min(CGFloat(items.count) * uiScale.metric(36) + 12, uiScale.metric(420)))
 
             HStack(spacing: 14) {
                 HStack(spacing: 3) { KeyCap(text: "↑", theme: theme); KeyCap(text: "↓", theme: theme); Text(L("history.hint.select")) }
@@ -98,13 +99,13 @@ struct PanePicker: View {
                 HStack(spacing: 3) { KeyCap(text: "esc", theme: theme); Text(L("history.hint.close")) }
                 Spacer()
             }
-            .font(.system(size: 11))
+            .uiFont(size: 11)
             .foregroundStyle(theme.fg3)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .overlay(alignment: .top) { theme.line.frame(height: 1) }
         }
-        .frame(maxWidth: 520)
+        .frame(maxWidth: uiScale.metric(520))
         .background(theme.main)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(theme.line, lineWidth: 1))
@@ -119,13 +120,13 @@ struct PanePicker: View {
             case .session(let row, _):
                 PaneStatusDot(row: row, theme: theme)
                 Text(row.displayName)
-                    .font(.system(size: 13))
+                    .uiFont(size: 13)
                     .foregroundStyle(theme.fg1)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text(PaletteRow.tagText(row.groupTitle))
-                    .font(.system(size: 11))
+                Text(PaletteRow.tagText(row.groupTitle, scale: uiScale))
+                    .uiFont(size: 11)
                     .foregroundStyle(theme.fg2)
                     .lineLimit(1)
                     .fixedSize()
@@ -133,21 +134,21 @@ struct PanePicker: View {
                     .padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 5).fill(theme.chip))
                 Text(row.agentLabel.map { "\($0) · \(row.statusLabel)" } ?? row.statusLabel)
-                    .font(.system(size: 11))
+                    .uiFont(size: 11)
                     .foregroundStyle(theme.fg3)
                     .lineLimit(1)
                     .fixedSize()
             case .newSession:
-                Image(systemName: "plus").font(.system(size: 11, weight: .semibold)).foregroundStyle(theme.action)
+                Image(systemName: "plus").uiFont(size: 11, weight: .semibold).foregroundStyle(theme.action)
                     .frame(width: 7)
                 Text(L("pane.picker.newSession"))
-                    .font(.system(size: 13))
+                    .uiFont(size: 13)
                     .foregroundStyle(theme.action)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, 10)
-        .frame(height: 36)
+        .frame(height: uiScale.metric(36))
         .background(RoundedRectangle(cornerRadius: 8).fill(active ? theme.hover : Color.clear))
         .contentShape(Rectangle())
     }

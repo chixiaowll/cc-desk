@@ -5,6 +5,7 @@ import CCDeskCore
 /// 独立窗口的内容（设计 §20.3）：一条小标题条（状态点、会话名、agent · 目录、状态胶囊、「放回主窗口」）
 /// + 铺满的终端，配色跟随主题。语音浮层只在这个终端是语音目标（选中）时显示。
 struct DetachedWindowView: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var model: AppModel
     let terminalID: UUID
     let onTitle: (String) -> Void
@@ -19,14 +20,14 @@ struct DetachedWindowView: View {
             HStack(spacing: 8) {
                 PaneStatusDot(row: row, theme: theme)
                 Text(title)
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .uiFont(size: 12.5, weight: .semibold)
                     .foregroundStyle(theme.fg1)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if let row {
                     let path = row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~")
                     Text(row.agentModelLabel.map { "\($0) · \(path)" } ?? path)
-                        .font(.system(size: 11))
+                        .uiFont(size: 11)
                         .foregroundStyle(theme.fg3)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -44,7 +45,7 @@ struct DetachedWindowView: View {
             }
             .padding(.leading, 14)
             .padding(.trailing, 8)
-            .frame(height: 36)
+            .frame(height: uiScale.metric(36))
             .background(theme.main)
             .help(row?.tooltip ?? "")
             theme.line.frame(height: 1)

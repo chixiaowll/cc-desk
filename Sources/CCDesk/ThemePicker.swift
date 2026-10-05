@@ -25,6 +25,7 @@ struct ThemePickerRow: View {
 
 /// 一个主题：缩略图 + 名称；选中时描一圈强调色。
 private struct ThemeCard: View {
+    @Environment(\.uiScale) private var uiScale
     let id: ThemeID
     let selected: Bool
     let action: () -> Void
@@ -43,11 +44,11 @@ private struct ThemeCard: View {
                         RoundedRectangle(cornerRadius: 6)
                             .strokeBorder(selected ? current.accent : current.line, lineWidth: selected ? 2 : 1))
                 Text(name)
-                    .font(.system(size: 10, weight: selected ? .semibold : .regular))
+                    .uiFont(size: 10, weight: selected ? .semibold : .regular)
                     .foregroundStyle(selected ? current.fg1 : current.fg2)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .frame(width: 80, height: 26, alignment: .top)
+                    .frame(width: uiScale.metric(80), height: uiScale.metric(26), alignment: .top)
             }
             .contentShape(Rectangle())
         }

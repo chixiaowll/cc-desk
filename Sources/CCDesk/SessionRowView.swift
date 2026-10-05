@@ -25,6 +25,7 @@ struct SessionRowView: View {
     /// 按住 ⌘ 时显示的编号（⌘1–9 切换到这一行）；nil 不显示。
     var shortcut: Int? = nil
     @State private var hovering = false
+    @Environment(\.uiScale) private var uiScale
 
     private var isWaiting: Bool { row.session.status.isWaiting }
     private var isMissing: Bool {
@@ -56,14 +57,14 @@ struct SessionRowView: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 9) {
                     Text(row.displayName)
-                        .font(.system(size: 12.5, weight: row.showsUnread ? .semibold : .medium))
+                        .uiFont(size: 12.5, weight: row.showsUnread ? .semibold : .medium)
                         .foregroundStyle(theme.fg1)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(maxWidth: detached ? nil : .infinity, alignment: .leading)
                     if detached {
                         Image(systemName: "macwindow")
-                            .font(.system(size: 10))
+                            .uiFont(size: 10)
                             .foregroundStyle(theme.fg3)
                             .help(L("row.detached.help"))
                         Spacer(minLength: 0)
@@ -71,8 +72,8 @@ struct SessionRowView: View {
                     if hovering, let onResume {
                         Button(action: onResume) {
                             HStack(spacing: 3) {
-                                Image(systemName: "arrow.uturn.left").font(.system(size: 9, weight: .semibold))
-                                Text(L("action.resume")).font(.system(size: 11, weight: .semibold))
+                                Image(systemName: "arrow.uturn.left").uiFont(size: 9, weight: .semibold)
+                                Text(L("action.resume")).uiFont(size: 11, weight: .semibold)
                             }
                             .foregroundStyle(theme.action)
                             .contentShape(Rectangle())
@@ -81,16 +82,16 @@ struct SessionRowView: View {
                         .help(L("row.resume.help"))
                     } else {
                         Text(RelativeTime.short(from: row.session.statusChangedAt, now: now))
-                            .font(.system(size: 10.5).monospacedDigit())
+                            .uiFont(size: 10.5, monospacedDigit: true)
                             .foregroundStyle(theme.fg3)
                     }
                 }
-                .frame(height: 17)
+                .frame(height: uiScale.metric(17))
                 statusLine
-                    .font(.system(size: 11))
+                    .uiFont(size: 11)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(height: 14)
+                    .frame(height: uiScale.metric(14))
             }
         }
         .padding(.leading, 8)
@@ -103,10 +104,10 @@ struct SessionRowView: View {
         .overlay(alignment: .topTrailing) {
             if let shortcut {
                 Text("⌘\(shortcut)")
-                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .uiFont(size: 11, weight: .semibold, monospacedDigit: true)
                     .foregroundStyle(theme.chipWorkFg)
                     .padding(.horizontal, 6)
-                    .frame(height: 18)
+                    .frame(height: uiScale.metric(18))
                     .background(Capsule().fill(theme.accent))
                     .padding(.top, 5)
                     .padding(.trailing, 8)
@@ -167,6 +168,7 @@ struct SessionTile: View {
     /// 「↗」角标外圈颜色。
     let extRing: Color
     let theme: Theme
+    @Environment(\.uiScale) private var uiScale
 
     private var isExternal: Bool {
         switch host {
@@ -177,7 +179,7 @@ struct SessionTile: View {
 
     var body: some View {
         tile
-            .frame(width: 26, height: 26)
+            .frame(width: uiScale.metric(26), height: uiScale.metric(26))
             .overlay(alignment: .topTrailing) {
                 if isExternal { ExternalBadge(ring: extRing, theme: theme).offset(x: 3 + 1.5, y: -3 - 1.5) }
             }
@@ -224,7 +226,7 @@ struct SessionTile: View {
     private func symbolTile(_ name: String, bg: Color, fg: Color) -> some View {
         RoundedRectangle(cornerRadius: 7)
             .fill(bg)
-            .overlay(Image(systemName: name).font(.system(size: 13)).foregroundStyle(fg))
+            .overlay(Image(systemName: name).uiFont(size: 13).foregroundStyle(fg))
     }
 }
 
@@ -255,7 +257,7 @@ struct ExternalBadge: View {
             Circle().fill(ring).frame(width: 15, height: 15)
             Circle().fill(theme.extBg).frame(width: 12, height: 12)
             Image(systemName: "arrow.up.right")
-                .font(.system(size: 6.5, weight: .bold))
+                .uiFont(size: 6.5, weight: .bold)
                 .foregroundStyle(theme.extFg)
         }
         .frame(width: 15, height: 15)

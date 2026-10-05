@@ -9,11 +9,12 @@ struct ContentView: View {
     @ObservedObject private var themes = ThemeStore.shared
     /// 侧栏是否收起：收起时窗口按钮与侧栏开关挤到详情区的工具栏这一行，标题栏要让出位置。
     @State private var columnVisibility = NavigationSplitViewVisibility.automatic
+    @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(model: model)
-                .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 420)
+                .navigationSplitViewColumnWidth(min: uiScale.metric(240), ideal: uiScale.metric(300), max: uiScale.metric(420))
         } detail: {
             DetailView(model: model, sidebarCollapsed: columnVisibility == .detailOnly)
         }
@@ -21,7 +22,7 @@ struct ContentView: View {
             if model.showHistoryPalette { HistoryPalette(model: model) }
         }
         .overlay { PanePickerSlot(model: model, panes: model.panes) }
-        .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model) }
+        .sheet(isPresented: $model.showNewSession) { NewSessionSheet(model: model).uiScaleRoot() }
         .modifier(AssistantResultsPresenter(work: model.work, companion: model.companion))
         .onAppear { model.openMainWindow = { openWindow(id: "main") } }
         .onChange(of: colorScheme, initial: true) { _, scheme in model.pool.apply(themes.theme(for: scheme).terminal) }
@@ -37,6 +38,7 @@ struct DetailView: View {
     @ObservedObject private var themes = ThemeStore.shared
     /// 详情区宽度，用于限制标题宽度：长标题截断，不把右侧的状态胶囊挤走。
     @State private var width: CGFloat = 0
+    @Environment(\.uiScale) private var uiScale
 
     /// 工具栏这一行开头被系统占用的宽度：两侧留白；侧栏收起时再加上红绿灯（约 70pt）和侧栏开关（约 50pt）。
     private var leadingChrome: CGFloat { sidebarCollapsed ? 160 : 40 }
@@ -103,6 +105,8 @@ struct DetailView: View {
                         }
                     }
                     .frame(width: toolbarRowWidth)
+                    // 工具栏高度由系统固定：标题栏这一行最多放大到「大」，免得两行标题被裁掉。
+                    .environment(\.uiScale, UIScale(factor: min(uiScale.factor, UIScale.toolbarMaxFactor)))
                 }
             }
         }
@@ -196,22 +200,23 @@ struct DetailTitle: View {
     let row: SidebarRow
     let theme: Theme
     var maxWidth: CGFloat = 520
+    @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         let path = row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~")
         VStack(alignment: .leading, spacing: 0) {
             Text(row.displayName)
-                .font(.system(size: 13.5, weight: .semibold))
+                .uiFont(size: 13.5, weight: .semibold)
                 .foregroundStyle(theme.fg1)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(height: 18)
+                .frame(height: uiScale.metric(18))
             Text(row.session.kind.isAgent ? "\(row.agentModelLabel ?? row.session.kind.displayName) · \(path)" : path)
-                .font(.system(size: 11.5))
+                .uiFont(size: 11.5)
                 .foregroundStyle(theme.fg2)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(height: 15)
+                .frame(height: uiScale.metric(15))
         }
         .frame(maxWidth: maxWidth, alignment: .leading)
         .help(row.tooltip)
@@ -227,16 +232,17 @@ struct StatusPill: View {
     /// 已完成·未读：鼠尾草绿「已完成」（等批准优先）。
     var unread: Bool = false
     let theme: Theme
+    @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         let (bg, fg, label) = colors
         HStack(spacing: 5) {
             if status == .working && !missing { BreathingDot(color: theme.dot, size: 6) }
-            Text(label).font(.system(size: 11.5, weight: .semibold))
+            Text(label).uiFont(size: 11.5, weight: .semibold)
         }
         .foregroundStyle(fg)
         .padding(.horizontal, 10)
-        .frame(height: 22)
+        .frame(height: uiScale.metric(22))
         .background(Capsule().fill(bg))
     }
 
@@ -254,11 +260,12 @@ struct StatusPill: View {
 struct NewSessionSheet: View {
     @ObservedObject var model: AppModel
     @State private var kind: AgentKind = .claude
+    @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(L("newSession.title", kind.displayName)).font(.headline)
+                Text(L("newSession.title", kind.displayName)).uiFont(size: 13, weight: .bold)
                 Spacer()
                 CloseButton { model.showNewSession = false }
             }
@@ -266,7 +273,7 @@ struct NewSessionSheet: View {
             if model.recentDirs.isEmpty {
                 Text(L("newSession.noRecent")).foregroundStyle(.secondary)
             } else {
-                Text(L("newSession.recent")).font(.subheadline).foregroundStyle(.secondary)
+                Text(L("newSession.recent")).uiFont(size: 11).foregroundStyle(.secondary)
                 ForEach(Array(model.recentDirs.enumerated()), id: \.element) { index, dir in
                     Button {
                         model.showNewSession = false
@@ -285,7 +292,7 @@ struct NewSessionSheet: View {
             }
         }
         .padding(20)
-        .frame(width: 460)
+        .frame(width: uiScale.metric(460))
         .onAppear {
             kind = model.lastAgent
             model.probeAgents()
@@ -315,7 +322,7 @@ struct AgentPicker: View {
                     HStack(spacing: 4) {
                         Text(kind.displayName)
                         if let hint = availability.hint {
-                            Text(hint).font(.system(size: 10.5)).foregroundStyle(.tertiary)
+                            Text(hint).uiFont(size: 10.5).foregroundStyle(.tertiary)
                         }
                     }
                     .padding(.horizontal, 10)
@@ -332,7 +339,7 @@ struct AgentPicker: View {
             }
             Spacer(minLength: 0)
         }
-        .font(.system(size: 12))
+        .uiFont(size: 12)
     }
 }
 

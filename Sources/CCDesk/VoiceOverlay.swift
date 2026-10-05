@@ -2,6 +2,7 @@ import SwiftUI
 
 /// 终端底部的语音浮层：录音中（脉动麦克风 + 「松开结束」 + 电平条）/ 模型下载或加载 / 识别中 / 简短提示。
 struct VoiceOverlay: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var voice: VoiceInput
     let theme: Theme
 
@@ -61,10 +62,10 @@ struct VoiceOverlay: View {
                 Text(text).foregroundStyle(theme.fg2)
             }
         }
-        .font(.system(size: 12.5, weight: .medium))
+        .uiFont(size: 12.5, weight: .medium)
         .lineLimit(1)
         .padding(.horizontal, 14)
-        .frame(height: 34)
+        .frame(height: uiScale.metric(34))
         .background(Capsule().fill(theme.sel))
         .overlay(Capsule().strokeBorder(content == .recording ? theme.accent.opacity(0.55) : theme.selLine,
                                         lineWidth: 1))
@@ -87,7 +88,7 @@ private struct PulsingMic: View {
                 } animation: { _ in .easeOut(duration: 0.9) }
             }
             Image(systemName: "mic.fill")
-                .font(.system(size: 12, weight: .semibold))
+                .uiFont(size: 12, weight: .semibold)
                 .foregroundStyle(color)
         }
         .frame(width: 22, height: 22)
@@ -117,6 +118,7 @@ private struct LevelMeter: View {
 
 /// 终端下方的语音输入条：紧挨 agent 输入框。平时按住按钮说话；打开「对话模式」后显示聆听状态。
 struct VoiceBar: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var voice: VoiceInput
     @ObservedObject var conversation: ConversationMode
     let theme: Theme
@@ -132,14 +134,14 @@ struct VoiceBar: View {
                     MicButton(voice: voice, theme: theme)
                     ConversationToggle(conversation: conversation, theme: theme)
                     Text(voice.isRecording ? L("voice.bar.recording") : L("voice.bar.idle"))
-                        .font(.system(size: 11.5))
+                        .uiFont(size: 11.5)
                         .foregroundStyle(voice.isRecording ? theme.accent : theme.fg3)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 24)
-            .frame(height: 36)
+            .frame(height: uiScale.metric(36))
         }
         .background(Color(nsColor: theme.terminal.background))
     }
@@ -147,6 +149,7 @@ struct VoiceBar: View {
 
 /// 「对话模式」开关（⌥⌘V）。
 struct ConversationToggle: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var conversation: ConversationMode
     let theme: Theme
 
@@ -157,13 +160,13 @@ struct ConversationToggle: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: on ? "waveform.circle.fill" : "waveform.circle")
-                    .font(.system(size: 12, weight: .semibold))
+                    .uiFont(size: 12, weight: .semibold)
                 Text(L("conversation.toggle"))
-                    .font(.system(size: 11.5, weight: .medium))
+                    .uiFont(size: 11.5, weight: .medium)
             }
             .foregroundStyle(on ? theme.chipWorkFg : theme.fg2)
             .padding(.horizontal, 10)
-            .frame(height: 24)
+            .frame(height: uiScale.metric(24))
             .background(Capsule().fill(on ? theme.chipWorkBg : theme.pillIdleBg))
             .contentShape(Capsule())
         }
@@ -187,7 +190,7 @@ struct ConversationStatus: View {
                 .opacity(active || conversation.capturing ? 1 : 0.55)
             LevelMeter(level: conversation.level, color: color, idle: theme.line)
             Text(text)
-                .font(.system(size: 11.5, weight: emphasized ? .semibold : .regular))
+                .uiFont(size: 11.5, weight: emphasized ? .semibold : .regular)
                 .foregroundStyle(emphasized ? theme.fg1 : (active ? theme.fg2 : theme.fg3))
                 .lineLimit(1)
         }
@@ -239,18 +242,19 @@ private struct PulsingDot: View {
 
 /// 工具栏里的「对话模式」标识：麦克风正在持续监听。
 struct ConversationBadge: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var conversation: ConversationMode
     let theme: Theme
 
     var body: some View {
         if conversation.isOn {
             HStack(spacing: 4) {
-                Image(systemName: "mic.fill").font(.system(size: 10, weight: .semibold))
-                Text(L("conversation.indicator")).font(.system(size: 11.5, weight: .semibold))
+                Image(systemName: "mic.fill").uiFont(size: 10, weight: .semibold)
+                Text(L("conversation.indicator")).uiFont(size: 11.5, weight: .semibold)
             }
             .foregroundStyle(theme.pillWorkFg)
             .padding(.horizontal, 9)
-            .frame(height: 22)
+            .frame(height: uiScale.metric(22))
             .background(Capsule().fill(theme.pillWorkBg))
             .opacity(conversation.state == .active ? 1 : 0.75)
             .help(L("conversation.indicator.help"))
@@ -260,6 +264,7 @@ struct ConversationBadge: View {
 
 /// 语音输入条里的麦克风按钮：按住说话，松开结束。
 struct MicButton: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var voice: VoiceInput
     let theme: Theme
     @State private var pressing = false
@@ -268,13 +273,13 @@ struct MicButton: View {
         let active = voice.isRecording
         HStack(spacing: 5) {
             Image(systemName: active ? "mic.fill" : "mic")
-                .font(.system(size: 12, weight: .semibold))
+                .uiFont(size: 12, weight: .semibold)
             Text(L("voice.button.holdToTalk"))
-                .font(.system(size: 11.5, weight: .medium))
+                .uiFont(size: 11.5, weight: .medium)
         }
         .foregroundStyle(active ? theme.pillWaitFg : theme.fg2)
         .padding(.horizontal, 10)
-        .frame(height: 24)
+        .frame(height: uiScale.metric(24))
         .background(Capsule().fill(active ? theme.accent : theme.pillIdleBg))
         .contentShape(Capsule())
         .gesture(

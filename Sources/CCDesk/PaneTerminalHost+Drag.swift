@@ -142,17 +142,18 @@ extension PaneTerminalHost.HostView: NSDraggingSource {
             let path = NSBezierPath(roundedRect: rect.insetBy(dx: 1, dy: 1), xRadius: 8, yRadius: 8)
             background.withAlphaComponent(0.92).setFill()
             path.fill()
-            let header: CGFloat = 22
+            let scale = UIScalePreferences.shared.scale
+            let header = scale.metric(22)
             if let snapshot {
                 let content = CGRect(x: 6, y: header, width: rect.width - 12, height: rect.height - header - 6)
                 snapshot.draw(in: content, from: .zero, operation: .sourceOver, fraction: 0.85,
                               respectFlipped: true, hints: nil)
             }
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 11.5, weight: .semibold),
+                .font: NSFont.systemFont(ofSize: scale.font(11.5), weight: .semibold),
                 .foregroundColor: dark ? NSColor.white : NSColor.black,
             ]
-            (title as NSString).draw(in: CGRect(x: 10, y: 4, width: rect.width - 20, height: 16), withAttributes: attributes)
+            (title as NSString).draw(in: CGRect(x: 10, y: 4, width: rect.width - 20, height: header - 6), withAttributes: attributes)
             tint.withAlphaComponent(0.8).setStroke()
             path.lineWidth = 1.5
             path.stroke()

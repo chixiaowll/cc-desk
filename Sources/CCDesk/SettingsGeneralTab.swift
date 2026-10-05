@@ -1,7 +1,7 @@
 import SwiftUI
 import CCDeskCore
 
-/// 设置 › 通用：外观（明暗与浅色 / 深色主题、侧栏是否显示模型）、语言（沿用重启流程）、终端字体、登录时启动、菜单栏图标、全局快捷键。
+/// 设置 › 通用：外观（明暗与浅色 / 深色主题、界面文字大小、侧栏是否显示模型）、语言（沿用重启流程）、终端字体、登录时启动、菜单栏图标、全局快捷键。
 struct SettingsGeneralTab: View {
     let model: AppModel
     let selectLanguage: (LanguagePreference) -> Void
@@ -12,6 +12,7 @@ struct SettingsGeneralTab: View {
     @ObservedObject private var loginItem = LoginItemController.shared
     @ObservedObject private var hotkeys = GlobalHotkeyCenter.shared
     @ObservedObject private var terminalFont = TerminalFontPreferences.shared
+    @ObservedObject private var uiScale = UIScalePreferences.shared
     /// 可选的等宽字体族与「自动」实际用的字体族（打开设置时扫描一次，装了新字体后重新打开即可看到）。
     @State private var fontFamilies: [String] = []
     @State private var autoFamily: String?
@@ -28,6 +29,9 @@ struct SettingsGeneralTab: View {
                 }
                 ThemePickerRow(title: L("settings.general.lightTheme"), kind: .light)
                 ThemePickerRow(title: L("settings.general.darkTheme"), kind: .dark)
+                Picker(L("settings.general.uiScale"), selection: $uiScale.preset) {
+                    ForEach(UIScalePreset.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
                 Toggle(L("settings.general.showModelInSidebar"), isOn: $showModelInSidebar)
                 VStack(alignment: .leading, spacing: 4) {
                     Picker(L("settings.general.language"), selection: languageBinding) {
@@ -88,7 +92,7 @@ struct SettingsGeneralTab: View {
     private func hotkeyRow(_ action: GlobalHotkey.Action, _ title: String) -> some View {
         LabeledContent(title) {
             Text(GlobalHotkey.default(for: action)?.displayString ?? "")
-                .font(.system(size: 12, design: .monospaced))
+                .uiFont(size: 12, design: .monospaced)
                 .foregroundStyle(preferences.globalHotkeysEnabled ? .primary : .tertiary)
         }
     }

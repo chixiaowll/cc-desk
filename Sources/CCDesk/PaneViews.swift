@@ -7,8 +7,11 @@ import CCDeskCore
 struct PaneGeometry {
     static let singleInsets = NSEdgeInsets(top: 20, left: 24, bottom: 20, right: 24)
     static let paneInsets = NSEdgeInsets(top: 2, left: 10, bottom: 8, right: 10)
+    /// 标准界面文字下的标题条高度；界面文字放大时按倍率加高（`headerHeight` 实例属性）。
     static let headerHeight: CGFloat = 30
 
+    /// 这次布局用的标题条高度。
+    let headerHeight: CGFloat
     /// 显示标题条与焦点边框（多于一个窗格，含放大时）。
     let showsChrome: Bool
     let paneFrames: [UUID: CGRect]
@@ -17,8 +20,9 @@ struct PaneGeometry {
     let headerFrames: [UUID: CGRect]
     let dividers: [PaneDivider]
 
-    init(layout: PaneLayout, size: CGSize) {
+    init(layout: PaneLayout, size: CGSize, headerHeight: CGFloat = PaneGeometry.headerHeight) {
         let bounds = CGRect(origin: .zero, size: size)
+        self.headerHeight = headerHeight
         showsChrome = layout.isSplit
         if let zoomed = layout.zoomed {
             paneFrames = [zoomed: bounds]
@@ -28,10 +32,10 @@ struct PaneGeometry {
             dividers = layout.dividers(in: bounds)
         }
         let chrome = showsChrome
-        headerFrames = chrome ? paneFrames.mapValues { CGRect(x: $0.minX, y: $0.minY, width: $0.width, height: Self.headerHeight) } : [:]
+        headerFrames = chrome ? paneFrames.mapValues { CGRect(x: $0.minX, y: $0.minY, width: $0.width, height: headerHeight) } : [:]
         terminalFrames = paneFrames.mapValues { frame in
             let insets = chrome ? Self.paneInsets : Self.singleInsets
-            let top = chrome ? Self.headerHeight + insets.top : insets.top
+            let top = chrome ? headerHeight + insets.top : insets.top
             return CGRect(x: frame.minX + insets.left, y: frame.minY + top,
                           width: max(0, frame.width - insets.left - insets.right),
                           height: max(0, frame.height - top - insets.bottom)).integral
@@ -45,6 +49,7 @@ struct PaneArea: View {
     @ObservedObject var model: AppModel
     @ObservedObject var panes: PaneLayoutModel
     let theme: Theme
+    @Environment(\.uiScale) private var uiScale
 
     private var actions: PaneHostActions {
         let model = self.model
@@ -72,7 +77,7 @@ struct PaneArea: View {
         GeometryReader { proxy in
             let size = proxy.size
             let layout = panes.layout
-            let geometry = PaneGeometry(layout: layout, size: size)
+            let geometry = PaneGeometry(layout: layout, size: size, headerHeight: uiScale.metric(PaneGeometry.headerHeight))
             ZStack(alignment: .topLeading) {
                 PaneTerminalHost(
                     pool: model.pool, owned: model.pool.terminals.map(\.id).filter { !model.isDetached($0) },
@@ -83,7 +88,7 @@ struct PaneArea: View {
                     actions: actions)
                 if layout.isEmpty {
                     Text(L("detail.empty"))
-                        .font(.system(size: 13))
+                        .uiFont(size: 13)
                         .foregroundStyle(theme.fg3)
                         .frame(width: size.width, height: size.height)
                         .allowsHitTesting(false)
@@ -142,17 +147,38 @@ struct PaneHeader: View {
 
     var body: some View {
         let row = model.row(forTerminal: terminalID)
+        PaneHeaderBar(row: row, title: row?.displayName ?? model.pool.terminal(terminalID)?.title ?? "",
+                      focused: focused, zoomed: zoomed, theme: theme,
+                      onDetach: { model.detach(terminalID) },
+                      onToggleZoom: { model.toggleZoom(terminalID) },
+                      onClose: { model.closePane(terminalID) })
+    }
+}
+
+/// 标题条的内容（不依赖 AppModel，界面文字自检直接渲染它）。高度 30pt，随界面文字倍率。
+struct PaneHeaderBar: View {
+    let row: SidebarRow?
+    let title: String
+    let focused: Bool
+    let zoomed: Bool
+    let theme: Theme
+    var onDetach: () -> Void = {}
+    var onToggleZoom: () -> Void = {}
+    var onClose: () -> Void = {}
+    @Environment(\.uiScale) private var uiScale
+
+    var body: some View {
         HStack(spacing: 7) {
             HStack(spacing: 7) {
                 PaneStatusDot(row: row, theme: theme)
-                Text(row?.displayName ?? model.pool.terminal(terminalID)?.title ?? "")
-                    .font(.system(size: 12, weight: .semibold))
+                Text(title)
+                    .uiFont(size: 12, weight: .semibold)
                     .foregroundStyle(focused ? theme.fg1 : theme.fg2)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if let row {
                     Text(row.agentModelLabel.map { "\($0) · \(row.statusLabel)" } ?? row.statusLabel)
-                        .font(.system(size: 11))
+                        .uiFont(size: 11)
                         .foregroundStyle(theme.fg3)
                         .lineLimit(1)
                         .layoutPriority(-1)
@@ -160,20 +186,16 @@ struct PaneHeader: View {
                 Spacer(minLength: 4)
             }
             .allowsHitTesting(false)
-            SidebarIconButton(systemName: "macwindow.badge.plus", help: L("pane.detach.help"), theme: theme) {
-                model.detach(terminalID)
-            }
+            SidebarIconButton(systemName: "macwindow.badge.plus", help: L("pane.detach.help"), theme: theme,
+                              action: onDetach)
             SidebarIconButton(systemName: zoomed ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-                              help: zoomed ? L("pane.unzoom.help") : L("pane.zoom.help"), on: zoomed, theme: theme) {
-                model.toggleZoom(terminalID)
-            }
-            SidebarIconButton(systemName: "xmark", help: L("pane.close.help"), theme: theme) {
-                model.closePane(terminalID)
-            }
+                              help: zoomed ? L("pane.unzoom.help") : L("pane.zoom.help"), on: zoomed, theme: theme,
+                              action: onToggleZoom)
+            SidebarIconButton(systemName: "xmark", help: L("pane.close.help"), theme: theme, action: onClose)
         }
         .padding(.leading, 12)
         .padding(.trailing, 6)
-        .frame(height: PaneGeometry.headerHeight)
+        .frame(height: uiScale.metric(PaneGeometry.headerHeight))
     }
 }
 

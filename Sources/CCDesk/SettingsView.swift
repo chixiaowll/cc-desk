@@ -25,6 +25,7 @@ struct SettingsView: View {
     @AppStorage(SettingsTab.defaultsKey) private var tab = SettingsTab.general.rawValue
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var themes = ThemeStore.shared
+    @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         TabView(selection: $tab) {
@@ -44,7 +45,8 @@ struct SettingsView: View {
                 .tabItem { Label(L("settings.tab.usage"), systemImage: "chart.bar") }
                 .tag(SettingsTab.usage.rawValue)
         }
-        .frame(width: 600, height: 560)
+        // 界面文字放大时窗口跟着加宽；高度封顶，内容多时表单自己滚动。
+        .frame(width: uiScale.metric(600), height: min(uiScale.metric(560), 680))
         // 标题栏 / 标签栏底色用 SwiftUI 的工具栏背景跟随主题（不直接改 NSWindow，那样会让工具栏消失）。
         .toolbarBackground(themes.theme(for: colorScheme).main, for: .windowToolbar)
     }
@@ -96,7 +98,7 @@ struct SettingsNote: View {
     var body: some View {
         let theme = themes.theme(for: colorScheme)
         Text(text)
-            .font(.system(size: 11))
+            .uiFont(size: 11)
             .foregroundStyle(color(theme))
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -117,6 +119,6 @@ struct SettingsStatus: View {
 
     var body: some View {
         SettingsNote(text: text, tone: tone)
-            .font(.system(size: 12))
+            .uiFont(size: 12)
     }
 }

@@ -74,9 +74,11 @@ final class FontSizeHUD {
     func show(_ text: String) {
         let panel = self.panel ?? makePanel()
         self.panel = panel
+        let scale = UIScalePreferences.shared.scale
+        label.font = .systemFont(ofSize: scale.font(15), weight: .semibold)
         label.stringValue = text
         label.sizeToFit()
-        let size = NSSize(width: max(140, label.frame.width + 40), height: 44)
+        let size = NSSize(width: max(scale.metric(140), label.frame.width + 40), height: scale.metric(44))
         let anchor = NSApp.keyWindow?.frame ?? NSApp.mainWindow?.frame ?? NSScreen.main?.visibleFrame ?? .zero
         panel.setFrame(NSRect(x: anchor.midX - size.width / 2, y: anchor.midY - size.height / 2,
                               width: size.width, height: size.height), display: false)
@@ -119,7 +121,6 @@ final class FontSizeHUD {
         background.layer?.cornerRadius = 12
         background.layer?.masksToBounds = true
         background.autoresizingMask = [.width, .height]
-        label.font = .systemFont(ofSize: 15, weight: .semibold)
         label.alignment = .center
         label.textColor = .labelColor
         background.addSubview(label)

@@ -144,6 +144,7 @@ final class DetachedWindow: NSObject, NSWindowDelegate {
     let window: NSWindow
     var onClose: ((UUID) -> Void)?
     var onFrameChange: (() -> Void)?
+    private var contentInstalled = false
 
     init(terminalID: UUID, model: AppModel, frame: CGRect) {
         self.terminalID = terminalID
@@ -162,13 +163,14 @@ final class DetachedWindow: NSObject, NSWindowDelegate {
     /// 搭建窗口内容。必须在 `DetachedWindows` 登记好这个终端之后调用：内容第一次排版时就要确认
     /// 「终端归这个窗口显示」，登记前搭建会拿不到终端视图（窗口一片空白）。
     func installContent(model: AppModel) {
-        guard window.contentView as? NSHostingView<DetachedWindowView> == nil else { return }
+        guard !contentInstalled else { return }
+        contentInstalled = true
         let window = self.window
         let frame = window.frame
         let content = NSHostingView(rootView: DetachedWindowView(
             model: model, terminalID: terminalID, onTitle: { [weak window] title in
                 if let window, window.title != title { window.title = title }
-            }))
+            }).uiScaleRoot())
         // 不让 SwiftUI 内容的理想尺寸反过来改窗口大小。
         content.sizingOptions = []
         window.contentView = content

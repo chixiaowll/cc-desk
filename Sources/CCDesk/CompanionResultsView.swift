@@ -11,7 +11,7 @@ struct CompanionResultsList: View {
     var body: some View {
         if companion.book.jobs.isEmpty {
             Text(L("results.companion.empty", companion.name))
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .foregroundStyle(theme.fg3)
                 .frame(maxWidth: .infinity, minHeight: 120)
         } else {
@@ -39,12 +39,12 @@ private struct CompanionJobRow: View {
                 stateIcon.frame(width: 16, height: 16).padding(.top, 1)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(job.question)
-                        .font(.system(size: 13, weight: .semibold))
+                        .uiFont(size: 13, weight: .semibold)
                         .foregroundStyle(theme.fg1)
                         .textSelection(.enabled)
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(meta(now: context.date))
-                            .font(.system(size: 11))
+                            .uiFont(size: 11)
                             .foregroundStyle(theme.fg3)
                     }
                 }
@@ -62,14 +62,14 @@ private struct CompanionJobRow: View {
             }
             if job.state == .done, let answer = job.answer {
                 Text(ConsultJobRow.markdown(answer))
-                    .font(.system(size: 12.5))
+                    .uiFont(size: 12.5)
                     .foregroundStyle(theme.fg1)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.leading, 24)
                 if !job.webLookups.isEmpty {
                     Text(L("results.companion.searched", job.webLookups.prefix(4).joined(separator: " · ")))
-                        .font(.system(size: 11))
+                        .uiFont(size: 11)
                         .foregroundStyle(theme.fg3)
                         .textSelection(.enabled)
                         .padding(.leading, 24)
@@ -77,7 +77,7 @@ private struct CompanionJobRow: View {
                 if !job.sources.isEmpty { sources }
             } else if let error = job.error, !job.isActive {
                 Text(error)
-                    .font(.system(size: 12))
+                    .uiFont(size: 12)
                     .foregroundStyle(theme.fg2)
                     .textSelection(.enabled)
                     .padding(.leading, 24)
@@ -90,11 +90,11 @@ private struct CompanionJobRow: View {
     /// 来源链接（只显示 http(s)）。
     private var sources: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(L("results.companion.sources")).font(.system(size: 11, weight: .medium)).foregroundStyle(theme.fg2)
+            Text(L("results.companion.sources")).uiFont(size: 11, weight: .medium).foregroundStyle(theme.fg2)
             ForEach(job.sources.prefix(6), id: \.url) { source in
                 if let url = URL(string: source.url), ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
                     Link(source.title, destination: url)
-                        .font(.system(size: 11))
+                        .uiFont(size: 11)
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .help(source.url)

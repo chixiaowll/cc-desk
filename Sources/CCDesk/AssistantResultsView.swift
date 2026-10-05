@@ -5,6 +5,7 @@ import CCDeskCore
 /// 「助手结果」面板（设计 §14 / §24）：两类结果——顾问任务（问题、模型、用时、token、状态；运行中可取消，完成的显示结论
 /// 与完整回答）和通用助手的问答（CompanionResultsList）。与「集成」面板一样以表单形式出现在主窗口上。
 struct AssistantResultsSheet: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var work: AssistantWork
     @ObservedObject var companion: CompanionWork
     @Environment(\.colorScheme) private var colorScheme
@@ -15,7 +16,7 @@ struct AssistantResultsSheet: View {
         let theme = themes.theme(for: colorScheme)
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(L("results.title")).font(.headline)
+                Text(L("results.title")).uiFont(size: 13, weight: .bold)
                 Spacer()
                 CloseButton { work.showResults = false }
             }
@@ -26,18 +27,18 @@ struct AssistantResultsSheet: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             Text(work.resultsTab == .consults ? L("results.intro") : L("results.companion.intro"))
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Text(L("results.backend", AssistantClient.shared.activeLabel))
-                .font(.system(size: 11))
+                .uiFont(size: 11)
                 .foregroundStyle(theme.fg3)
 
             if work.resultsTab == .companion {
                 CompanionResultsList(companion: companion, theme: theme)
             } else if work.consults.jobs.isEmpty {
                 Text(L("results.empty"))
-                    .font(.system(size: 12))
+                    .uiFont(size: 12)
                     .foregroundStyle(theme.fg3)
                     .frame(maxWidth: .infinity, minHeight: 120)
             } else {
@@ -55,14 +56,14 @@ struct AssistantResultsSheet: View {
 
             HStack {
                 Text(work.resultsTab == .consults ? L("results.quotaNote") : L("results.companion.quotaNote"))
-                    .font(.system(size: 11))
+                    .uiFont(size: 11)
                     .foregroundStyle(.tertiary)
                 Spacer()
                 Button(L("action.done")) { work.showResults = false }.keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
-        .frame(width: 620)
+        .frame(width: uiScale.metric(620))
         .onExitCommand { work.showResults = false }
         .onAppear {
             // 打开时展开最新一条已完成的结果。
@@ -89,13 +90,13 @@ struct ConsultJobRow: View {
                 stateIcon.frame(width: 16, height: 16).padding(.top, 1)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(job.question)
-                        .font(.system(size: 13, weight: .semibold))
+                        .uiFont(size: 13, weight: .semibold)
                         .foregroundStyle(theme.fg1)
                         .lineLimit(expanded ? nil : 2)
                         .textSelection(.enabled)
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         Text(meta(now: context.date))
-                            .font(.system(size: 11))
+                            .uiFont(size: 11)
                             .foregroundStyle(theme.fg3)
                     }
                 }
@@ -117,13 +118,13 @@ struct ConsultJobRow: View {
             }
             if job.state == .done, let answer = job.outcome?.answer {
                 Text(ConsultAnswer.conclusion(answer, limit: 400))
-                    .font(.system(size: 12.5))
+                    .uiFont(size: 12.5)
                     .foregroundStyle(theme.fg1)
                     .textSelection(.enabled)
                     .padding(.leading, 24)
                 if expanded {
                     Text(Self.markdown(ConsultAnswer.details(answer)))
-                        .font(.system(size: 12))
+                        .uiFont(size: 12)
                         .foregroundStyle(theme.fg2)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,7 +134,7 @@ struct ConsultJobRow: View {
                 }
             } else if let error = job.error, job.state != .running {
                 Text(error)
-                    .font(.system(size: 12))
+                    .uiFont(size: 12)
                     .foregroundStyle(theme.fg2)
                     .textSelection(.enabled)
                     .padding(.leading, 24)
@@ -203,6 +204,6 @@ struct AssistantResultsPresenter: ViewModifier {
     let companion: CompanionWork
 
     func body(content: Content) -> some View {
-        content.sheet(isPresented: $work.showResults) { AssistantResultsSheet(work: work, companion: companion) }
+        content.sheet(isPresented: $work.showResults) { AssistantResultsSheet(work: work, companion: companion).uiScaleRoot() }
     }
 }

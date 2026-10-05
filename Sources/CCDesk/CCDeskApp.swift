@@ -197,6 +197,7 @@ struct CCDeskApp: App {
     var body: some Scene {
         Window("CC Desk", id: "main") {
             ContentView(model: delegate.model)
+                .uiScaleRoot()
                 .frame(minWidth: 900, minHeight: 560)
         }
         .windowToolbarStyle(.unified(showsTitle: false))
@@ -257,6 +258,7 @@ struct CCDeskApp: App {
         // 设置窗口（应用菜单「设置…」，⌘,，设计 §16）。
         Settings {
             SettingsView(model: delegate.model, selectLanguage: { delegate.selectLanguage($0) })
+                .uiScaleRoot()
         }
     }
 }

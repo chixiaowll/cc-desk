@@ -21,17 +21,17 @@ struct SkillDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.displayName)
-                        .font(.system(size: 18, weight: .semibold))
+                        .uiFont(size: 18, weight: .semibold)
                         .foregroundStyle(theme.fg1)
                         .textSelection(.enabled)
                     if entry.title != nil {
-                        Text(entry.name).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(theme.fg3)
+                        Text(entry.name).uiFont(size: 11.5, design: .monospaced).foregroundStyle(theme.fg3)
                     }
                     SkillBadges(entry: entry, theme: theme).padding(.top, 2)
                 }
                 if !entry.description.isEmpty {
                     Text(entry.description)
-                        .font(.system(size: 12.5))
+                        .uiFont(size: 12.5)
                         .foregroundStyle(theme.fg2)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
@@ -52,12 +52,12 @@ struct SkillDetailView: View {
             GridRow {
                 label(L("skills.detail.source"))
                 Text(entry.sources.map(\.sectionTitle).joined(separator: " · "))
-                    .font(.system(size: 12)).foregroundStyle(theme.fg1)
+                    .uiFont(size: 12).foregroundStyle(theme.fg1)
             }
             GridRow {
                 label(L("skills.detail.path"))
                 Text(SkillCatalog.tildePath(entry.filePath, home: home))
-                    .font(.system(size: 11.5, design: .monospaced))
+                    .uiFont(size: 11.5, design: .monospaced)
                     .foregroundStyle(theme.fg1)
                     .textSelection(.enabled)
                     .lineLimit(2)
@@ -67,7 +67,7 @@ struct SkillDetailView: View {
     }
 
     private func label(_ text: String) -> some View {
-        Text(text).font(.system(size: 11.5)).foregroundStyle(theme.fg3).gridColumnAlignment(.trailing)
+        Text(text).uiFont(size: 11.5).foregroundStyle(theme.fg3).gridColumnAlignment(.trailing)
     }
 
     private var actions: some View {
@@ -86,7 +86,7 @@ struct SkillDetailView: View {
     private var fileList: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(L("skills.detail.files", files.count) + (filesTruncated ? "+" : ""))
-                .font(.system(size: 11.5, weight: .semibold))
+                .uiFont(size: 11.5, weight: .semibold)
                 .foregroundStyle(theme.fg2)
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(files, id: \.self) { file in
@@ -103,12 +103,12 @@ struct SkillDetailView: View {
     private var contentView: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(entry.filePath.split(separator: "/").last.map(String.init) ?? "")
-                .font(.system(size: 11.5, weight: .semibold))
+                .uiFont(size: 11.5, weight: .semibold)
                 .foregroundStyle(theme.fg2)
             Group {
                 if let content {
                     Text(content + (truncated ? "\n\n" + L("skills.detail.truncated") : ""))
-                        .font(.system(size: 11.5, design: .monospaced))
+                        .uiFont(size: 11.5, design: .monospaced)
                         .foregroundStyle(theme.fg1)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
@@ -156,7 +156,7 @@ struct SkillFileRow: View {
                 .resizable()
                 .frame(width: 14, height: 14)
             Text(relative)
-                .font(.system(size: 11.5, design: .monospaced))
+                .uiFont(size: 11.5, design: .monospaced)
                 .foregroundStyle(theme.fg1)
                 .lineLimit(1)
                 .truncationMode(.middle)

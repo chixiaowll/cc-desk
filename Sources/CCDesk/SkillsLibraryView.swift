@@ -5,6 +5,7 @@ import CCDeskCore
 /// 技能库窗口（设计 §21）：左侧按来源分组的列表（可折叠，带数量），顶部搜索 / agent 过滤 / 「只看当前会话可用」；
 /// 右侧详情。只读，没有启用 / 停用 / 新建 / 删除。
 struct SkillsLibraryView: View {
+    @Environment(\.uiScale) private var uiScale
     @ObservedObject var library: SkillLibrary
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var themes = ThemeStore.shared
@@ -31,7 +32,7 @@ struct SkillsLibraryView: View {
             header(theme: theme, session: session)
             HStack(spacing: 0) {
                 list(sections: sections, visibleCount: visible.count, theme: theme)
-                    .frame(minWidth: 300, idealWidth: 360, maxWidth: 440)
+                    .frame(minWidth: uiScale.metric(300), idealWidth: 360, maxWidth: uiScale.metric(440))
                 theme.line.frame(width: 1)
                 detail(theme: theme)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -72,10 +73,10 @@ struct SkillsLibraryView: View {
     private func header(theme: Theme, session: SkillLibrary.SessionContext?) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").font(.system(size: 13)).foregroundStyle(theme.fg3)
+                Image(systemName: "magnifyingglass").uiFont(size: 13).foregroundStyle(theme.fg3)
                 TextField("", text: $query, prompt: Text(L("skills.search")).foregroundColor(theme.fg3))
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13))
+                    .uiFont(size: 13)
                     .foregroundStyle(theme.fg1)
                 if !query.isEmpty {
                     Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(theme.fg3) }
@@ -91,7 +92,7 @@ struct SkillsLibraryView: View {
                     .help(L("skills.refresh"))
             }
             .padding(.horizontal, 16)
-            .frame(height: 44)
+            .frame(height: uiScale.metric(44))
             .overlay(alignment: .bottom) { theme.line.frame(height: 1) }
 
             HStack(spacing: 6) {
@@ -103,7 +104,7 @@ struct SkillsLibraryView: View {
                 }
                 Spacer(minLength: 12)
                 Toggle(isOn: Binding(get: { onlyCurrent && session != nil }, set: { onlyCurrent = $0 })) {
-                    Text(L("skills.onlyCurrent")).font(.system(size: 11.5))
+                    Text(L("skills.onlyCurrent")).uiFont(size: 11.5)
                 }
                 .toggleStyle(.checkbox)
                 .disabled(session == nil)
@@ -111,11 +112,11 @@ struct SkillsLibraryView: View {
                       ?? L("skills.onlyCurrent.none"))
                 if let session, onlyCurrent {
                     Text("\(session.name) · \(session.kind.displayName)")
-                        .font(.system(size: 11))
+                        .uiFont(size: 11)
                         .foregroundStyle(theme.fg3)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                        .frame(maxWidth: 220, alignment: .leading)
+                        .frame(maxWidth: uiScale.metric(220), alignment: .leading)
                 }
             }
             .padding(.horizontal, 16)
@@ -133,11 +134,11 @@ struct SkillsLibraryView: View {
             VStack(spacing: 10) {
                 if library.isLoading || library.loadedAt == nil {
                     ProgressView().controlSize(.small)
-                    Text(L("skills.loading")).font(.system(size: 12)).foregroundStyle(theme.fg3)
+                    Text(L("skills.loading")).uiFont(size: 12).foregroundStyle(theme.fg3)
                 } else {
-                    Image(systemName: "books.vertical").font(.system(size: 26)).foregroundStyle(theme.fg3)
-                    Text(L("skills.empty")).font(.system(size: 13, weight: .medium)).foregroundStyle(theme.fg2)
-                    Text(L("skills.empty.hint")).font(.system(size: 11.5)).foregroundStyle(theme.fg3)
+                    Image(systemName: "books.vertical").uiFont(size: 26).foregroundStyle(theme.fg3)
+                    Text(L("skills.empty")).uiFont(size: 13, weight: .medium).foregroundStyle(theme.fg2)
+                    Text(L("skills.empty.hint")).uiFont(size: 11.5).foregroundStyle(theme.fg3)
                         .multilineTextAlignment(.center)
                 }
             }
@@ -146,7 +147,7 @@ struct SkillsLibraryView: View {
             .background(theme.side)
         } else if visibleCount == 0 {
             Text(L("skills.noMatches"))
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .foregroundStyle(theme.fg3)
                 .padding(24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -181,7 +182,7 @@ struct SkillsLibraryView: View {
                 .id(entry.id)
         } else {
             Text(library.entries.isEmpty ? "" : L("skills.selectHint"))
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .foregroundStyle(theme.fg3)
         }
     }
@@ -199,25 +200,25 @@ struct SkillSectionHeader: View {
         Button(action: toggle) {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .uiFont(size: 9, weight: .semibold)
                     .rotationEffect(.degrees(collapsed ? -90 : 0))
                     .foregroundStyle(theme.fg3)
                     .frame(width: 10)
                 Text(source.sectionTitle)
-                    .font(.system(size: 11.5, weight: .semibold))
+                    .uiFont(size: 11.5, weight: .semibold)
                     .foregroundStyle(theme.fg2)
                     .lineLimit(1)
                 if source.isDisabled {
                     SkillBadge(text: L("skills.badge.disabled"), theme: theme, warning: true)
                 }
                 Text(source.sectionDetail)
-                    .font(.system(size: 10.5))
+                    .uiFont(size: 10.5)
                     .foregroundStyle(theme.fg3)
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer(minLength: 6)
                 Text("\(count)")
-                    .font(.system(size: 10.5, weight: .medium))
+                    .uiFont(size: 10.5, weight: .medium)
                     .foregroundStyle(theme.fg3)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
@@ -242,12 +243,12 @@ struct SkillRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(entry.displayName)
-                .font(.system(size: 12.5, weight: .semibold))
+                .uiFont(size: 12.5, weight: .semibold)
                 .foregroundStyle(theme.fg1)
                 .lineLimit(1)
             if !entry.description.isEmpty {
                 Text(entry.description)
-                    .font(.system(size: 11))
+                    .uiFont(size: 11)
                     .foregroundStyle(theme.fg2)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -278,7 +279,7 @@ struct SkillBadges: View {
             if entry.isDisabled { SkillBadge(text: L("skills.badge.disabled"), theme: theme, warning: true) }
             ForEach(entry.agents, id: \.self) { agent in
                 Text(agent.displayName)
-                    .font(.system(size: 9.5, weight: .medium))
+                    .uiFont(size: 9.5, weight: .medium)
                     .foregroundStyle(theme.accent)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
@@ -296,7 +297,7 @@ struct SkillBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 9.5, weight: .medium))
+            .uiFont(size: 9.5, weight: .medium)
             .foregroundStyle(warning ? theme.pillWaitFg : theme.fg2)
             .padding(.horizontal, 5)
             .padding(.vertical, 1)

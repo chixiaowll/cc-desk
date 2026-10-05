@@ -38,6 +38,7 @@ struct UsageBar: View {
 
 /// 侧栏底部的用量行：「Claude  5h ▓░ 20%   7d ▓▓▓ 89%」；窄时省略「Claude」。点击弹出详情。
 struct UsageFooterLine: View {
+    @Environment(\.uiScale) private var uiScale
     let usage: ClaudeUsage
     let now: Date
     let theme: Theme
@@ -59,7 +60,7 @@ struct UsageFooterLine: View {
         .buttonStyle(.plain)
         .help(usage.summary(now: now, calendar: .current))
         .popover(isPresented: $showDetail, arrowEdge: .top) {
-            UsagePopover(usage: usage, now: now, theme: theme)
+            UsagePopover(usage: usage, now: now, theme: theme).uiScaleRoot()
         }
     }
 
@@ -74,11 +75,11 @@ struct UsageFooterLine: View {
                     UsageBar(limit: limit, now: now, width: 40, height: 5, theme: theme)
                     Text(limit.percentText(now: now))
                         .monospacedDigit()
-                        .frame(minWidth: 28, alignment: .leading)
+                        .frame(minWidth: uiScale.metric(28), alignment: .leading)
                 }
             }
         }
-        .font(.system(size: 11))
+        .uiFont(size: 11)
         .foregroundStyle(theme.fg2)
         .lineLimit(1)
         .fixedSize()
@@ -87,6 +88,7 @@ struct UsageFooterLine: View {
 
 /// 用量详情：套餐、全部额度（标出当前限制）、额外用量、数据时间。
 struct UsagePopover: View {
+    @Environment(\.uiScale) private var uiScale
     let usage: ClaudeUsage
     let now: Date
     let theme: Theme
@@ -94,9 +96,9 @@ struct UsagePopover: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
-                Text("Claude").font(.system(size: 13, weight: .semibold)).foregroundStyle(theme.fg1)
+                Text("Claude").uiFont(size: 13, weight: .semibold).foregroundStyle(theme.fg1)
                 if !usage.planLabel.isEmpty {
-                    Text(usage.planLabel).font(.system(size: 12)).foregroundStyle(theme.fg2)
+                    Text(usage.planLabel).uiFont(size: 12).foregroundStyle(theme.fg2)
                 }
             }
             VStack(alignment: .leading, spacing: 10) {
@@ -107,20 +109,20 @@ struct UsagePopover: View {
             theme.line.frame(height: 1)
             VStack(alignment: .leading, spacing: 4) {
                 Text(L("usage.extraLine", usage.extraUsageText))
-                    .font(.system(size: 11.5))
+                    .uiFont(size: 11.5)
                     .foregroundStyle(theme.fg2)
                 Text(usage.ageText(now: now))
-                    .font(.system(size: 11))
+                    .uiFont(size: 11)
                     .foregroundStyle(usage.isStale(now: now) ? theme.fg3 : theme.fg2)
                 if usage.isStale(now: now) {
                     Text(L("usage.staleNote"))
-                        .font(.system(size: 11))
+                        .uiFont(size: 11)
                         .foregroundStyle(theme.fg3)
                 }
             }
         }
         .padding(14)
-        .frame(width: 280, alignment: .leading)
+        .frame(width: uiScale.metric(280), alignment: .leading)
         .background(theme.main)
     }
 
@@ -128,25 +130,25 @@ struct UsagePopover: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Text(limit.label)
-                    .font(.system(size: 12, weight: .medium))
+                    .uiFont(size: 12, weight: .medium)
                     .foregroundStyle(theme.fg1)
                     .lineLimit(1)
                 if limit.isActive {
                     Text(L("usage.currentLimit"))
-                        .font(.system(size: 10, weight: .semibold))
+                        .uiFont(size: 10, weight: .semibold)
                         .foregroundStyle(theme.accent)
                         .padding(.horizontal, 5)
-                        .frame(height: 16)
+                        .frame(height: uiScale.metric(16))
                         .background(Capsule().fill(theme.waitRow))
                 }
                 Spacer(minLength: 4)
                 Text(limit.percentText(now: now))
-                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    .uiFont(size: 12, weight: .semibold, monospacedDigit: true)
                     .foregroundStyle(theme.fg1)
             }
             UsageBar(limit: limit, now: now, width: nil, height: 6, theme: theme)
             if let reset = limit.resetText(now: now, calendar: .current) {
-                Text(reset).font(.system(size: 11)).foregroundStyle(theme.fg3)
+                Text(reset).uiFont(size: 11).foregroundStyle(theme.fg3)
             }
         }
     }

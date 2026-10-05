@@ -8,7 +8,7 @@ struct IntegrationsList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(L("integrations.intro"))
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -30,7 +30,7 @@ struct IntegrationsList: View {
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.06)))
 
             Text(L("integrations.footnote"))
-                .font(.system(size: 11))
+                .uiFont(size: 11)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -53,13 +53,13 @@ private struct IntegrationRow: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(name).font(.system(size: 13, weight: .semibold))
+                    Text(name).uiFont(size: 13, weight: .semibold)
                     Text(statusText)
-                        .font(.system(size: 11))
+                        .uiFont(size: 11)
                         .foregroundStyle(statusColor)
                 }
                 Text(detail)
-                    .font(.system(size: 11))
+                    .uiFont(size: 11)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

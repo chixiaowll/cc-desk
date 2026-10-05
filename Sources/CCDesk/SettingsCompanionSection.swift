@@ -86,7 +86,7 @@ struct SettingsCompanionSection: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(L("settings.companion.description"))
             TextEditor(text: descriptionBinding)
-                .font(.system(size: 12))
+                .uiFont(size: 12)
                 .frame(minHeight: 84, maxHeight: 140)
                 .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.secondary.opacity(0.3)))
             SettingsNote(text: L("settings.companion.description.note"))

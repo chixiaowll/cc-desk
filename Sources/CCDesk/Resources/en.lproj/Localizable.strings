@@ -449,6 +449,11 @@
 "settings.general.lightTheme" = "Light Theme";
 "settings.general.darkTheme" = "Dark Theme";
 "settings.general.showModelInSidebar" = "Show model in sidebar";
+"settings.general.uiScale" = "Interface text";
+"settings.general.uiScale.small" = "Small";
+"settings.general.uiScale.standard" = "Standard";
+"settings.general.uiScale.large" = "Large";
+"settings.general.uiScale.extraLarge" = "Extra Large";
 "menu.terminalFont.bigger" = "Bigger Terminal Text";
 "menu.terminalFont.smaller" = "Smaller Terminal Text";
 "menu.terminalFont.reset" = "Default Terminal Text Size";

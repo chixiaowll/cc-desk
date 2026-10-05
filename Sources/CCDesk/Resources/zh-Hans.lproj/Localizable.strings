@@ -449,6 +449,11 @@
 "settings.general.lightTheme" = "浅色主题";
 "settings.general.darkTheme" = "深色主题";
 "settings.general.showModelInSidebar" = "在侧栏显示模型";
+"settings.general.uiScale" = "界面文字";
+"settings.general.uiScale.small" = "小";
+"settings.general.uiScale.standard" = "标准";
+"settings.general.uiScale.large" = "大";
+"settings.general.uiScale.extraLarge" = "特大";
 "menu.terminalFont.bigger" = "放大终端文字";
 "menu.terminalFont.smaller" = "缩小终端文字";
 "menu.terminalFont.reset" = "恢复默认字号";
