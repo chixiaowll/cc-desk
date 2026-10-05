@@ -37,7 +37,12 @@ extension AppModel {
     func selectNumbered(index: Int) {
         let rows = numberedRows
         guard rows.indices.contains(index) else { return NSSound.beep() }
-        activate(rows[index])
+        let row = rows[index]
+        // 在收起的组里：先展开，让选中的那一行看得见。
+        if let group = groups.first(where: { $0.rows.contains { $0.id == row.id } }), collapsed.contains(group.id) {
+            collapsed.remove(group.id)
+        }
+        activate(row)
     }
 
     /// 按住 ⌘ 时在侧栏显示编号：监听修饰键变化，App 失去焦点时复位。

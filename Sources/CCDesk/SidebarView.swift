@@ -185,6 +185,21 @@ struct GroupHeaderView: View {
         .contentShape(Rectangle())
         .onTapGesture { toggle() }
         .onHover { hovering = $0 }
+        .overlay(alignment: .trailing) {
+            // 收起的组：按住 ⌘ 时把组里会话的编号显示在组标题上。
+            if collapsed, model.commandHeld {
+                let numbers = group.rows.compactMap { model.shortcutNumber(of: $0.id) }
+                if !numbers.isEmpty {
+                    Text(numbers.map { "⌘\($0)" }.joined(separator: " "))
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(theme.chipWorkFg)
+                        .padding(.horizontal, 6)
+                        .frame(height: 18)
+                        .background(Capsule().fill(theme.accent))
+                        .padding(.trailing, 26)
+                }
+            }
+        }
         .help(group.id.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
         .contextMenu {
             MoveMenu { model.moveGroup(group.id, $0) }

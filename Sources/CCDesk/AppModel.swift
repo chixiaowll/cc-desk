@@ -228,9 +228,9 @@ final class AppModel: ObservableObject {
         history.filter { $0.root == root }
     }
 
-    /// ⌘1–9 对应的会话：侧栏里从上到下看得见的行（收起的组不算），最多 9 个。
+    /// ⌘1–9 对应的会话：侧栏里从上到下的所有行（收起的组也算，跳过去时自动展开），最多 9 个。
     var numberedRows: [SidebarRow] {
-        Array(groups.filter { !collapsed.contains($0.id) }.flatMap(\.rows).prefix(9))
+        Array(groups.flatMap(\.rows).prefix(9))
     }
 
     /// 侧栏里这一行的 ⌘ 编号（1–9），没有编号时 nil。
