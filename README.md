@@ -43,6 +43,7 @@
 - 14 套配色主题（Catppuccin、Rosé Pine、Everforest、Tokyo Night、Solarized、Gruvbox、Nord 等），浅色 / 深色各选一套；Claude Code 设为 `/theme` → Auto 后会跟着切换。
 - Claude 订阅用量显示（5 小时 / 7 天），会话完成时自动刷新。
 - 菜单栏图标、登录时启动、全局快捷键（⌃⌥C 呼出窗口）。
+- 界面文字四档大小（设置 › 通用「界面文字」：小 / 标准 / 大 / 特大）；终端字号用 ⌘= / ⌘- 随时调整。
 - 中文 / English 界面。
 
 ## 截图
@@ -97,6 +98,8 @@ DMG 未经苹果公证，首次打开请在「应用程序」里**右键 → 打
 | 助手结果 | ⇧⌘R |
 | 对话模式 | ⌥⌘V（全局 ⌃⌥V） |
 | 呼出 / 隐藏 CC Desk | ⌃⌥C（全局） |
+| 放大 / 缩小终端文字（所有终端，含独立窗口） | ⌘= 或 ⌘+ / ⌘- |
+| 恢复默认终端字号（13 pt） | ⌥⌘0 |
 | 显示主窗口 | ⌘0 |
 | 设置 | ⌘, |
 
@@ -121,7 +124,7 @@ swift test                   # 纯逻辑都在 CCDeskCore，可脱离界面测�
 - `Sources/CCDeskCore`：会话发现、状态合并、侧栏模型、tmux 托管规划、MCP / 控制协议、主题与配色等纯逻辑。
 - `Sources/CCDesk`：SwiftUI + AppKit 界面、终端、语音、助手。
 - 设计文档：`docs/specs/2026-10-02-cc-desk-design.md`。
-- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --skills-selftest`、`CCDesk --files-selftest`（临时目录里检查项目监视与提到的文件）、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`、`CCDesk --companion-test`（真实 claude，验证通用助手只有上网工具、读不到本机文件、记忆与人设）、`CCDesk --assistant-api-selftest`（本机假接口，不调用真实服务）。
+- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --ui-scale-selftest`（屏幕外按各档界面文字渲染侧栏行、目录行、窗格标题条、设置行，检查不裁字）、`CCDesk --skills-selftest`、`CCDesk --files-selftest`（临时目录里检查项目监视与提到的文件）、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`、`CCDesk --companion-test`（真实 claude，验证通用助手只有上网工具、读不到本机文件、记忆与人设）、`CCDesk --assistant-api-selftest`（本机假接口，不调用真实服务）。
 
 ## 致谢
 

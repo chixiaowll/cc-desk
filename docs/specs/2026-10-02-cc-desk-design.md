@@ -517,7 +517,7 @@ v1.1 前再验证：Codex hook 的事件名与载荷（`~/.codex/hooks.json`，�
 
 - SwiftUI `Settings` scene：应用菜单「设置…」（⌘,，系统自带项）与菜单栏菜单「设置…」打开（`SettingsOpener`，`showSettingsWindow:`）。工具栏样式标签页，600 × 560，表单为系统分组样式、纸色背景（`Theme.main`）、陶土色强调；当前标签存 `settingsTab`。
 - **每个控件都绑定原有的 UserDefaults 键 / 偏好对象**，不另存一份：外观 `appearance`（`AppearancePreference.apply`）、语言（`AppDelegate.selectLanguage`，沿用「保存 → 询问立即重启」流程）、`LoginItemController`、`DesktopPreferences`、`ConversationMode` 的静态键、`voiceWakeWord`、`voiceSpeechVoice`、`NaturalVoiceInstaller`。
-- **通用**：外观（跟随系统 / 浅色 / 深色，下方提示把 Claude Code 主题设为 Auto；浅色主题、深色主题两组缩略图选择，见 §19）、终端字体与字号（§18）、语言（跟随系统 / 简体中文 / English，重启生效）、登录时启动、在菜单栏显示图标、启用全局快捷键（列出 ⌃⌥C 主窗口、⌃⌥V 对话模式；被占用的组合用陶土色提示）。
+- **通用**：外观（跟随系统 / 浅色 / 深色，下方提示把 Claude Code 主题设为 Auto；浅色主题、深色主题两组缩略图选择，见 §19）、界面文字大小（§25）、终端字体与字号（§18）、语言（跟随系统 / 简体中文 / English，重启生效）、登录时启动、在菜单栏显示图标、启用全局快捷键（列出 ⌃⌥C 主窗口、⌃⌥V 对话模式；被占用的组合用陶土色提示）。
 - **语音**：按住右 ⌥ 说话说明；Whisper 模型状态（已下载 / 下载中 x% / 加载中 / 未下载 + 下载按钮，`VoiceInput.predownload`）；对话模式默认值（启动时开启助手、常驻对话）；唤醒词（`WakeWordRule`：去掉首尾空白后 2–8 个字，不合格时陶土色提示且不保存；回车 / 「保存」/ 离开页面时保存，等于默认值时删除自定义；**下次开启对话模式时生效**——`ConversationMode.turnOn` 才读取，运行中的会话不热切换，避免改动对话状态机）；回复摘要；朗读声音（自然语音 / 系统自动 / 已安装的系统声音，选未安装的自然语音时先询问安装；自然语音安装状态与「安装…」按钮；试听（对话模式开启时禁用）、下载更多系统声音）；重置助手对话。
 - **通知**：系统通知权限状态（已允许 / 已关闭 / 尚未询问，回到 App 时刷新）+「打开系统设置」；按事件开关（`notifyOnWaiting` / `notifyOnFinished`，默认都开，只影响系统通知，角标与未读照常）；测试通知与角标；推送到手机（16.2）。
 - **集成**：直接复用 `IntegrationsList`（原「集成…」表单的内容，Claude 内置 / Codex hook / pi 扩展的状态与安装、卸载）；原表单与 `showIntegrations` 删除。
@@ -578,7 +578,8 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 - **配色**（Core `TerminalPalette` / `TerminalColorScheme`，App `TerminalTheme`）：底色 / 前景 / 光标与 ANSI 16 色成套定义，`installColors` 安装；切换外观时与 App 外观在同一个 CATransaction 里换色。每个主题自带一套调色板（§19）。浅色主题：前景 ≥ 5:1，普通色 0–7（含「白」）对底色 ≥ 4.5:1，明亮色 ≥ 3:1；深色主题：前景 ≥ 7:1，1–7、9–15 ≥ 4.5:1，8 ≥ 3:1。单元测试用 `ColorContrast`（WCAG 相对亮度）对目录里的每个主题守住这些下限。
 - **Claude Code 的明暗**：它的默认主题是 dark，真彩色界面在浅色底上发白。它的 Auto 主题读 `COLORFGBG`（最后一段为底色色号）与 OSC 11。CC Desk 在会话启动时按当时的明暗写入 `COLORFGBG`（浅色 `0;15`、深色 `15;0`；tmux 会话用 `new-session -e`，直连 PTY 写进环境；宿主终端继承来的值去掉）。不改用户的 Claude 配置，由用户自己执行 `/theme` → Auto；设置 › 通用 › 外观下有提示。`COLORFGBG` 只在会话启动时确定，切换外观后旧会话的值不变。
 - **OSC 10/11 与 tmux**：SwiftTerm 按当前 `nativeBackgroundColor` / `nativeForegroundColor` 回答 OSC 10/11 查询。tmux 在客户端附着时向外层终端查询 OSC 10/11，窗格里的查询（默认底色时）用外层的回答作答（已用 tmux 3.7c 验证）。tmux ≥ 3.6 支持 DEC mode 2031：附着后与每次切换明暗时，CC Desk 像真实终端一样向 tmux 客户端发送 `CSI ? 997 ; 1|2 n`（1 深色、2 浅色），tmux 随即重新查询底色，并通知订阅了 2031 的窗格程序。tmux 3.5 及更早的版本不发（它们会把这段报告当成按键），直连 PTY 也不发。
-- **字体**（Core `TerminalFontChoice`，App `TerminalFont` / `TerminalFontPreferences`，UserDefaults `terminalFontFamily`（空 = 自动）/ `terminalFontSize`）：SF Mono 没有中文，苹方回退的字形窄于两格，字间留缝。「自动」按顺序取第一个已安装的中文等宽字体：Maple Mono NF CN、Maple Mono CN、Sarasa Term SC、Sarasa Mono SC、LXGW WenKai Mono、Noto Sans Mono CJK SC，都没有时用 SF Mono，并在设置里提示 `brew install --cask font-maple-mono-nf-cn`（不替用户安装）。也可以选任何已安装的等宽字体，字号 11–18；选中的字体被卸载时按「自动」处理。改动立即应用到所有终端：SwiftTerm 按新格子重算行列，tmux 客户端随之调整窗口大小。
+- **字体**（Core `TerminalFontChoice`，App `TerminalFont` / `TerminalFontPreferences`，UserDefaults `terminalFontFamily`（空 = 自动）/ `terminalFontSize`）：SF Mono 没有中文，苹方回退的字形窄于两格，字间留缝。「自动」按顺序取第一个已安装的中文等宽字体：Maple Mono NF CN、Maple Mono CN、Sarasa Term SC、Sarasa Mono SC、LXGW WenKai Mono、Noto Sans Mono CJK SC，都没有时用 SF Mono，并在设置里提示 `brew install --cask font-maple-mono-nf-cn`（不替用户安装）。也可以选任何已安装的等宽字体，字号 9–24；选中的字体被卸载时按「自动」处理。改动立即应用到所有终端：SwiftTerm 按新格子重算行列，tmux 客户端随之调整窗口大小。
+- **字号快捷键**（App `TerminalFontCommands`）：菜单「显示」里「放大终端文字」⌘=、「缩小终端文字」⌘-、「恢复默认字号」⌥⌘0（⌘0 已是「显示主窗口」），每次 1 pt（Core `TerminalFontChoice.steppedSize` 在 9–24 内取整限制），改的是设置里的同一个字号（设置页同步显示），并在当前窗口中央短暂显示新字号（到边界时提示已是最大 / 最小）。⌘+（⇧⌘=、不同键盘布局直接打出的「+」）和小键盘 ⌘+ / ⌘- 由 App 内按键监视处理。⌘ 组合键先经菜单的 key equivalent（SwiftTerm 不覆盖 `performKeyEquivalent`），不会发给终端；为此这几个菜单项到边界时也不置灰（置灰的菜单项不拦按键）。`--ui-scale-selftest` 检查终端视图不认领 ⌘= / ⌘- / ⌥⌘0，以及按键监视对 ⇧⌘= / 小键盘 / ⌘A 等的识别。字体 / 字号的改动合并到下一轮主循环，在一个 CATransaction 里给所有终端换字体，连按时每个终端每轮只重排一次。
 - **界面对比度**：浅色 fg2 #5F5B54、fg3 #736E66（对奶油底约 5.9 / 4.4:1，原 #6B675F / #8A857D 约 4.9 / 3.2:1），已完成绿 #4F7D5B（白字 4.75:1）；深色 fg3 #8F8A82（约 4.5:1）。
 
 ## 19. 配色主题（v1.9）
@@ -739,3 +740,12 @@ Core：`AgentModelInfo {id, provider?, effort?}` 放进 `TranscriptMeta.model`�
 **验证**：Core 单测覆盖 ask_companion 的权限矩阵（各种 turn 下）、提示词含危机热线 / 网页内容规则且不含「咨询专业人士」「声称是人」等套话、人设段（名字、称呼、注入防护）、预设文字与名字 / 语言、编辑描述 → 自定义并持久化、每问消息（时间、时区、Recap、备注）、命令行参数（只有 web 工具 / 无工具、snapshot off、无 MCP）、引擎选择（Claude / API / 本地 / 关闭 / 待定）、来源拆分、工具调用记录、朗读切分（首段、句数、字数、长句断开、短尾合并、继续说）、「继续说」识别、问答簿（排队上限、一次一个、取消、恢复、Recap、JSON 往返）、上下文 JSON。`CCDesk --companion-test [--no-web]` 用真实 claude 验证 init 工具列表与上面四个问题。
 
 **限制**：通用 API 没有上网能力；仅本地规则时没有通用助手（也没有路由）；对话模式关着时语音助手才能调用它的场景很少（结果走通知）；轮换换新会话后只带最近两次问答作提要，更早的细节会忘；「继续说」只念同一个回答剩下的部分，「再说详细点」则交给通用助手重新展开；朗读等待超过 2 分钟（用户一直在说话）就只留在结果面板里。
+
+## 25. 界面文字大小（v1.15）
+
+设置 › 通用「界面文字」：小 0.9 / 标准 1.0（默认）/ 大 1.15 / 特大 1.3，即时生效，存 UserDefaults `uiTextScale`（Core `UIScalePreset`）。只影响 App 窗口里的界面文字与相关尺寸，不影响终端（终端字号见 §18）；系统菜单栏、菜单栏图标的菜单和悬停提示保持系统字号。
+
+- **实现**：每个窗口的根视图（主窗口、设置、技能库、独立窗口，以及新建会话 / 助手结果表单、用量与历史弹出层）用 `.uiScaleRoot()` 把倍率放进环境（`\.uiScale`），同时把默认字体设为 13pt × 倍率、系统控件尺寸设为 small / regular / large（控件里的文字跟着控件尺寸走）。界面里原来写死的 `.font(.system(size:))` 都换成 `.uiFont(size:weight:design:monospacedDigit:)`（字号 × 倍率，取到 0.5pt；SF Symbols 图标同样等比例）。会挤压文字的固定尺寸用 `uiScale.metric(_:)`（取整点）：侧栏宽度（240 / 300 / 420）、目录行 28pt、会话行两行的 17 / 14pt 与图标块 26pt、计数胶囊 16pt、⌘ 编号 18pt、图标按钮 22pt、底部汇总、窗格标题条 30pt（`PaneGeometry` 的标题条高度与终端位置跟着变）、独立窗口标题条 / 语音条 / 文件面板头 36pt、状态胶囊 22pt、历史面板与窗格选择器的行高和宽度、设置窗口宽度（高度封顶 680，内容多时表单滚动）。AppKit 画的文字（拖动窗格时的预览标题、历史搜索框、字号提示）按同一倍率。窗口工具栏的高度由系统决定，工具栏里的标题 / 胶囊最多放大到 1.15。
+- **开销**：倍率只在用户改设置时变化；平时每秒刷新的侧栏时钟等不读偏好对象，`uiFont` 只读环境值，不增加重绘。
+- **验证**：`UIScaleTests` 覆盖档位倍率、读回与退回标准、字号取 0.5pt / 尺寸取整、各档单调、非法输入；`CCDesk --ui-scale-selftest` 在屏幕外按每档渲染：固定高度的地方（会话行、目录行、胶囊、窗格标题条、独立窗口标题条、面板行、工具栏标题）放得下同字号文字的自然高度；侧栏最窄时的会话行（长名字、⌘ 编号、独立窗口图标）与目录行（长目录名 + 分支 + 计数）不超出可用宽度、高度符合预期且随倍率单调变大；窗格标题条高度 = 30pt × 倍率；设置行的系统控件随倍率变大。
+- **限制**：系统菜单、悬停提示、通知、菜单栏图标的菜单不缩放；`Form` 的分组样式由系统排版，控件只有 small / regular / large 三档，「大」与「特大」的控件一样大（文字仍按倍率）；工具栏里的标题最多到「大」。
