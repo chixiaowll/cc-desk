@@ -65,7 +65,8 @@ final class AssistantClient: @unchecked Sendable {
 
     /// 常驻助手会话（工具调用 / 摘要共用，有上下文）。
     lazy var session = AssistantSession(directory: Self.workingDirectory, model: Self.model,
-                                        system: AssistantPrompt.residentSystem, promptVersion: AssistantPrompt.residentVersion,
+                                        system: { AssistantPrompt.residentSystem },
+                                        promptVersion: AssistantPrompt.residentVersion,
                                         toolArguments: Self.toolArguments) { [weak self] in
         guard let self else { return nil }
         return self.resolveQueue.sync { self.resolve() }.map { ($0.path, $0.searchPath) }

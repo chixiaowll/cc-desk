@@ -10,6 +10,8 @@ import CCDeskCore
 /// - 朗读的回复取最后一次工具调用之后的文字（AssistantTurnText）。
 /// - `generation` 每启动一次新进程加一，调用方据此判断要不要重发完整的侧栏上下文。
 /// - 存下的会话带系统提示词版本；版本不同（提示词改了）就换新会话。
+/// - 通用助手（设计 §24）用同一个类：自己的目录、模型、系统提示词（每次启动进程时生成）、工具参数，
+///   不带控制接口口令；`interrupt` 停下当前回答但保留会话（取消 / 改了人设后重启进程）。
 final class AssistantSession: @unchecked Sendable {
     static let rotateInputTokens = 60_000
 
@@ -22,11 +24,17 @@ final class AssistantSession: @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "cc-desk.assistant.session")
     private let executable: () -> (path: String, searchPath: String?)?
-    private let system: String
+    /// 系统提示词（每次启动进程时取一次）。
+    private let system: () -> String
     private let promptVersion: Int
     private let toolArguments: () -> [String]
     private let model: String
     private let directory: URL
+    /// 诊断日志里的名字（assistant / companion）。
+    private let label: String
+    private let rotateInputTokens: Int
+    /// 把控制接口口令放进进程环境（只有要用 CC Desk MCP 工具的常驻助手需要）。
+    private let passControlToken: Bool
     private var storeURL: URL { directory.appendingPathComponent("session.json") }
 
     private var process: Process?
@@ -45,13 +53,18 @@ final class AssistantSession: @unchecked Sendable {
     private var answeredSinceStart = false
     private var _generation = 0
 
-    init(directory: URL, model: String, system: String, promptVersion: Int, toolArguments: @escaping () -> [String],
+    init(directory: URL, model: String, system: @escaping () -> String, promptVersion: Int,
+         toolArguments: @escaping () -> [String], label: String = "assistant",
+         rotateInputTokens: Int = AssistantSession.rotateInputTokens, passControlToken: Bool = true,
          executable: @escaping () -> (path: String, searchPath: String?)?) {
         self.directory = directory
         self.model = model
         self.system = system
         self.promptVersion = promptVersion
         self.toolArguments = toolArguments
+        self.label = label
+        self.rotateInputTokens = rotateInputTokens
+        self.passControlToken = passControlToken
         self.executable = executable
     }
 
@@ -90,11 +103,36 @@ final class AssistantSession: @unchecked Sendable {
         queue.sync { requests.shutdown() }
     }
 
+    /// 停下当前请求（它以 aborted(reason) 失败）并停掉进程，但保留会话：下一条消息重新启动进程并接回
+    /// （取消一次回答；改了人设 / 上网开关后让新参数生效）。排队的消息继续。
+    func interrupt(_ reason: String) {
+        queue.async { [self] in requests.abort(reason) }
+    }
+
+    /// 有可以接回的会话（会话文件在、提示词版本相同）；false = 下一条消息开始新会话（被重置 / 轮换过）。
+    var hasStoredConversation: Bool {
+        queue.sync {
+            guard let data = try? Data(contentsOf: storeURL),
+                  let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return false }
+            return stored.promptVersion == promptVersion
+        }
+    }
+
+    /// 没有请求在等回复时停掉进程（下一条消息用新参数启动并接回）；忙时不做，返回 false。
+    @discardableResult
+    func restartIfIdle() -> Bool {
+        queue.sync {
+            guard !requests.isBusy, requests.pendingCount == 0 else { return false }
+            stopProcess()
+            return true
+        }
+    }
+
     private static func map(_ failure: AssistantRequestQueue<AssistantReply>.Failure) -> AssistantError {
         switch failure {
         case .notStarted: return .notInstalled
         case .timeout:
-            AssistantDiag.log("assistant session timeout")
+            AssistantDiag.log("session timeout")
             return .timeout
         case .writeFailed: return .failed("write")
         case .exited: return .failed("exited")
@@ -112,7 +150,7 @@ final class AssistantSession: @unchecked Sendable {
             try stdin?.write(contentsOf: Data((line + "\n").utf8))
             return stdin != nil
         } catch {
-            AssistantDiag.log("assistant session write failed: \(error.localizedDescription)")
+            AssistantDiag.log("\(label) session write failed: \(error.localizedDescription)")
             return false
         }
     }
@@ -121,7 +159,7 @@ final class AssistantSession: @unchecked Sendable {
         guard let data = try? Data(contentsOf: storeURL),
               let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return nil }
         guard stored.promptVersion == promptVersion else {
-            AssistantDiag.log("assistant session \(stored.id) has prompt version \(stored.promptVersion ?? 1), " +
+            AssistantDiag.log("\(label) session \(stored.id) has prompt version \(stored.promptVersion ?? 1), " +
                               "want \(promptVersion): starting a new session")
             try? FileManager.default.removeItem(at: storeURL)
             return nil
@@ -133,7 +171,7 @@ final class AssistantSession: @unchecked Sendable {
         guard let exe = executable() else { return false }
         AssistantClient.prepareWorkingDirectory(directory)
         var args = ["-p", "--model", model, "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
-            + toolArguments() + ["--system-prompt", system]
+            + toolArguments() + ["--system-prompt", system()]
         if let stored = loadStored() {
             args += ["--resume", stored.id]
             resumedID = stored.id
@@ -148,8 +186,8 @@ final class AssistantSession: @unchecked Sendable {
         if let path = exe.searchPath { env["PATH"] = path }
         env["CC_DESK"] = "1"
         // 控制接口的本次启动口令：claude 把自己的环境传给 MCP 子进程（2.1.280 实测），`--mcp` 据此通过鉴权。
-        // 不写进任何文件；内嵌终端的环境里会去掉它（LaunchSpec.sanitizedEnvironment）。
-        env[ControlProtocol.tokenEnvironmentKey] = ControlAuth.token
+        // 不写进任何文件；内嵌终端的环境里会去掉它（LaunchSpec.sanitizedEnvironment）。通用助手不需要。
+        if passControlToken { env[ControlProtocol.tokenEnvironmentKey] = ControlAuth.token }
         // 关掉扩展思考：haiku 默认会先想几百上千个 token，延迟明显变长，而这里的任务很简单。
         env["MAX_THINKING_TOKENS"] = "0"
 
@@ -177,7 +215,7 @@ final class AssistantSession: @unchecked Sendable {
         }
         do { try p.run() } catch {
             outPipe.fileHandleForReading.readabilityHandler = nil
-            AssistantDiag.log("assistant session start failed: \(error.localizedDescription)")
+            AssistantDiag.log("\(label) session start failed: \(error.localizedDescription)")
             return false
         }
         process = p
@@ -186,7 +224,7 @@ final class AssistantSession: @unchecked Sendable {
         buffer = Data()
         answeredSinceStart = false
         _generation += 1
-        AssistantDiag.log("assistant session started \(resumedID.map { "resume \($0)" } ?? "new \(loadStored()?.id ?? "?")")")
+        AssistantDiag.log("\(label) session started \(resumedID.map { "resume \($0)" } ?? "new \(loadStored()?.id ?? "?")")")
         return true
     }
 
@@ -210,21 +248,22 @@ final class AssistantSession: @unchecked Sendable {
             return requests.complete(.failure(.failed(String(line.prefix(200)))))
         }
         answeredSinceStart = true
-        let rotate = envelope.contextTokens > Self.rotateInputTokens
+        let rotate = envelope.contextTokens > rotateInputTokens
         if rotate {
-            AssistantDiag.log("assistant session rotating (context too large)")
+            AssistantDiag.log("\(label) session rotating (context too large)")
             try? FileManager.default.removeItem(at: storeURL)
         }
         requests.complete(.success(AssistantReply(text: turnText.spoken(result: envelope.result),
                                                   inputTokens: envelope.inputTokens,
                                                   outputTokens: envelope.outputTokens,
-                                                  latency: Date().timeIntervalSince(started))),
+                                                  latency: Date().timeIntervalSince(started),
+                                                  toolUses: turnText.toolUses)),
                           restart: rotate)
     }
 
     private func exited(_ p: Process) {
         guard p === process else { return }
-        AssistantDiag.log("assistant session exited status=\(p.terminationStatus)")
+        AssistantDiag.log("\(label) session exited status=\(p.terminationStatus)")
         // 接回旧会话还没答过一句就退出：多半是会话已不存在，换新会话。
         if resumedID != nil, !answeredSinceStart { try? FileManager.default.removeItem(at: storeURL) }
         releaseProcess()

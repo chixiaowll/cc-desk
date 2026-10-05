@@ -9,6 +9,7 @@ import CCDeskCore
 /// - 工具权限：每个调用先过 `AssistantToolPolicy.check`（与 MCP 路径同一个函数），再交给工具执行器（它也会检查一次）。
 /// - 日志只记状态码、耗时、token 数与工具个数，不记密钥、地址路径和消息内容。
 /// - 只在主线程使用；网络回调切回主线程。
+/// - 通用助手（设计 §24）也用它：自己的历史文件、系统提示词（每轮生成）、没有工具；`cancelCurrent` 取消一次回答。
 final class APIAssistantBackend: AssistantBackend {
     /// 摘要 / 事件等请求至少给这么久（比 claude 慢的接口与本机模型）。
     static let minimumTimeout: TimeInterval = 45
@@ -23,6 +24,10 @@ final class APIAssistantBackend: AssistantBackend {
     private let executor: AssistantToolExecutor
     private let http: ChatHTTPClient
     private let promptVersion: Int
+    private let system: () -> String
+    private let tools: [AssistantToolSpec]
+    /// 诊断日志里的名字。
+    private let label: String
     private var history: AssistantChatHistory
     private var loaded = false
     private var loop: AssistantToolLoop?
@@ -37,12 +42,17 @@ final class APIAssistantBackend: AssistantBackend {
     private static let ioQueue = DispatchQueue(label: "cc-desk.assistant.api.io")
 
     init(store: AssistantChatHistoryStore, endpoint: @escaping () -> APIEndpoint?, executor: @escaping AssistantToolExecutor,
-         http: ChatHTTPClient = .shared, promptVersion: Int = AssistantPrompt.apiVersion) {
+         http: ChatHTTPClient = .shared, promptVersion: Int = AssistantPrompt.apiVersion,
+         system: @escaping () -> String = { AssistantPrompt.apiSystem }, tools: [AssistantToolSpec] = AssistantTools.all,
+         label: String = "api assistant") {
         self.store = store
         self.endpoint = endpoint
         self.executor = executor
         self.http = http
         self.promptVersion = promptVersion
+        self.system = system
+        self.tools = tools
+        self.label = label
         history = AssistantChatHistory(promptVersion: promptVersion)
     }
 
@@ -78,18 +88,24 @@ final class APIAssistantBackend: AssistantBackend {
         let store = self.store
         Self.ioQueue.async { store.remove() }
         requests.abort("reset")
-        AssistantDiag.log("api assistant history reset")
+        AssistantDiag.log("\(label) history reset")
     }
 
     func shutdown() {
         requests.shutdown()
     }
 
+    /// 取消正在进行的一轮（不保留部分结果）；排队的继续。
+    func cancelCurrent() {
+        cancelTurn(keepPartial: false)
+        requests.abort("cancelled")
+    }
+
     private static func map(_ failure: AssistantRequestQueue<AssistantReply>.Failure) -> AssistantError {
         switch failure {
         case .notStarted: return .notInstalled
         case .timeout:
-            AssistantDiag.log("api assistant timeout")
+            AssistantDiag.log("api backend timeout")
             return .timeout
         case .writeFailed: return .failed("send")
         case .exited: return .failed("stopped")
@@ -103,7 +119,7 @@ final class APIAssistantBackend: AssistantBackend {
         loaded = true
         history = store.load(promptVersion: promptVersion)
         generation += 1
-        if history.turnCount > 0 { AssistantDiag.log("api assistant history loaded: \(history.turnCount) turns") }
+        if history.turnCount > 0 { AssistantDiag.log("\(label) history loaded: \(history.turnCount) turns") }
     }
 
     // MARK: 一轮
@@ -114,12 +130,13 @@ final class APIAssistantBackend: AssistantBackend {
         let started = Date()
         loopID += 1
         let id = loopID
-        let prefix = [ChatMessage.system(AssistantPrompt.apiSystem)] + history.messages
+        let prefix = [ChatMessage.system(system())] + history.messages
         let loop = AssistantToolLoop(
-            model: endpoint.model, prefix: prefix, user: .user(message), tools: AssistantTools.all,
+            model: endpoint.model, prefix: prefix, user: .user(message), tools: tools,
             timeout: Self.loopTimeout,
             gate: { AssistantToolPolicy.check($0, turn: turn?.kind) },
-            transport: http.transport(endpoint: endpoint, purpose: "assistant"),
+            transport: http.transport(endpoint: endpoint,
+                                      purpose: label.hasPrefix("api ") ? String(label.dropFirst(4)) : label),
             executor: { [executor] name, arguments, done in executor(name, arguments, turn, done) })
         self.loop = loop
         loop.start { [weak self, weak loop] result in
@@ -145,10 +162,10 @@ final class APIAssistantBackend: AssistantBackend {
         guard let salvaged = AssistantToolLoop.salvaged(partial) else { return }
         if history.append(salvaged) {
             generation += 1
-            AssistantDiag.log("api assistant history trimmed to \(history.turnCount) turns")
+            AssistantDiag.log("\(label) history trimmed to \(history.turnCount) turns")
         }
         save()
-        AssistantDiag.log("api assistant kept \(salvaged.filter { $0.role == "tool" }.count) tool result(s) of a failed turn")
+        AssistantDiag.log("\(label) kept \(salvaged.filter { $0.role == "tool" }.count) tool result(s) of a failed turn")
     }
 
     private func finishTurn(_ result: Result<AssistantToolLoop.Outcome, AssistantToolLoop.Failure>,
@@ -159,16 +176,16 @@ final class APIAssistantBackend: AssistantBackend {
             if history.append(outcome.turnMessages) {
                 // 裁掉了带完整上下文的早期消息：下一句重发侧栏上下文。
                 generation += 1
-                AssistantDiag.log("api assistant history trimmed to \(history.turnCount) turns")
+                AssistantDiag.log("\(label) history trimmed to \(history.turnCount) turns")
             }
             save()
-            AssistantDiag.log(String(format: "api turn %@ %.2fs requests=%d tools=%d rejected=%d in=%d out=%d finish=%@",
+            AssistantDiag.log(label + String(format: " turn %@ %.2fs requests=%d tools=%d rejected=%d in=%d out=%d finish=%@",
                                      kind?.rawValue ?? "-", latency, outcome.requests, outcome.toolCalls, outcome.rejected,
                                      outcome.promptTokens, outcome.completionTokens, outcome.finishReason ?? "-"))
             requests.complete(.success(AssistantReply(text: outcome.text, inputTokens: outcome.promptTokens,
                                                       outputTokens: outcome.completionTokens, latency: latency)))
         case .failure(let failure):
-            AssistantDiag.log(String(format: "api turn %@ failed after %.2fs: %@", kind?.rawValue ?? "-", latency,
+            AssistantDiag.log(label + String(format: " turn %@ failed after %.2fs: %@", kind?.rawValue ?? "-", latency,
                                      Self.describe(failure)))
             switch failure {
             case .timeout: requests.complete(.failure(.timeout))
@@ -191,9 +208,10 @@ final class APIAssistantBackend: AssistantBackend {
     private func save() {
         let snapshot = history
         let store = self.store
+        let label = self.label
         Self.ioQueue.async {
             do { try store.save(snapshot) } catch {
-                AssistantDiag.log("api assistant history save failed: \(error.localizedDescription)")
+                AssistantDiag.log("\(label) history save failed: \(error.localizedDescription)")
             }
         }
     }
