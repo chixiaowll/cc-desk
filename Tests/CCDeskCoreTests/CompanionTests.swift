@@ -180,14 +180,21 @@ final class CompanionTests: XCTestCase {
     }
 
     func testLongAnswerSpeaksTheFirstSentencesOfTheFirstParagraph() {
-        let answer = "第一句。第二句！第三句？第四句。\n\n**细节**：这里是更多内容。\n- 一条\n- 两条"
+        let detail = "这里是更多的内容，讲得比较细，要比较长才不会被并进开头一起念出来。"
+        let answer = "第一句。第二句！第三句？第四句。\n\n**细节**：\(detail)\n- 第一条要点说明\n- 第二条要点说明"
         let split = CompanionSpeech.split(answer)
         XCTAssertEqual(split.head, "第一句。第二句！第三句？")
-        XCTAssertEqual(split.rest, "第四句。\n\n细节：这里是更多内容。 一条 两条")
+        XCTAssertEqual(split.rest, "第四句。\n\n细节：\(detail) 第一条要点说明 第二条要点说明")
         // 继续说：剩下的再切。
         let next = CompanionSpeech.split(split.rest ?? "")
         XCTAssertEqual(next.head, "第四句。")
-        XCTAssertEqual(next.rest, "细节：这里是更多内容。 一条 两条")
+        XCTAssertEqual(next.rest, "细节：\(detail) 第一条要点说明 第二条要点说明")
+    }
+
+    func testShortTailIsSpokenWithTheHead() {
+        let split = CompanionSpeech.split("唉，当众被说，那个滋味确实挺难受的，换谁心里都不好受。\n\n后来你跟他说什么了吗？")
+        XCTAssertEqual(split.head, "唉，当众被说，那个滋味确实挺难受的，换谁心里都不好受。后来你跟他说什么了吗？")
+        XCTAssertNil(split.rest)
     }
 
     func testBudgetLimitsSpokenLength() {
@@ -195,8 +202,11 @@ final class CompanionTests: XCTestCase {
         let split = CompanionSpeech.split(long)
         XCTAssertLessThanOrEqual(split.head.count, 110)
         XCTAssertNotNil(split.rest)
-        let english = "It is sunny. Highs near 23 degrees. Bring a jacket tonight. Winds are light."
-        XCTAssertEqual(CompanionSpeech.split(english).head, "It is sunny. Highs near 23 degrees. Bring a jacket tonight.")
+        let english = "It is sunny. Highs near 23 degrees. Bring a jacket tonight. Winds stay light from the north " +
+            "all day, and the air quality is good, so it is a fine day for a long walk in the park or a bike ride."
+        let englishSplit = CompanionSpeech.split(english)
+        XCTAssertEqual(englishSplit.head, "It is sunny. Highs near 23 degrees. Bring a jacket tonight.")
+        XCTAssertNotNil(englishSplit.rest)
         XCTAssertEqual(CompanionSpeech.sentences("Pi is 3.14 today. Yes!"), ["Pi is 3.14 today.", "Yes!"])
         // 一整句很长：在逗号处断开。
         let runOn = String(repeating: "很长很长的从句，", count: 40) + "结束。"
@@ -214,6 +224,11 @@ final class CompanionTests: XCTestCase {
     func testContinuePhrases() {
         for s in ["继续说", "继续说吧", "嗯 接着说", "Go on", "continue"] { XCTAssertTrue(CompanionSpeech.isContinue(s), s) }
         for s in ["继续", "让它继续", "再说详细点", "继续改"] { XCTAssertFalse(CompanionSpeech.isContinue(s), s) }
+    }
+
+    func testClaudeProjectDirectoryName() {
+        XCTAssertEqual(ClaudeProjectDirectory.name(for: "/Users/me/.cc-desk/companion"), "-Users-me--cc-desk-companion")
+        XCTAssertEqual(ClaudeProjectDirectory.name(for: "/tmp/a_b c/é"), "-tmp-a-b-c--")
     }
 
     // MARK: 问答簿

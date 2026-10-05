@@ -246,7 +246,12 @@ public enum CompanionSpeech {
         }
         let restParts = (sentences.isEmpty ? [] : [join(sentences)]) + paragraphs
         let rest = restParts.joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return (spoken, rest.isEmpty ? nil : rest)
+        guard !rest.isEmpty else { return (spoken, nil) }
+        // 剩下的很短（如结尾的一句追问）：一起念完，不必说「详细内容在助手结果里」。
+        if rest.count <= limit / 3, spoken.count + rest.count <= limit * 3 / 2 {
+            return (join([spoken, rest.replacingOccurrences(of: "\n\n", with: " ")]), nil)
+        }
+        return (spoken, rest)
     }
 
     /// 拼句子：中文之间不加空格，其他加一个空格。
@@ -262,5 +267,17 @@ public enum CompanionSpeech {
     /// 「继续说」：接着念通用助手上一个回答剩下的部分（本地规则，不经过语音助手）。
     public static func isContinue(_ utterance: String) -> Bool {
         ConversationCommands.candidates(ConversationCommands.normalize(utterance)).contains(where: continuePhrases.contains)
+    }
+}
+
+// MARK: - 会话记录
+
+/// Claude Code 把会话记录存在 `~/.claude/projects/<工作目录里非字母数字都换成 ->/<id>.jsonl`（2.1.280 实测）。
+/// 「清空通用助手记忆」顺带删掉通用助手工作目录（~/.cc-desk/companion，只给它用）对应的那个目录里的记录。
+public enum ClaudeProjectDirectory {
+    public static func name(for cwd: String) -> String {
+        String(cwd.unicodeScalars.map { scalar -> Character in
+            scalar.isASCII && CharacterSet.alphanumerics.contains(scalar) ? Character(scalar) : "-"
+        })
     }
 }
