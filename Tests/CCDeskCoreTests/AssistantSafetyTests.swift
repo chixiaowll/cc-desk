@@ -8,20 +8,27 @@ final class AssistantToolPolicyTests: XCTestCase {
                             "cancel_consult"]
     private let readOnly = ["list_sessions", "read_screen", "read_transcript", "list_history", "list_projects",
                             "git_status", "list_agents", "list_consults", "list_skills"]
+    /// 不碰 CC Desk，但只在用户的话里可用（注入的文字不能让它把内容发给另一个模型并朗读）。
+    private let utteranceOnly = ["ask_companion"]
 
     func testEveryToolIsClassified() {
-        XCTAssertEqual(Set(AssistantTools.all.map(\.name)), Set(mutating + readOnly))
+        XCTAssertEqual(Set(AssistantTools.all.map(\.name)), Set(mutating + readOnly + utteranceOnly))
+        for tool in utteranceOnly {
+            let spec = AssistantTools.spec(named: tool)
+            XCTAssertEqual(spec?.readOnly, true, tool)
+            XCTAssertEqual(spec?.utteranceOnly, true, tool)
+        }
     }
 
     func testUtteranceMayCallEveryTool() {
-        for tool in mutating + readOnly {
+        for tool in mutating + readOnly + utteranceOnly {
             XCTAssertTrue(AssistantToolPolicy.isAllowed(tool, turn: .utterance), tool)
         }
     }
 
     func testUntrustedTurnsMayOnlyRead() {
         for turn in [AssistantTurnKind.event, .consultResult, .summarize] {
-            for tool in mutating {
+            for tool in mutating + utteranceOnly {
                 XCTAssertFalse(AssistantToolPolicy.isAllowed(tool, turn: turn), "\(tool) in \(turn)")
             }
             for tool in readOnly {
@@ -32,6 +39,8 @@ final class AssistantToolPolicyTests: XCTestCase {
 
     func testNoActiveTurnOrUnknownToolIsDenied() {
         XCTAssertFalse(AssistantToolPolicy.isAllowed("type_text", turn: nil))
+        XCTAssertFalse(AssistantToolPolicy.isAllowed("ask_companion", turn: nil))
+        XCTAssertNotNil(AssistantToolPolicy.check("ask_companion", turn: .consultResult))
         XCTAssertTrue(AssistantToolPolicy.isAllowed("list_sessions", turn: nil))
         XCTAssertFalse(AssistantToolPolicy.isAllowed("rm_rf", turn: .utterance))
         XCTAssertTrue(AssistantToolPolicy.denial("respond_approval", turn: .event).contains("[EVENT]"))

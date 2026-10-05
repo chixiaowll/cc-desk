@@ -28,12 +28,17 @@ public struct AssistantToolSpec: Equatable, Sendable {
     public let parameters: [Parameter]
     /// 是否只读（MCP annotations.readOnlyHint）。
     public let readOnly: Bool
+    /// 只读但仍只在用户的一句话里可用（如 ask_companion：不碰会话，但会把文字发给另一个模型、并朗读它的回答，
+    /// 不能被 [EVENT] / [CONSULT_RESULT] / [SUMMARIZE] 里注入的文字触发）。
+    public let utteranceOnly: Bool
 
-    public init(name: String, description: String, parameters: [Parameter] = [], readOnly: Bool = false) {
+    public init(name: String, description: String, parameters: [Parameter] = [], readOnly: Bool = false,
+                utteranceOnly: Bool = false) {
         self.name = name
         self.description = description
         self.parameters = parameters
         self.readOnly = readOnly
+        self.utteranceOnly = utteranceOnly
     }
 
     /// JSON Schema（MCP `inputSchema`）。
@@ -187,6 +192,18 @@ public enum AssistantTools {
             parameters: [.init("session", .string, sessionRef),
                          .init("query", .string, "Optional words from the file name or path (e.g. report, README)."),
                          .init("app", .boolean, "true = open in the default app instead of Quick Look, default false.")]),
+        AssistantToolSpec(
+            name: "ask_companion",
+            description: "Hand a question that is NOT about CC Desk or coding (daily life, general knowledge, news, " +
+                "weather, recommendations, feelings, chit-chat) to the general companion — a warmer, stronger model " +
+                "with its own long-running memory and, when enabled, web search. Returns at once with a job id; CC Desk " +
+                "speaks the companion's answer to the user directly when it is ready (you do not relay it). Follow-ups " +
+                "in the same thread go here too. Max 1 answering at a time, later questions wait in line.",
+            parameters: [.init("question", .string, "The user's words, verbatim (fix obvious transcription errors only).",
+                               required: true),
+                         .init("context", .string, "Optional short note when the question depends on something the " +
+                               "companion did not hear (e.g. what the user said to you earlier).")],
+            readOnly: true, utteranceOnly: true),
         AssistantToolSpec(
             name: "take_over",
             description: "Move an external terminal session into CC Desk (it is restarted with resume). Asks the user to confirm.",

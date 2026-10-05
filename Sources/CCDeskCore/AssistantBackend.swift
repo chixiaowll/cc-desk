@@ -9,12 +9,26 @@ public struct AssistantReply: Equatable, Sendable {
     public let inputTokens: Int
     public let outputTokens: Int
     public let latency: TimeInterval
+    /// 这一轮里模型调用的工具（Claude 会话从 stream-json 里取；通用助手据此记下上网搜索了什么）。
+    public let toolUses: [AssistantToolUse]
 
-    public init(text: String, inputTokens: Int, outputTokens: Int, latency: TimeInterval) {
+    public init(text: String, inputTokens: Int, outputTokens: Int, latency: TimeInterval, toolUses: [AssistantToolUse] = []) {
         self.text = text
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.latency = latency
+        self.toolUses = toolUses
+    }
+}
+
+/// 一次工具调用的要点：名字与主要参数（WebSearch 的 query、WebFetch 的 url；其他工具为空）。
+public struct AssistantToolUse: Equatable, Codable, Sendable {
+    public let name: String
+    public let detail: String
+
+    public init(name: String, detail: String) {
+        self.name = name
+        self.detail = detail
     }
 }
 

@@ -29,11 +29,11 @@ public struct AssistantTurn: Equatable, Sendable {
 /// 借助 [EVENT] / [CONSULT_RESULT] / [SUMMARIZE] 让助手替用户批准、打字、开会话）。
 public enum AssistantToolPolicy {
     /// 只读工具（`AssistantToolSpec.readOnly`）任何时候都可以；会改变东西的工具（打字、按键、批准 / 拒绝、
-    /// 切换 / 新建 / 恢复 / 关闭 / 接管会话、派活、顾问、取消顾问、打开文件）只在用户的一句话（[UTTERANCE]）里可以。
-    /// 没有请求在等回复（turn 为 nil）或未知的工具一律不行。
+    /// 切换 / 新建 / 恢复 / 关闭 / 接管会话、派活、顾问、取消顾问、打开文件）与标了 `utteranceOnly` 的只读工具
+    /// （ask_companion）只在用户的一句话（[UTTERANCE]）里可以。没有请求在等回复（turn 为 nil）或未知的工具一律不行。
     public static func isAllowed(_ tool: String, turn: AssistantTurnKind?) -> Bool {
         guard let spec = AssistantTools.spec(named: tool) else { return false }
-        return spec.readOnly || turn == .utterance
+        return (spec.readOnly && !spec.utteranceOnly) || turn == .utterance
     }
 
     /// 工具调用的统一检查（控制接口 / MCP 与 OpenAI 兼容接口两条路径都经过这里，见设计 §22）：
