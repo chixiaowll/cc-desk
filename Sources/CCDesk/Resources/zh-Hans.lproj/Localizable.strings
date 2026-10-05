@@ -14,7 +14,8 @@
 "menu.closeSession" = "关闭当前 Session";
 "menu.history" = "历史会话";
 "menu.session" = "Session";
-"menu.switchTo" = "切换到第 %d 个";
+"menu.switchTo" = "切换到 %@";
+"menu.switchTo.empty" = "第 %d 个（空）";
 "appearance.system" = "跟随系统";
 "appearance.light" = "浅色";
 "appearance.dark" = "深色";

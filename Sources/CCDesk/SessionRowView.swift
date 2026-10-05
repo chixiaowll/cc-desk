@@ -22,6 +22,8 @@ struct SessionRowView: View {
     var showModel: Bool = true
     /// 显示在独立窗口里（设计 §20.3）：名字后面一个小窗口图标。
     var detached: Bool = false
+    /// 按住 ⌘ 时显示的编号（⌘1–9 切换到这一行）；nil 不显示。
+    var shortcut: Int? = nil
     @State private var hovering = false
 
     private var isWaiting: Bool { row.session.status.isWaiting }
@@ -97,6 +99,19 @@ struct SessionRowView: View {
         .background(RoundedRectangle(cornerRadius: 8).fill(background))
         .overlay {
             if selected { RoundedRectangle(cornerRadius: 8).strokeBorder(theme.selLine, lineWidth: 1) }
+        }
+        .overlay(alignment: .topTrailing) {
+            if let shortcut {
+                Text("⌘\(shortcut)")
+                    .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(theme.chipWorkFg)
+                    .padding(.horizontal, 6)
+                    .frame(height: 18)
+                    .background(Capsule().fill(theme.accent))
+                    .padding(.top, 5)
+                    .padding(.trailing, 8)
+                    .transition(.opacity)
+            }
         }
         .shadow(color: selected ? theme.selShadow : .clear, radius: 1, y: 1)
         .opacity(RelativeTime.isStale(row.session.statusChangedAt, now: now) ? 0.55 : 1)

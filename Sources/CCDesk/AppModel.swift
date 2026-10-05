@@ -30,6 +30,11 @@ final class AppModel: ObservableObject {
     var openMainWindow: (() -> Void)?
     /// 用户主动打开主窗口（由 AppDelegate 注入 showMainWindow：结束登录启动时的收起、激活并显示）。
     var revealMainWindow: (() -> Void)?
+    /// 正按着 ⌘（单独按住，不含其他修饰键）：侧栏显示 ⌘1–9 对应的编号。
+    @Published var commandHeld = false
+    var commandMonitor: Any?
+    /// 每次修饰键 / 按键变化加一，用来取消还没到时间的「显示编号」。
+    var commandHintToken = 0
     @Published var collapsed: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "collapsedGroups") ?? []) {
         didSet { UserDefaults.standard.set(Array(collapsed), forKey: "collapsedGroups") }
     }
@@ -158,6 +163,7 @@ final class AppModel: ObservableObject {
 
     func start() {
         conversation.host = self
+        startCommandHintMonitor()
         work.start()
         startControlServer()
         // OpenAI 兼容接口后端在进程内执行同一套工具（与控制接口同一个入口与权限检查，设计 §22）。
@@ -220,6 +226,16 @@ final class AppModel: ObservableObject {
     /// 某个项目根目录下的历史会话，按时间倒序。
     func history(forRoot root: String) -> [HistoryEntry] {
         history.filter { $0.root == root }
+    }
+
+    /// ⌘1–9 对应的会话：侧栏里从上到下看得见的行（收起的组不算），最多 9 个。
+    var numberedRows: [SidebarRow] {
+        Array(groups.filter { !collapsed.contains($0.id) }.flatMap(\.rows).prefix(9))
+    }
+
+    /// 侧栏里这一行的 ⌘ 编号（1–9），没有编号时 nil。
+    func shortcutNumber(of rowID: String) -> Int? {
+        numberedRows.firstIndex { $0.id == rowID }.map { $0 + 1 }
     }
 
     var embeddedRowsInOrder: [SidebarRow] {

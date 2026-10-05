@@ -85,7 +85,8 @@ struct GroupSectionView: View {
                                            && !model.isResumingEnded(row) ? { model.resumeEnded(row) } : nil,
                                        showAgentLabel: showAgentLabel,
                                        showModel: showModel,
-                                       detached: row.session.host.terminalID.map(model.isDetached) ?? false)
+                                       detached: row.session.host.terminalID.map(model.isDetached) ?? false,
+                                       shortcut: model.commandHeld ? model.shortcutNumber(of: row.id) : nil)
                             .onTapGesture { model.activate(row) }
                             .contextMenu {
                                 RowMenu(model: model, row: row)

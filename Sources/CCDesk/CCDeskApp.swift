@@ -164,6 +164,23 @@ enum CCDeskMain {
     }
 }
 
+/// 菜单「切换到」：⌘1–9 对应侧栏从上到下的会话，菜单里直接写出会话名。
+private struct SwitchSessionMenuItems: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        let rows = model.numberedRows
+        ForEach(1...9, id: \.self) { index in
+            let row = rows.indices.contains(index - 1) ? rows[index - 1] : nil
+            Button(row.map { L("menu.switchTo", $0.displayName) } ?? L("menu.switchTo.empty", index)) {
+                model.selectNumbered(index: index - 1)
+            }
+            .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
+            .disabled(row == nil)
+        }
+    }
+}
+
 struct CCDeskApp: App {
     /// 主窗口（`Window("CC Desk", id: "main")` 的 NSWindow 标识以 "main" 开头）。
     static func isMainWindow(_ window: NSWindow) -> Bool {
@@ -228,10 +245,7 @@ struct CCDeskApp: App {
                 Divider()
                 PaneCommands(model: delegate.model, panes: delegate.model.panes)
                 Divider()
-                ForEach(1...9, id: \.self) { index in
-                    Button(L("menu.switchTo", index)) { delegate.model.selectEmbedded(index: index - 1) }
-                        .keyboardShortcut(KeyEquivalent(Character("\(index)")), modifiers: .command)
-                }
+                SwitchSessionMenuItems(model: delegate.model)
             }
         }
         // 设置窗口（应用菜单「设置…」，⌘,，设计 §16）。

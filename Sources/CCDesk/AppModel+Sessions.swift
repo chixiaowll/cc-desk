@@ -33,10 +33,41 @@ extension AppModel {
         terminal.view.window?.makeFirstResponder(terminal.view)
     }
 
-    func selectEmbedded(index: Int) {
-        let rows = embeddedRowsInOrder
-        guard rows.indices.contains(index) else { return }
-        selectedID = rows[index].id
+    /// ⌘1–9：按侧栏从上到下的顺序（与按住 ⌘ 时侧栏上显示的编号一致）。
+    func selectNumbered(index: Int) {
+        let rows = numberedRows
+        guard rows.indices.contains(index) else { return NSSound.beep() }
+        activate(rows[index])
+    }
+
+    /// 按住 ⌘ 时在侧栏显示编号：监听修饰键变化，App 失去焦点时复位。
+    func startCommandHintMonitor() {
+        guard commandMonitor == nil else { return }
+        // 按住 ⌘ 约 0.4 秒才显示，免得 ⌘C / ⌘V 这类快捷键一按就闪一下编号；中途按了别的键（⌘ 组合键）也不显示。
+        commandMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
+            guard let self else { return event }
+            if event.type == .keyDown {
+                self.commandHintToken += 1
+                if self.commandHeld { self.commandHeld = false }
+                return event
+            }
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            self.commandHintToken += 1
+            if flags == .command {
+                let token = self.commandHintToken
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                    guard let self, self.commandHintToken == token else { return }
+                    self.commandHeld = true
+                }
+            } else if self.commandHeld {
+                self.commandHeld = false
+            }
+            return event
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil,
+                                               queue: .main) { [weak self] _ in
+            if self?.commandHeld == true { self?.commandHeld = false }
+        }
     }
 
     func availability(of kind: AgentKind) -> AgentAvailability {

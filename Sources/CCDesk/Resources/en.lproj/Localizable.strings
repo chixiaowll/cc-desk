@@ -14,7 +14,8 @@
 "menu.closeSession" = "Close Session";
 "menu.history" = "History";
 "menu.session" = "Session";
-"menu.switchTo" = "Switch to Session %d";
+"menu.switchTo" = "Switch to %@";
+"menu.switchTo.empty" = "Session %d (none)";
 "appearance.system" = "System";
 "appearance.light" = "Light";
 "appearance.dark" = "Dark";
