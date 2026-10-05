@@ -687,3 +687,16 @@ agent 写完报告、方案、图片、表格后，用户要在项目目录里�
 **验证**：Core 单测覆盖请求体与函数工具 Schema、响应解析（多个调用、参数是对象 / 缺 id / 不合法、finish_reason、错误体、模型列表）、工具循环（权限矩阵与 MCP 路径一致、[EVENT] 里的 type_text 不执行、迭代上限、超时、请求 / 工具卡住时计时器到点结束、取消、重复回调、结果截断、失败轮保留已执行工具且历史结构完整）、历史裁剪 / 结构校验 / 持久化权限、后端选择（claude 未知时待定）与退役（忙的等空闲再停、被选回不停）、密钥按地址绑定、http 只限本地网络、不可信数字（1e30 / -1e30 / NaN / 1.5 / "1e30"）、沙箱（`..`、绝对路径、符号链接逃逸、同前缀目录、大小上限、二进制、FIFO 不阻塞、真实 grep 不跟随符号链接且跳过 FIFO、每文件匹配上限、输出字节上限、git 参数）。`CCDesk --assistant-api-selftest` 在回环接口上起一个假的 OpenAI 兼容服务（Network.framework），驱动真实的 `APIAssistantBackend` / `APIConsultRun` / 测试连接 / 模型列表：一句话 → list_sessions → 回复、[EVENT] 里 type_text 被拒、参数不合法、HTTP 500、超时后队列继续、Bearer 密钥、历史 0600 与读回 / 重置、顾问读不到项目外的文件、没配置 → 本地规则、日志里没有密钥与消息内容；以及健壮性：`{"count":1e30}` 与 usage 1e20 不崩溃、慢服务按时超时（助手循环与顾问各一次）、执行 type_text 后失败 → 历史保留这部分且下一轮看得到、顾问读 FIFO 立即拒绝且 grep 跳过它、`yes` 的输出在 1 MB 处被截断并终止、待定后端攒着请求直到 claude 解析完；本机 Ollama 有模型时附带一次真实的工具调用检查（没有就跳过，不会拉模型）。
 
 **限制**：只支持非流式请求；不支持把工具调用写在文字里的模型（部分本机模型 / 服务端模板如此）；`tool_choice: "none"` 有的服务忽略；顾问没有 Claude Code 的 Glob / git show，也不支持 Opus 档位；http 地址只能是本地网络（ATS 只放开本地网络，其他主机要 https）；接口后端的上下文按字符估算裁剪，不读服务端的上下文长度。
+
+## 23. 显示会话当前用的模型（v1.13）
+
+**数据**（只读会话记录，复用标题缓存已有的头部 / 尾部读取，不新增扫描；后出现的覆盖先出现的）：
+- Claude：assistant 记录的 `message.model`（跳过 `<synthetic>` 与空值），同一行顶层的 `effort`；尾部没有时再看已读好的头部。
+- Codex：`turn_context` 的 `payload.model` / `effort`，`event_msg`（thread_settings_applied）的 `thread_settings.model` / `reasoning_effort`，`session_meta` 的 `model_provider`。
+- pi：`model_change` 的 `modelId` / `provider`、`thinking_level_change` 的 `thinkingLevel`（off 视为无），以及 assistant 消息的 `model` / `provider`。尾部缺的字段从头部补齐。
+
+Core：`AgentModelInfo {id, provider?, effort?}` 放进 `TranscriptMeta.model`，随标题缓存在记录变化（mtime / size）时更新，再进 `SidebarRow.model`。`AgentModelFormat`：Claude id 转友好名（家族 + 版本数字以点连接，去掉日期与 `[1m]` 后缀，支持 `claude-3-5-sonnet` 旧顺序；认不出时用原 id），不带 effort；其他 id 取最后一段并追加「 · effort」。
+
+**显示**：详情标题栏副标题、窗格标题条、独立窗口标题条为「Claude · Fable 5.1 · …」；侧栏第二行「空闲 · Claude · Fable 5.1」，模型排在最后、行窄时先被截断，设置 › 通用「在侧栏显示模型」可关（默认开）；悬停提示加一行「模型：<完整 id> · effort … · provider」；菜单栏菜单的状态行带模型短名；助手 `list_sessions` 每项加 `model: {name, id}`。还没有模型信息的会话（新会话、普通 shell）不显示。
+
+**限制**：模型取自记录里最近一次回复 / 设置，会话中途 `/model` 切换后要等下一次回复（Codex 为下一轮 turn_context）才更新；Claude 的 effort 只在悬停提示里显示。
