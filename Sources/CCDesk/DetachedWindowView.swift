@@ -25,7 +25,7 @@ struct DetachedWindowView: View {
                     .truncationMode(.tail)
                 if let row {
                     let path = row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~")
-                    Text(row.agentLabel.map { "\($0) · \(path)" } ?? path)
+                    Text(row.agentModelLabel.map { "\($0) · \(path)" } ?? path)
                         .font(.system(size: 11))
                         .foregroundStyle(theme.fg3)
                         .lineLimit(1)

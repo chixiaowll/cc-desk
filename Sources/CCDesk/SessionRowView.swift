@@ -2,6 +2,11 @@ import SwiftUI
 import AppKit
 import CCDeskCore
 
+/// 侧栏会话行第二行是否显示模型短名（设置 › 通用「在侧栏显示模型」，默认开）。
+enum SidebarModelPreference {
+    static let defaultsKey = "sidebarShowsModel"
+}
+
 /// 侧栏中的一条会话（舒适密度：两行）。布局取自界面稿 `.rows .row`。
 struct SessionRowView: View {
     let row: SidebarRow
@@ -13,6 +18,8 @@ struct SessionRowView: View {
     var onResume: (() -> Void)? = nil
     /// 是否在第二行显示 agent 名；由调用方按 `AgentLabelPolicy` 决定。
     var showAgentLabel: Bool = AgentLabelPolicy.showAgentLabel
+    /// 是否在 agent 名后显示模型短名（「空闲 · Claude · Fable 5.1」）。
+    var showModel: Bool = true
     /// 显示在独立窗口里（设计 §20.3）：名字后面一个小窗口图标。
     var detached: Bool = false
     @State private var hovering = false
@@ -98,13 +105,14 @@ struct SessionRowView: View {
         .help(row.tooltip)
     }
 
-    /// 第二行：状态文字（状态色）+ 可选的「 · <agent>」（次要灰色）。目录缺失显示路径，不带 agent。
+    /// 第二行：状态文字（状态色）+ 可选的「 · <agent>」「 · <模型>」（次要灰色）。目录缺失显示路径，不带 agent。
+    /// 模型排在最后：行窄时整行尾部截断，先截掉的是模型；完整模型 id 见行的悬停提示。
     private var statusLine: Text {
         if isMissing {
             return Text(L("status.directoryMissing")).fontWeight(.medium).foregroundColor(theme.pillMissFg)
                 + Text(" · \(row.session.cwd.replacingOccurrences(of: NSHomeDirectory(), with: "~"))").foregroundColor(theme.fg2)
         }
-        return statusText + agentSuffix
+        return statusText + agentSuffix + modelSuffix
     }
 
     private var statusText: Text {
@@ -124,6 +132,11 @@ struct SessionRowView: View {
     private var agentSuffix: Text {
         guard showAgentLabel, let agent = row.agentLabel else { return Text("") }
         return Text(" · \(agent)").fontWeight(.regular).foregroundColor(theme.fg2)
+    }
+
+    private var modelSuffix: Text {
+        guard showAgentLabel, showModel, let model = row.modelName else { return Text("") }
+        return Text(" · \(model)").fontWeight(.regular).foregroundColor(theme.fg3)
     }
 }
 

@@ -69,6 +69,7 @@ struct GroupSectionView: View {
     let collapsed: Bool
     let now: Date
     let theme: Theme
+    @AppStorage(SidebarModelPreference.defaultsKey) private var showModel = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -83,6 +84,7 @@ struct GroupSectionView: View {
                                        onResume: row.session.host.isEmbedded && row.session.status == .ended
                                            && !model.isResumingEnded(row) ? { model.resumeEnded(row) } : nil,
                                        showAgentLabel: showAgentLabel,
+                                       showModel: showModel,
                                        detached: row.session.host.terminalID.map(model.isDetached) ?? false)
                             .onTapGesture { model.activate(row) }
                             .contextMenu {

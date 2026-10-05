@@ -151,7 +151,7 @@ struct PaneHeader: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if let row {
-                    Text(row.agentLabel.map { "\($0) · \(row.statusLabel)" } ?? row.statusLabel)
+                    Text(row.agentModelLabel.map { "\($0) · \(row.statusLabel)" } ?? row.statusLabel)
                         .font(.system(size: 11))
                         .foregroundStyle(theme.fg3)
                         .lineLimit(1)

@@ -206,7 +206,7 @@ struct DetailTitle: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(height: 18)
-            Text(row.session.kind.isAgent ? "\(row.session.kind.displayName) · \(path)" : path)
+            Text(row.session.kind.isAgent ? "\(row.agentModelLabel ?? row.session.kind.displayName) · \(path)" : path)
                 .font(.system(size: 11.5))
                 .foregroundStyle(theme.fg2)
                 .lineLimit(1)

@@ -447,6 +447,7 @@
 "theme.nord" = "Nord";
 "settings.general.lightTheme" = "浅色主题";
 "settings.general.darkTheme" = "深色主题";
+"settings.general.showModelInSidebar" = "在侧栏显示模型";
 "menu.theme" = "主题";
 "files.collapse.help" = "收起面板（⇧⌘F）";
 "action.close" = "关闭";

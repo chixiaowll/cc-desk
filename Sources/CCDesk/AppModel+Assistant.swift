@@ -14,7 +14,7 @@ extension AppModel: AssistantHost {
                 AssistantSessionInfo(rowID: row.id, shortID: toolbox.shortID(forRow: row.id), title: row.displayName,
                                      dir: group.title, agent: row.session.kind, status: row.session.status,
                                      isSelected: row.id == selectedID, isEmbedded: row.session.host.isEmbedded,
-                                     delegatedTask: work.delegatedTask(rowID: row.id))
+                                     delegatedTask: work.delegatedTask(rowID: row.id), model: row.model)
             }
         }
     }

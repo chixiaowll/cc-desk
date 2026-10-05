@@ -1,11 +1,12 @@
 import SwiftUI
 import CCDeskCore
 
-/// 设置 › 通用：外观（明暗与浅色 / 深色主题）、语言（沿用重启流程）、终端字体、登录时启动、菜单栏图标、全局快捷键。
+/// 设置 › 通用：外观（明暗与浅色 / 深色主题、侧栏是否显示模型）、语言（沿用重启流程）、终端字体、登录时启动、菜单栏图标、全局快捷键。
 struct SettingsGeneralTab: View {
     let model: AppModel
     let selectLanguage: (LanguagePreference) -> Void
     @AppStorage(AppearancePreference.defaultsKey) private var appearance = AppearancePreference.system.rawValue
+    @AppStorage(SidebarModelPreference.defaultsKey) private var showModelInSidebar = true
     @State private var language = LanguagePreference.stored
     @ObservedObject private var preferences = DesktopPreferences.shared
     @ObservedObject private var loginItem = LoginItemController.shared
@@ -27,6 +28,7 @@ struct SettingsGeneralTab: View {
                 }
                 ThemePickerRow(title: L("settings.general.lightTheme"), kind: .light)
                 ThemePickerRow(title: L("settings.general.darkTheme"), kind: .dark)
+                Toggle(L("settings.general.showModelInSidebar"), isOn: $showModelInSidebar)
                 VStack(alignment: .leading, spacing: 4) {
                     Picker(L("settings.general.language"), selection: languageBinding) {
                         ForEach(LanguagePreference.allCases) { Text($0.label).tag($0) }

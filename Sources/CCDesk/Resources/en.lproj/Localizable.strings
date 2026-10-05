@@ -447,6 +447,7 @@
 "theme.nord" = "Nord";
 "settings.general.lightTheme" = "Light Theme";
 "settings.general.darkTheme" = "Dark Theme";
+"settings.general.showModelInSidebar" = "Show model in sidebar";
 "menu.theme" = "Theme";
 "files.collapse.help" = "Hide panel (⇧⌘F)";
 "action.close" = "Close";
