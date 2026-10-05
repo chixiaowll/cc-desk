@@ -35,6 +35,7 @@
 - 按住右 ⌥ 说话：本地 Whisper（WhisperKit / CoreML）识别，只填入不发送。
 - 对话模式（⌥⌘V，或全局 ⌃⌥V）：唤醒词唤起，说「发送」「取消」「批准」即可。
 - 语音助手：用工具操作 CC Desk——切换、新建、恢复、关闭会话，往任意会话里打字，读屏回答「它卡在哪了」，把复杂问题交给更强的模型只读分析，或派一个新会话去干活。有副作用的操作会先口头确认。
+- 通用助手：与 CC Desk、写代码无关的话（天气新闻、生活常识、心情、闲聊）交给一个更有温度、有长期记忆的通用助手（Claude Code 时是 Sonnet，可上网搜索），回答直接朗读，长的只念开头、说「继续说」接着念、说「算了」取消；名字、性格、怎么称呼你都可以在设置 › 语音 › 通用助手里改。
 - 助手的「大脑」可选（设置 › 语音 › 助手模型）：本机 Claude Code（常驻 haiku 会话，顾问用 Sonnet / Opus），或任意 OpenAI 兼容接口——OpenRouter、DeepSeek、通义千问、Kimi，以及本机的 Ollama / LM Studio；都没有时只用本地规则（发送 / 取消 / 转述等照常可用）。
 - 可选本地自然语音（Qwen3-TTS，经 mlx-audio），不可用时自动退回系统声音。
 
@@ -105,7 +106,7 @@ DMG 未经苹果公证，首次打开请在「应用程序」里**右键 → 打
 
 - 语音识别完全在本机进行，录音不会离开电脑。
 - 模型按需下载到 `~/Library/Application Support/CC Desk/`：Whisper 约 630MB（第一次用语音时），自然语音约 2.2GB（手动选择时）。
-- 语音助手把识别出的文字、侧栏会话列表以及它读取的屏幕 / 会话记录片段发给你选的模型：用 Claude Code 时经本机 `claude` 命令发给 Anthropic（计入 Claude 订阅额度）；用通用 API 时发给你配置的接口地址（顾问还会发送它读到的项目文件），按该服务的规则计费与保存；Ollama / LM Studio 在本机运行，不出本机。接口密钥存放在 macOS 钥匙串，对话历史在 `~/.cc-desk/assistant/api-history.json`（仅本用户可读）。
+- 语音助手把识别出的文字、侧栏会话列表以及它读取的屏幕 / 会话记录片段发给你选的模型：用 Claude Code 时经本机 `claude` 命令发给 Anthropic（计入 Claude 订阅额度）；用通用 API 时发给你配置的接口地址（顾问还会发送它读到的项目文件），按该服务的规则计费与保存；Ollama / LM Studio 在本机运行，不出本机。接口密钥存放在 macOS 钥匙串，对话历史在 `~/.cc-desk/assistant/api-history.json`（仅本用户可读）。通用助手的问题与对话同样发给 Anthropic 或你配置的接口（上网搜索经由它们进行），记忆在 `~/.cc-desk/companion/`，可在设置里一键清空。
 - 手机推送只发送项目名、会话标题和简短原因；推送密钥存放在 macOS 钥匙串。
 - CC Desk 的状态文件在 `~/.cc-desk/`；控制接口是仅本用户可访问的 Unix socket，并要求每次启动生成的随机令牌。
 
@@ -120,7 +121,7 @@ swift test                   # 纯逻辑都在 CCDeskCore，可脱离界面测�
 - `Sources/CCDeskCore`：会话发现、状态合并、侧栏模型、tmux 托管规划、MCP / 控制协议、主题与配色等纯逻辑。
 - `Sources/CCDesk`：SwiftUI + AppKit 界面、终端、语音、助手。
 - 设计文档：`docs/specs/2026-10-02-cc-desk-design.md`。
-- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --skills-selftest`、`CCDesk --files-selftest`（临时目录里检查项目监视与提到的文件）、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`、`CCDesk --assistant-api-selftest`（本机假接口，不调用真实服务）。
+- 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --skills-selftest`、`CCDesk --files-selftest`（临时目录里检查项目监视与提到的文件）、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`、`CCDesk --companion-test`（真实 claude，验证通用助手只有上网工具、读不到本机文件、记忆与人设）、`CCDesk --assistant-api-selftest`（本机假接口，不调用真实服务）。
 
 ## 致谢
 
