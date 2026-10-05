@@ -131,7 +131,7 @@
 /* Usage */
 "usage.extraLine" = "额外用量：%@";
 "usage.staleNote" = "Claude Code 运行时会刷新这份缓存，数据可能已过时";
-"usage.currentLimit" = "当前限制";
+"usage.currentLimit" = "当前生效";
 
 /* Voice input */
 "voice.hint.modelReady" = "语音模型已就绪";

@@ -134,12 +134,14 @@ struct UsagePopover: View {
                     .foregroundStyle(theme.fg1)
                     .lineLimit(1)
                 if limit.isActive {
+                    // 「当前生效」只是说明现在主要按这个额度计算，不代表已被限流：用中性色；接近上限时才醒目。
+                    let urgent = limit.level != .normal
                     Text(L("usage.currentLimit"))
                         .uiFont(size: 10, weight: .semibold)
-                        .foregroundStyle(theme.accent)
+                        .foregroundStyle(urgent ? theme.accent : theme.fg2)
                         .padding(.horizontal, 5)
                         .frame(height: uiScale.metric(16))
-                        .background(Capsule().fill(theme.waitRow))
+                        .background(Capsule().fill(urgent ? theme.waitRow : theme.chip))
                 }
                 Spacer(minLength: 4)
                 Text(limit.percentText(now: now))

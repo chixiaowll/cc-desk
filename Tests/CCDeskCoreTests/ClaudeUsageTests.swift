@@ -70,6 +70,7 @@ final class ClaudeUsageTests: ZhHansTestCase {
         XCTAssertTrue(weekly.isActive)
 
         let scoped = usage.limits[2]
+        XCTAssertEqual(scoped.shortLabel, "7d " + (scoped.scopeLabel ?? ""))
         XCTAssertEqual(scoped.scopeLabel, "Fable")
         XCTAssertEqual(scoped.label, "7 天 · Fable")
         XCTAssertEqual(scoped.percent, 86.5)
@@ -285,7 +286,7 @@ final class ClaudeUsageTests: ZhHansTestCase {
         let summary = usage.summary(now: now, calendar: shanghai).components(separatedBy: "\n")
         XCTAssertEqual(summary.first, "Claude Team · Max 5x")
         XCTAssertEqual(summary[1], "5 小时  20%  1小时后重置")
-        XCTAssertEqual(summary[2], "7 天（全部）  89%  明天 09:00 重置（当前限制）")
+        XCTAssertEqual(summary[2], "7 天（全部）  89%  明天 09:00 重置（当前生效）")
         XCTAssertEqual(summary[4], "monthly_thing · Desktop  5%")
         XCTAssertEqual(summary[5], "额外用量：未开启（组织已停用）")
         XCTAssertEqual(limit("session", 50, at("2026-10-03T11:00:00+08:00")).percentText(now: now), "—")

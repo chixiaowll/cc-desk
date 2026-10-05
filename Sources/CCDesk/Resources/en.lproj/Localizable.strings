@@ -131,7 +131,7 @@
 /* Usage */
 "usage.extraLine" = "Extra usage: %@";
 "usage.staleNote" = "Claude Code refreshes this cache while running; the data may be out of date";
-"usage.currentLimit" = "Current limit";
+"usage.currentLimit" = "In effect";
 
 /* Voice input */
 "voice.hint.modelReady" = "Voice model is ready";

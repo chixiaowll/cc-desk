@@ -56,7 +56,7 @@
 "usage.extra.on" = "已开启";
 "usage.extra.offByOrg" = "未开启（组织已停用）";
 "usage.extra.offReason" = "未开启（%@）";
-"usage.activeLimitSuffix" = "（当前限制）";
+"usage.activeLimitSuffix" = "（当前生效）";
 "usage.extraLine" = "额外用量：%@";
 "usage.age.unknown" = "未知时间";
 "usage.age.now" = "刚刚";

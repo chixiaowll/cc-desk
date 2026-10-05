@@ -56,7 +56,7 @@
 "usage.extra.on" = "On";
 "usage.extra.offByOrg" = "Off (disabled by organization)";
 "usage.extra.offReason" = "Off (%@)";
-"usage.activeLimitSuffix" = " (current limit)";
+"usage.activeLimitSuffix" = " (in effect)";
 "usage.extraLine" = "Extra usage: %@";
 "usage.age.unknown" = "at an unknown time";
 "usage.age.now" = "just now";

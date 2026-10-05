@@ -50,10 +50,10 @@ public struct UsageLimit: Equatable, Identifiable {
         }
     }
 
-    /// 侧栏底部的短名称。
+    /// 侧栏底部的短名称；只限某个模型的周额度带上模型名（「7d Fable」），免得和「7 天（全部）」混淆。
     public var shortLabel: String {
         if isSession { return "5h" }
-        if isWeekly { return "7d" }
+        if isWeekly { return scopeLabel.map { "7d \($0)" } ?? "7d" }
         return kind
     }
 
