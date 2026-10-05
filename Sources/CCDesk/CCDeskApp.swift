@@ -85,6 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 顾问的 claude（连同它启动的 git 等）不随 App 退出：结束整个进程组。
         model.work.cancelAll()
         model.conversation.turnOff()
+        model.companion.shutdown()
         NaturalSpeechEngine.shared.unload()
         model.stopControlServer()
     }
@@ -142,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// `--tmux-selftest` 时在隔离的 tmux 服务器上自检会话托管层后退出（设计 §4.9）；`--layout-selftest` 时在屏幕外自检分屏（设计 §20）；
 /// `--skills-selftest` 时只读扫描本机技能并打印各来源的数量与名字（设计 §21）；`--files-selftest` 时在临时目录里
 /// 自检项目监视与提到的文件（设计 §17）；`--consult-test` 时用真实的
-/// claude 验证顾问的只读参数后退出（设计 §14）；`--assistant-api-selftest` 时用本机假服务验证 OpenAI 兼容接口后端（设计 §22）；
+/// claude 验证顾问的只读参数后退出（设计 §14）；`--companion-test` 时用真实的 claude 验证通用助手（设计 §24）；`--assistant-api-selftest` 时用本机假服务验证 OpenAI 兼容接口后端（设计 §22）；
 /// 否则拿单实例锁（已有实例时激活它并退出）后启动 App。
 @main
 enum CCDeskMain {
@@ -157,6 +158,7 @@ enum CCDeskMain {
         SkillsSelfTest.runIfRequested()
         FilesSelfTest.runIfRequested()
         ConsultTest.runIfRequested()
+        CompanionTest.runIfRequested()
         AssistantAPISelfTest.runIfRequested()
         PushSecretImport.runIfRequested()
         SingleInstance.acquireOrHandOff()
