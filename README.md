@@ -1,7 +1,5 @@
 # CC Desk
 
-[![CI](https://github.com/chixiaowll/cc-desk/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/chixiaowll/cc-desk/actions/workflows/ci.yml)
-
 **A macOS desk for your coding agents.** CC Desk lists every Claude Code, Codex and pi session on your Mac — grouped by project, with live status — and hosts them in embedded terminals that keep running even when the app quits. It notifies you when an agent needs approval or finishes, lets you approve from the notification (or your phone), and comes with a local voice assistant.
 
 > 一个管理本机 coding agent 会话的 macOS 应用：左侧按项目列出所有 Claude Code / Codex / pi 会话和实时状态，右侧内嵌终端；会话由 tmux 托管，App 退出、重启也不中断。需要批准或任务完成时提醒你，可以直接在通知里批准，还带一个本地语音助手。
@@ -127,7 +125,6 @@ swift test                   # 纯逻辑都在 CCDeskCore，可脱离界面测�
 - `Sources/CCDesk`：SwiftUI + AppKit 界面、终端、语音、助手。
 - 设计文档：`docs/specs/2026-10-02-cc-desk-design.md`。
 - 无界面自检：`CCDesk --tmux-selftest`、`CCDesk --layout-selftest`、`CCDesk --ui-scale-selftest`（屏幕外按各档界面文字渲染侧栏行、目录行、窗格标题条、设置行，检查不裁字）、`CCDesk --skills-selftest`、`CCDesk --files-selftest`（临时目录里检查项目监视与提到的文件）、`CCDesk --tts-test "你好"`、`CCDesk --consult-test`、`CCDesk --companion-test`（真实 claude，验证通用助手只有上网工具、读不到本机文件、记忆与人设）、`CCDesk --assistant-api-selftest`（本机假接口，不调用真实服务）、`CCDesk --proc-selftest`（对照原生进程表与 `ps`，并打印两者耗时）、`CCDesk --perf-selftest`（侧栏时钟前进次数与重绘开销、轮询节奏、进程表耗时；加 `--whisper` 时量语音模型加载 / 卸载前后的内存）。
-- CI（GitHub Actions，`.github/workflows/ci.yml`）：push / PR 到 main 时在 macOS 15 + Xcode 16.2（Swift 6.0.3）上跑 `swift build` 与 `swift test`；上面的无界面自检需要桌面会话与本机工具，不在 CI 里跑。
 - 性能约定（设计 §26）：每次轮询的工作要极小（进程表用 sysctl / libproc，不起子进程）；看着 CC Desk 时每秒轮询，否则每 4 秒，hook 状态与 Claude 注册表文件一变就立即补一次；侧栏时钟只在可见的相对时间会变时前进；语音模型不用 10 分钟后卸载。
 
 ## 致谢
