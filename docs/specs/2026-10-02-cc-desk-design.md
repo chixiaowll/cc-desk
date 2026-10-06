@@ -159,7 +159,7 @@ v1 只有登记文件 + 进程两个来源：登记文件给出 session 列表�
 session 的**存在性**由进程决定：进程不在了就从列表移除，无论其他来源说什么。
 
 **更新机制**：
-- v1 每 1 秒轮询一次：读 `~/.claude/sessions/*.json`（文件数等于 session 数，开销可忽略）+ 执行 `ps -axo pid=,ppid=,tty=,comm=`。比 FSEvents 简单，且满足 3 秒内反映变化的目标。
+- v1 每 1 秒轮询一次：读 `~/.claude/sessions/*.json`（文件数等于 session 数，开销可忽略）+ 读进程表（v1.16 起用原生接口代替 `ps`，并按是否有人看着调整间隔、状态文件变化时立即补一次，见 §26）。满足 3 秒内反映变化的目标。
 - 过滤：只保留 `kind == "interactive"` 且 `spare != true` 且进程存活的条目。
 - `status` 取值映射（`RegistryReader.status`）：`busy` → 处理中；`idle` → 空闲；`waiting` → 等批准（带 `waitingFor`）；`shell` → **空闲 + 后台任务**（这一轮已结束、在等用户，但后台 shell 仍在跑，屏幕显示「1 shell still running」）。`shell` 和空闲一样不算等批准、不进角标，working → shell 算完成一轮（照常发「已完成」通知 / 标未读）；侧栏状态文字为「空闲 · 后台任务」（未读时「已完成 · 后台任务」）。
 - 未知 / 缺失的 `status`（将来 Claude Code 新增的取值）：`RegistryStatusMemory` 沿用该会话（pid + sessionId）上一次的已知状态，而不是跳到「未知」；上一次是等批准时降为处理中（不能让已离开的批准请求继续亮着，通知上的批准按钮会向终端发回车）；从没见过已知状态的会话仍为「未知」。不改用屏幕 / hook 兜底：Claude 会话不做屏幕检测、hook 也是可选安装，沿用上一次状态更稳定。
@@ -260,7 +260,7 @@ protocol TerminalInputSink {
 - 每个内嵌终端 = 一个 tmux 会话 `ccdesk-<终端 UUID>`（一个窗口、一个窗格）。新建时先 `new-session -d -P -F '#{session_name}\t#{pane_pid}\t#{pane_tty}' -s … -c <cwd> -x <cols> -y <rows> -e CC_DESK=1 -e CC_DESK_TERMINAL_ID=<uuid> -- <窗格命令>`，再让 SwiftTerm 运行 `tmux attach-session -t =ccdesk-<uuid>`。SwiftTerm 里只是 tmux 客户端。
 - 窗格命令：`/usr/bin/env -u TMUX -u TMUX_PANE COLORTERM=truecolor $SHELL -l -i [-c "<命令>\nexec $SHELL -l -i"]`，与直连时相同的登录交互 shell。去掉 `TMUX`，这样窗格里的 `tmux` 命令不会连到（或误杀）CC Desk 的服务器，用户自己的 tmux 也不会拒绝「嵌套」启动。保留 tmux 写入的 `TERM_PROGRAM=tmux`：实测 Claude Code 只在 `TERM_PROGRAM=tmux` 时请求 modifyOtherKeys（`pane_key_mode` 为 `Ext 2`）；设成 `CCDesk` 时它改问 kitty 键盘协议，tmux 不回应，`pane_key_mode` 停在 `VT10x`，Shift+Enter 就退化成回车。
 - 环境：tmux 客户端的环境（同 `LaunchSpec.sanitizedEnvironment`，去掉会话级 Claude / Codex 变量与宿主终端变量，`TERM=xterm-256color`、`COLORTERM=truecolor`、缺省时补 UTF-8 的 `LANG`）会成为服务器的全局环境，所以不含 `CC_DESK_TERMINAL_ID`；终端 id 用 `-e` 只写进对应会话。窗格内 `TERM=tmux-256color`（macOS 14 自带该 terminfo）。
-- tty 映射：agent 的 tty 是**窗格**的 tty。新建 / 附着时就拿到窗格 shell 的 pid（`pane_pid`），之后每秒的轮询照旧用 `ps` 的进程表求 `tty(of: pane_pid)`，不再为轮询起 tmux 子进程。hook 状态、Codex / pi 的 tty 匹配、「已结束」判断都沿用 tty。
+- tty 映射：agent 的 tty 是**窗格**的 tty。新建 / 附着时就拿到窗格 shell 的 pid（`pane_pid`），之后每次轮询照旧用进程表（§26.1）求 `tty(of: pane_pid)`，不再为轮询起 tmux 子进程。hook 状态、Codex / pi 的 tty 匹配、「已结束」判断都沿用 tty。
 
 **生成的配置（让 tmux 隐形）**
 
@@ -277,7 +277,7 @@ protocol TerminalInputSink {
 - 启动：一次 `list-panes -a`。workspace 里每项：会话还在 → 附着，不发恢复命令，并预先记为「观测到 agent」，这样 App 关闭期间已退出的 agent 首轮就显示「已结束」可原地恢复；会话不在 → 照旧新建并执行恢复命令；目录缺失且会话不在 → 「目录缺失」行（会话还在则不管目录照样附着）。纯逻辑在 `TerminalRestorePlanner`。
 - 没有记录的会话：服务器里 `ccdesk-<uuid>` 会话没有 workspace 记录的（workspace 文件缺失 / 损坏、或单实例之前另一个实例写掉了记录），**收养**为内嵌终端：附着它，目录取窗格当前目录（`#{pane_current_path}`，取不到或已删除时用主目录），不记 agent 种类与 sessionId，由之后的轮询从进程表认出，并立即写回 workspace。启动时从不结束任何会话——里面多半是用户还在跑的 agent；不想要的由用户自己关闭。`ccdesk-` 前缀但不是合法 UUID 的会话不认识，原样不动。
 - 退出 / 崩溃：只是客户端断开，会话继续运行；⌘Q 只在有**直连 PTY** 的活跃 session 时确认。
-- 关闭 session（⌘W / 右键关闭 / 助手 `close_session`）：先用 `ps -t <窗格 tty>` 找出窗格 tty 上的所有进程组（含独立进程组的前台作业，如 claude）发 SIGHUP，再 `kill-session`（tmux 关闭 pty）；2 秒后仍存活的进程组与窗格 shell 一律 SIGKILL。与直连 PTY 的关闭方式一致。
+- 关闭 session（⌘W / 右键关闭 / 助手 `close_session`）：先从内核进程表（`KERN_PROC_ALL`，与 `ps -t <窗格 tty>` 等价，不起子进程）找出窗格 tty 上的所有进程组（含独立进程组的前台作业，如 claude）发 SIGHUP，再 `kill-session`（tmux 关闭 pty）；2 秒后仍存活的进程组与窗格 shell 一律 SIGKILL。与直连 PTY 的关闭方式一致。
 - 客户端退出后在后台 `has-session`，区分「会话在」「会话不在（服务器在）」「服务器不在」「超时」（`TmuxSessionState`），再按 `TmuxReattachPolicy`：会话在或超时（不知道）→ 重新附着，短时间内最多 3 次，稳定附着 30 秒后清零；超过次数则保留终端（workspace 记录不丢，下次启动附着）并在终端里说明。会话不在 → 照旧移除终端（用户 `exit` 了 shell）。服务器不在时看客户端退出码：0（`[exited]`，最后一个会话正常结束后服务器因 `exit-empty` 随之退出）→ 移除；非 0（`[server exited]` / `[lost server]`，服务器被结束或崩溃）→ 有可恢复的会话时在同一位置换上新 shell，显示为「已结束」可原地恢复，而不是丢掉。
 - 主线程不等 tmux：查会话状态、助手 `read_screen` 要的行数超过一屏时的 `capture-pane -p -J -S -<n>` 都在后台队列；新建会话仍在主线程同步执行（平时几毫秒），超时 1.5 秒后回退直连。
 
@@ -746,6 +746,45 @@ Core：`AgentModelInfo {id, provider?, effort?}` 放进 `TranscriptMeta.model`�
 设置 › 通用「界面文字」：小 0.9 / 标准 1.0（默认）/ 大 1.15 / 特大 1.3，即时生效，存 UserDefaults `uiTextScale`（Core `UIScalePreset`）。只影响 App 窗口里的界面文字与相关尺寸，不影响终端（终端字号见 §18）；系统菜单栏、菜单栏图标的菜单和悬停提示保持系统字号。
 
 - **实现**：每个窗口的根视图（主窗口、设置、技能库、独立窗口，以及新建会话 / 助手结果表单、用量与历史弹出层）用 `.uiScaleRoot()` 把倍率放进环境（`\.uiScale`），同时把默认字体设为 13pt × 倍率、系统控件尺寸设为 small / regular / large（控件里的文字跟着控件尺寸走）。界面里原来写死的 `.font(.system(size:))` 都换成 `.uiFont(size:weight:design:monospacedDigit:)`（字号 × 倍率，取到 0.5pt；SF Symbols 图标同样等比例）。会挤压文字的固定尺寸用 `uiScale.metric(_:)`（取整点）：侧栏宽度（240 / 300 / 420）、目录行 28pt、会话行两行的 17 / 14pt 与图标块 26pt、计数胶囊 16pt、⌘ 编号 18pt、图标按钮 22pt、底部汇总、窗格标题条 30pt（`PaneGeometry` 的标题条高度与终端位置跟着变）、独立窗口标题条 / 语音条 / 文件面板头 36pt、状态胶囊 22pt、历史面板与窗格选择器的行高和宽度、设置窗口宽度（高度封顶 680，内容多时表单滚动）。AppKit 画的文字（拖动窗格时的预览标题、历史搜索框、字号提示）按同一倍率。窗口工具栏的高度由系统决定，工具栏里的标题 / 胶囊最多放大到 1.15。
-- **开销**：倍率只在用户改设置时变化；平时每秒刷新的侧栏时钟等不读偏好对象，`uiFont` 只读环境值，不增加重绘。
+- **开销**：倍率只在用户改设置时变化；侧栏时钟（§26.3）等不读偏好对象，`uiFont` 只读环境值，不增加重绘。
 - **验证**：`UIScaleTests` 覆盖档位倍率、读回与退回标准、字号取 0.5pt / 尺寸取整、各档单调、非法输入；`CCDesk --ui-scale-selftest` 在屏幕外按每档渲染：固定高度的地方（会话行、目录行、胶囊、窗格标题条、独立窗口标题条、面板行、工具栏标题）放得下同字号文字的自然高度；侧栏最窄时的会话行（长名字、⌘ 编号、独立窗口图标）与目录行（长目录名 + 分支 + 计数）不超出可用宽度、高度符合预期且随倍率单调变大；窗格标题条高度 = 30pt × 倍率；设置行的系统控件随倍率变大。
 - **限制**：系统菜单、悬停提示、通知、菜单栏图标的菜单不缩放；`Form` 的分组样式由系统排版，控件只有 small / regular / large 三档，「大」与「特大」的控件一样大（文字仍按倍率）；工具栏里的标题最多到「大」。
+
+## 26. 性能与能耗（v1.16）
+
+CC Desk 常驻（登录启动 + 菜单栏），大部分时间没人看着。原则：每秒（或更频繁）发生的事要极小；没人看时放慢；状态变化靠事件而不是靠更快的轮询来及时。
+
+### 26.1 进程表：原生接口代替 ps（Core `NativeProcessReader` / `ProcArgs`）
+
+以前每次轮询起两次 `/bin/ps`（`pid,ppid,tty,comm` 与 `pid,args`，合计约 100–200 ms 墙钟、两次 fork/exec）。现在：
+
+- `sysctl(KERN_PROC_ALL)` 一次拿到全部进程的 pid / ppid / pgid / uid / 控制终端 / 启动时间 / 内核短名（其他用户的进程也在，不需要特权）；tty 用 `devname(e_tdev, S_IFCHR)`（按设备号缓存），与 ps 一样不列 pid 0。
+- comm / args：本用户的进程读 `KERN_PROCARGS2`，comm 取 argv[0]（node 程序改 `process.title` 后为 "pi"，与 ps 一致），args 为各参数以空格连接、控制字符转成 `\ooo`（与 ps 的 vis 写法一致）。按 (启动时间, 短名) 缓存：只有新进程、exec 过的进程和启动 5 秒内（可能还会改标题）的进程才重读；退出的进程随下一次快照移出缓存。
+- 其他用户的进程读不到命令行（EPERM；ps 是 setuid root 才能读）：comm 退回 `proc_pidpath`，再退回内核短名，args 为 nil。用到命令行的只有本用户进程（Codex / pi 识别、宿主 App 路径），检测结果不变。
+- 系统调用失败时退回 ps。关闭 tmux 会话时找窗格 tty 上的进程组也用同一份内核表（以前起两次 ps）。
+- 实测（M3，约 660 个进程）：ps 两次合计 ≈ 200 ms 墙钟；原生首次（读全部命令行）≈ 22 ms，之后每次 ≈ 0.8–1 ms。
+- **验证**：`ProcArgsTests`（缓冲区解析、被覆盖的标题、截断、控制字符、缓存策略、读自己的进程）；`CCDesk --proc-selftest` 在本机实时进程上对照 ps：两次原生快照之间身份没变的进程 pid → ppid / tty 全部一致，本用户进程 comm / args 全部一致，agent 识别与 tty 上的进程组一致，并打印两种方式的耗时。
+
+### 26.2 轮询节奏（Core `PollCadence` / App `PollPacer`）
+
+- **间隔**：App 在前台、有主窗口或独立窗口可见且没被完全遮住（`occlusionState`）、屏幕没锁、显示器没睡时每 1 秒；否则每 4 秒。定时器带容差（间隔的 1/10），让系统合并唤醒。
+- **立即补一次**（与上一次轮询开始至少隔 0.3 秒，连续写入合并）：hook 状态目录 `~/.cc-desk/state` 与 Claude 注册表目录 `~/.claude/sessions` 的文件级 FSEvents（延迟 0.2 秒）；内嵌终端的屏幕规则状态变化；App 回到前台、窗口重新可见、解锁、显示器 / 系统唤醒。轮询进行中来的变化在这一轮结束后补。
+- **低频任务按真实时间**（`PeriodicGate`）：每 30 秒存 workspace / 刷新历史与用量，每 10 分钟清理旧 hook 状态；不再按轮询次数计，慢速档不会拉长。
+- **通知 / 推送的最坏延迟**：hook 或注册表文件驱动的状态变化（Claude 的处理中 / 等批准 / 完成，装了集成的 Codex / pi）≈ FSEvents 0.2 秒 + 至多 0.3 秒，与快慢档无关；内嵌终端里只靠屏幕规则的 Codex / pi ≈ 屏幕检测 0.5 秒合并 + 至多 0.3 秒；只在进程表上体现的变化（新开的外部会话出现、进程退出变「已结束」）≤ 当前间隔（看着时 1 秒，否则 4 秒）。推送（离开电脑时）与系统通知走同一次轮询，延迟相同。
+- 每次轮询的 Dock / 通知中心角标只在数字变化时设置（以前每秒两次跨进程调用）。
+- **验证**：`PollCadenceTests`（快慢条件、延迟计算、最坏延迟、容差、按时间的低频任务）；`CCDesk --perf-selftest` 实测节奏器：自检进程不在前台时按 4 秒排，临时目录里写文件后 0.1–0.3 秒内补一次轮询。
+
+### 26.3 侧栏显示时钟（Core `DisplayClock`）
+
+- 以前 `AppClock.now` 每次轮询（每秒）都发布，侧栏每秒重绘一次（相对时间「刚刚 / N 分钟」）。现在只在某个可见文字真的会变时前进：会话行的相对时间（60 秒内「刚刚」→ 分钟边界 → 小时边界 → 天 / 周边界，24 小时后变灰）、底部 / 弹出层的用量（重置前最后一小时按分钟、六小时内按小时、跨过 6 小时或午夜，到点变「—」；数据新旧按分钟 / 小时，30 分钟后标「过时」）。侧栏内容（分组、用量）变了时也对齐一次。相同的值不发布。精度为轮询间隔。
+- 实测（`--perf-selftest`，8 行不同年龄的会话 + 用量）：一小时内时钟前进 3600 → 120 次（每分钟约 2 次）；屏幕外渲染 10 行 + 底部，每次前进约 3 ms CPU（debug 构建），每分钟约 180 ms → 6 ms。
+- 其他定时器：改动的文件面板（可见 2 秒 / 隐藏 6 秒，已有 25% 容差，且只在有选中会话时）；语音、对话模式的电平计时器只在录音 / 对话模式期间运行；助手播报排队计时器只在有排队时运行；用量刷新挂在轮询的 30 秒任务上。
+- **验证**：`DisplayClockTests`（各档边界、边界前后文字不变 / 变化、重置文字与数据新旧、合并多行与用量、典型侧栏一小时的前进次数）。
+
+### 26.4 内存
+
+- **语音识别模型**（Whisper large-v3 turbo，约 630 MB 文件）：以前第一次用语音后常驻到退出。现在不用语音满 10 分钟后卸载（`ModelIdlePolicy`，每 10 分钟最多一次检查），对话模式开着时常驻（随时可能听到唤醒词），正在识别时不卸载；下次按住说话 / 打开对话模式时重新加载，浮层照常显示「加载中」（录音照常进行，识别等加载完成）。实测（`--perf-selftest --whisper`，M3）：加载后进程多出约 255 MB 的模型权重映射（虚拟）、32 MB IOSurface、footprint +20–50 MB，ANE 上的程序在系统进程里；卸载后映射与 IOSurface 释放、footprint 回落约 30 MB（malloc 释放的页仍计入 resident，由系统按需回收）。同一进程里重新加载约 8 秒（编译缓存已在）；新进程第一次加载要编译 ANE 程序，debug 命令行进程里约 220 秒。
+- **自然语音服务**：原有设计不变——不用 10 分钟后退出子进程，对话模式期间常驻。
+- **终端回滚**：tmux 托管的终端里，tmux 客户端使用备用屏幕，SwiftTerm 自己不积累回滚（历史在 tmux 里，复制模式滚动是 tmux 的），每个终端只占一屏缓冲；直连 PTY（没有 tmux 时的退路）沿用 SwiftTerm 默认的 500 行。不做修改。
+
+**限制**：慢速档时纯进程表变化最多晚 4 秒；FSEvents 不可用时退回定时轮询（状态变化最多晚一个间隔）；屏幕锁定 / 解锁用的是系统的分布式通知 `com.apple.screenIsLocked` / `screenIsUnlocked`（未公开文档）；其他用户进程的 comm 与 ps 不同（取可执行文件路径），不影响识别。
