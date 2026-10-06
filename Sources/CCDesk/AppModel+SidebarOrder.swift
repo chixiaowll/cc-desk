@@ -15,13 +15,22 @@ extension AppModel {
     }
 
     /// 拖拽：payload 为 "group:<id>" 或 "row:<id>"；放到同类的目标上即占据目标的位置（会话只能在组内移动）。
+    /// 目录放到某个会话行上时按该行所在的目录处理（展开的目录里大部分面积是会话行，只认标题行很难放中）。
     func dropForReorder(_ payload: String, ontoGroup groupID: String?, ontoRow rowID: String?) -> Bool {
+        let ok = reorder(payload, ontoGroup: groupID, ontoRow: rowID)
+        AssistantDiag.log("sidebar drop kind=\(payload.split(separator: ":").first ?? "?") " +
+                          "onto=\(groupID != nil ? "group" : "row") ok=\(ok)")
+        return ok
+    }
+
+    private func reorder(_ payload: String, ontoGroup: String?, ontoRow rowID: String?) -> Bool {
+        let groupID = ontoGroup ?? rowID.flatMap { id in groups.first { $0.rows.contains { $0.id == id } }?.id }
         if payload.hasPrefix("group:"), let groupID {
             let id = String(payload.dropFirst("group:".count))
             let ids = groups.map(\.id)
             guard id != groupID, let index = ids.firstIndex(of: groupID) else { return false }
             sidebarOrder.moveGroup(id, to: index, in: ids)
-        } else if payload.hasPrefix("row:"), let rowID {
+        } else if payload.hasPrefix("row:"), ontoGroup == nil, let rowID {
             let id = String(payload.dropFirst("row:".count))
             guard id != rowID, let group = groups.first(where: { $0.rows.contains { $0.id == rowID } }),
                   group.rows.contains(where: { $0.id == id }),

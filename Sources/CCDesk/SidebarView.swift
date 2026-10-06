@@ -71,6 +71,8 @@ struct GroupSectionView: View {
     let now: Date
     let theme: Theme
     @AppStorage(SidebarModelPreference.defaultsKey) private var showModel = true
+    /// 拖动中悬停的会话行（顶部显示插入标记）。
+    @State private var dropTarget: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -100,7 +102,10 @@ struct GroupSectionView: View {
                             .draggable("row:\(row.id)")
                             .dropDestination(for: String.self) { items, _ in
                                 items.first.map { model.dropForReorder($0, ontoGroup: nil, ontoRow: row.id) } ?? false
+                            } isTargeted: { on in
+                                if on { dropTarget = row.id } else if dropTarget == row.id { dropTarget = nil }
                             }
+                            .overlay(alignment: .top) { DropMarker(visible: dropTarget == row.id, theme: theme) }
                     }
                 }
                 .padding(.leading, 16)
@@ -131,6 +136,7 @@ struct GroupHeaderView: View {
     let theme: Theme
     @State private var hovering = false
     @State private var showHistory = false
+    @State private var dropTargeted = false
     @Environment(\.uiScale) private var uiScale
 
     private var allMissing: Bool {
@@ -175,7 +181,8 @@ struct GroupHeaderView: View {
         .draggable("group:\(group.id)")
         .dropDestination(for: String.self) { items, _ in
             items.first.map { model.dropForReorder($0, ontoGroup: group.id, ontoRow: nil) } ?? false
-        }
+        } isTargeted: { dropTargeted = $0 }
+        .overlay(alignment: .top) { DropMarker(visible: dropTargeted, theme: theme) }
     }
 
     private var actions: some View {
@@ -313,5 +320,17 @@ struct SidebarFooter: View {
 
     private var separator: some View {
         theme.line.frame(width: 1, height: 10).padding(.horizontal, 4)
+    }
+}
+
+/// 拖拽排序的插入标记：放下后被拖的目录 / 会话会占据这里。
+struct DropMarker: View {
+    let visible: Bool
+    let theme: Theme
+
+    var body: some View {
+        if visible {
+            Capsule().fill(theme.accent).frame(height: 2).padding(.horizontal, 6).allowsHitTesting(false)
+        }
     }
 }
