@@ -8,8 +8,7 @@
 "status.ended" = "已结束";
 "status.unknown" = "未知";
 "status.done" = "已完成";
-"status.idleBackground" = "空闲 · 后台任务";
-"status.doneBackground" = "已完成 · 后台任务";
+"status.workingBackground" = "处理中 · 后台任务";
 "status.terminal" = "终端";
 "status.waitingForInput" = "等待输入";
 "availability.checking" = "检测中…";

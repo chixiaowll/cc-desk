@@ -72,13 +72,13 @@ public enum RegistryReader {
     }
 
     /// 原始 status → 状态；未知 / 缺失返回 nil。
-    /// `"shell"`：这一轮已结束、在等用户，但后台 shell 仍在跑——按空闲处理（不算等批准、working → shell 算完成一轮），
-    /// 只额外带上「后台任务」标记。
+    /// `"shell"`：Claude 这一轮的回复已结束，但后台 shell 仍在跑——按「处理中」算（任务还没真正做完），
+    /// 带上「后台任务」标记；后台任务结束、变为空闲时才算完成一轮（发完成通知 / 推送、标未读）。
     public static func status(raw: String?, waitingFor: String?) -> (status: AgentStatus, background: Bool)? {
         switch raw {
         case "busy": return (.working, false)
         case "idle": return (.idle, false)
-        case "shell": return (.idle, true)
+        case "shell": return (.working, true)
         case "waiting": return (.waiting(waitingFor), false)
         default: return nil
         }

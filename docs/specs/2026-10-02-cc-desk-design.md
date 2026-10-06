@@ -118,7 +118,7 @@ CC Desk 的目标：**一个窗口，左边列出所有 agent session 及其状�
 ```swift
 enum AgentKind { case claude, codex, pi, other }
 enum AgentStatus { case working, waiting(message: String?), idle, unknown }
-// AgentSession.backgroundWork：空闲但后台任务仍在跑（注册表 status "shell"）
+// AgentSession.backgroundWork：回复已结束但后台任务仍在跑（注册表 status "shell"，按处理中算）
 
 enum SessionHost {
     case embedded(terminalID: UUID)   // CC Desk 自己的终端
@@ -161,7 +161,7 @@ session 的**存在性**由进程决定：进程不在了就从列表移除，�
 **更新机制**：
 - v1 每 1 秒轮询一次：读 `~/.claude/sessions/*.json`（文件数等于 session 数，开销可忽略）+ 读进程表（v1.16 起用原生接口代替 `ps`，并按是否有人看着调整间隔、状态文件变化时立即补一次，见 §26）。满足 3 秒内反映变化的目标。
 - 过滤：只保留 `kind == "interactive"` 且 `spare != true` 且进程存活的条目。
-- `status` 取值映射（`RegistryReader.status`）：`busy` → 处理中；`idle` → 空闲；`waiting` → 等批准（带 `waitingFor`）；`shell` → **空闲 + 后台任务**（这一轮已结束、在等用户，但后台 shell 仍在跑，屏幕显示「1 shell still running」）。`shell` 和空闲一样不算等批准、不进角标，working → shell 算完成一轮（照常发「已完成」通知 / 标未读）；侧栏状态文字为「空闲 · 后台任务」（未读时「已完成 · 后台任务」）。
+- `status` 取值映射（`RegistryReader.status`）：`busy` → 处理中；`idle` → 空闲；`waiting` → 等批准（带 `waitingFor`）；`shell` → **处理中 + 后台任务**（Claude 这一轮的回复已结束，但后台 shell 仍在跑，屏幕显示「1 shell still running」）。任务还没真正做完，所以按处理中算：不算等批准、不进角标，working → shell 不发「已完成」通知、不标未读；后台任务结束、变为空闲（shell → idle）时才算完成一轮，照常发「已完成」通知 / 手机推送、标未读。侧栏状态文字为「处理中 · 后台任务」。
 - 未知 / 缺失的 `status`（将来 Claude Code 新增的取值）：`RegistryStatusMemory` 沿用该会话（pid + sessionId）上一次的已知状态，而不是跳到「未知」；上一次是等批准时降为处理中（不能让已离开的批准请求继续亮着，通知上的批准按钮会向终端发回车）；从没见过已知状态的会话仍为「未知」。不改用屏幕 / hook 兜底：Claude 会话不做屏幕检测、hook 也是可选安装，沿用上一次状态更稳定。
 - （v1.1）屏幕检测在内嵌终端有输出时节流触发（同一终端最多每 500ms 一次），只读底部缓冲区，不读用户滚动位置。
 

@@ -14,9 +14,9 @@ final class RegistryStatusTests: ZhHansTestCase {
         return parsed
     }
 
-    func testShellIsIdleWithBackgroundWork() {
+    func testShellIsWorkingWithBackgroundWork() {
         let e = entry("shell")
-        XCTAssertEqual(e.status, .idle)
+        XCTAssertEqual(e.status, .working)
         XCTAssertTrue(e.backgroundWork)
         XCTAssertEqual(e.rawStatus, "shell")
         XCTAssertTrue(e.hasKnownStatus)
@@ -38,7 +38,7 @@ final class RegistryStatusTests: ZhHansTestCase {
         XCTAssertEqual(memory.resolve([entry(nil)]).first?.status, .working)
         XCTAssertEqual(memory.resolve([entry("shell")]).first?.backgroundWork, true)
         let kept = memory.resolve([entry("whatever")]).first
-        XCTAssertEqual(kept?.status, .idle)
+        XCTAssertEqual(kept?.status, .working)
         XCTAssertEqual(kept?.backgroundWork, true)
     }
 
@@ -68,24 +68,25 @@ final class RegistryStatusTests: ZhHansTestCase {
     }
 
     func testSidebarLabelShowsBackgroundHint() {
-        XCTAssertEqual(row(.idle, background: true).statusLabel, "空闲 · 后台任务")
-        XCTAssertEqual(row(.idle, background: true, unread: true).statusLabel, "已完成 · 后台任务")
+        XCTAssertEqual(row(.working, background: true).statusLabel, "处理中 · 后台任务")
+        XCTAssertEqual(row(.working, background: false).statusLabel, "处理中")
         XCTAssertEqual(row(.idle, background: false).statusLabel, "空闲")
-        // 只在空闲时显示提示。
-        XCTAssertEqual(row(.working, background: true).statusLabel, "处理中")
-        XCTAssertFalse(row(.idle, background: true).session.status.isWaiting)
+        // 只在处理中时显示提示。
+        XCTAssertEqual(row(.idle, background: true).statusLabel, "空闲")
+        XCTAssertFalse(row(.working, background: true).session.status.isWaiting)
     }
 
-    func testWorkingToShellIsAFinishedTurn() {
-        let events = TransitionDetector.events(previous: ["a": .working], rows: [row(.idle, background: true)])
-        XCTAssertEqual(events.map(\.kind), [.finished])
-        // 空闲 → 后台任务：不是新的一轮。
-        XCTAssertEqual(TransitionDetector.events(previous: ["a": .idle], rows: [row(.idle, background: true)]), [])
+    /// 后台任务还在跑不算完成；后台任务结束（变为空闲）才算完成一轮。
+    func testBackgroundWorkIsNotFinishedUntilIdle() {
+        XCTAssertEqual(RegistryReader.status(raw: "shell", waitingFor: nil)?.status, .working)
+        XCTAssertEqual(TransitionDetector.events(previous: ["a": .working], rows: [row(.working, background: true)]), [])
+        let done = TransitionDetector.events(previous: ["a": .working], rows: [row(.idle, background: false)])
+        XCTAssertEqual(done.map(\.kind), [.finished])
     }
 
     func testSessionBuilderCarriesBackgroundWork() {
         let registry = [RegistryEntry(pid: 42, sessionID: "s", cwd: "/p", name: nil, nameIsDerived: true,
-                                      status: .idle, statusUpdatedAt: Date(), entrypoint: "cli",
+                                      status: .working, statusUpdatedAt: Date(), entrypoint: "cli",
                                       rawStatus: "shell", backgroundWork: true)]
         let processes = ProcessTable(byPID: [42: ProcInfo(pid: 42, ppid: 1, tty: nil, command: "/usr/local/bin/claude")])
         let built = SessionBuilder.build(registry: registry, processes: processes, embedded: [], missing: [],

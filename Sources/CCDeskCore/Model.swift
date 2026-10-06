@@ -106,7 +106,7 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     public var host: SessionHost
     public var status: AgentStatus
     public var statusChangedAt: Date
-    /// 空闲但仍有后台任务在跑（Claude 注册表的 `"shell"`）。只在 status 为 `.idle` 时有意义。
+    /// 回复已结束但仍有后台任务在跑（Claude 注册表的 `"shell"`，按处理中算）。只在 status 为 `.working` 时有意义。
     public var backgroundWork: Bool
 
     public init(id: String, kind: AgentKind, sessionID: String?, pid: Int32?, tty: String?,
@@ -127,5 +127,5 @@ public struct AgentSession: Identifiable, Equatable, Sendable {
     }
 
     /// 是否显示「后台任务」提示。
-    public var showsBackgroundWork: Bool { backgroundWork && status == .idle }
+    public var showsBackgroundWork: Bool { backgroundWork && status == .working }
 }
