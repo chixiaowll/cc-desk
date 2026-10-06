@@ -165,3 +165,22 @@ final class TranscriptCleanerTests: XCTestCase {
         XCTAssertEqual(TranscriptCleaner.clean("   \n "), "")
     }
 }
+
+final class ModelIdlePolicyTests: XCTestCase {
+    func testUnloadsOnlyWhenIdleLongEnoughAndNotPinned() {
+        XCTAssertFalse(ModelIdlePolicy.shouldUnload(idleFor: 599, keepLoaded: false, busy: false))
+        XCTAssertTrue(ModelIdlePolicy.shouldUnload(idleFor: 600, keepLoaded: false, busy: false))
+        // 对话模式开着：常驻。
+        XCTAssertFalse(ModelIdlePolicy.shouldUnload(idleFor: 10_000, keepLoaded: true, busy: false))
+        // 正在识别：不卸载。
+        XCTAssertFalse(ModelIdlePolicy.shouldUnload(idleFor: 10_000, keepLoaded: false, busy: true))
+        XCTAssertEqual(ModelIdlePolicy.idleUnload, 600)
+    }
+
+    func testNextCheckWaitsUntilTheThreshold() {
+        XCTAssertEqual(ModelIdlePolicy.nextCheck(idleFor: 0), 600)
+        XCTAssertEqual(ModelIdlePolicy.nextCheck(idleFor: 450), 150)
+        XCTAssertEqual(ModelIdlePolicy.nextCheck(idleFor: 700), 1)
+        XCTAssertEqual(ModelIdlePolicy.nextCheck(idleFor: -5, threshold: 10), 10)
+    }
+}

@@ -181,6 +181,8 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         if NaturalVoice.isSelected { NaturalSpeechEngine.shared.start() }
         isOn = true
         preparing = true
+        // 对话模式期间随时可能听到唤醒词：识别模型常驻，不做空闲卸载。
+        syncModelResidency()
         observed = nil
         voice.ensureModel { [weak self] ready in
             guard let self, self.isOn, self.generation == current else { return }
@@ -189,10 +191,18 @@ final class ConversationMode: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// 把「对话模式开着」告诉识别模型（开着时常驻）。快速开关时以执行那一刻的状态为准，先后乱序也不会留错。
+    private func syncModelResidency() {
+        Task { @MainActor [weak self, transcriber] in
+            await transcriber.setKeepLoaded(self?.isOn ?? false)
+        }
+    }
+
     func turnOff() {
         guard isOn else { return }
         generation += 1
         isOn = false
+        syncModelResidency()
         preparing = false
         capturing = false
         transcribing = false

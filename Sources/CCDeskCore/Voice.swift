@@ -217,3 +217,19 @@ public enum TranscriptCleaner {
         return kept.joined()
     }
 }
+
+/// 本机语音识别模型（约 1 GB 内存）的空闲卸载（设计 §26.4）：不用语音 `idleUnload` 秒后卸载，下次使用时重新加载
+/// （几秒，浮层照常显示「加载中」）。对话模式开着（随时可能听到唤醒词）或正在识别时不卸载。
+public enum ModelIdlePolicy {
+    public static let idleUnload: TimeInterval = 600
+
+    public static func shouldUnload(idleFor: TimeInterval, keepLoaded: Bool, busy: Bool,
+                                    threshold: TimeInterval = idleUnload) -> Bool {
+        !keepLoaded && !busy && idleFor >= threshold
+    }
+
+    /// 距离下一次检查还要等多久：到满 `threshold` 时；至少 1 秒，避免忙等。
+    public static func nextCheck(idleFor: TimeInterval, threshold: TimeInterval = idleUnload) -> TimeInterval {
+        max(1, threshold - max(0, idleFor))
+    }
+}

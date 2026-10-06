@@ -15,16 +15,26 @@ protocol Transcriber: Sendable {
     func prepare(progress: @escaping @Sendable (TranscriberProgress) -> Void) async throws
     /// 16 kHz 单声道 Float32 采样 -> 清理后的文本。hint：追加到 Whisper 提示词里的词汇（如唤醒词），提高识别率。
     func transcribe(_ samples: [Float], hint: String?) async throws -> String
+    /// 对话模式开着时传 true：模型常驻，不做空闲卸载。
+    func setKeepLoaded(_ keep: Bool) async
 }
 
 extension Transcriber {
     func transcribe(_ samples: [Float]) async throws -> String {
         try await transcribe(samples, hint: nil)
     }
+
+    func setKeepLoaded(_ keep: Bool) async {}
+}
+
+extension Notification.Name {
+    /// 语音模型因空闲被卸载（主线程发出）；下次使用需要重新加载。
+    static let transcriberDidUnload = Notification.Name("CCDeskTranscriberDidUnload")
 }
 
 /// 本机 Whisper（WhisperKit / CoreML）。模型首次使用时下载到
-/// ~/Library/Application Support/CC Desk/models，加载后常驻内存。
+/// ~/Library/Application Support/CC Desk/models；加载后在使用期间常驻内存，
+/// 不用语音约 10 分钟后卸载（对话模式开着时不卸载，`ModelIdlePolicy`，设计 §26.4），下次使用时重新加载。
 actor WhisperTranscriber: Transcriber {
     static let shared = WhisperTranscriber()
 
@@ -38,6 +48,13 @@ actor WhisperTranscriber: Transcriber {
     let baseDir: URL
     private var kit: WhisperKit?
     private var preparing: Task<WhisperKit, Error>?
+    /// 对话模式开着：不卸载。
+    private var keepLoaded = false
+    /// 最近一次使用（单调时钟）。
+    private var lastUsed = ProcessInfo.processInfo.systemUptime
+    /// 正在进行的识别数。
+    private var busy = 0
+    private var idleTask: Task<Void, Never>?
 
     init(model: String = WhisperTranscriber.defaultModel, baseDir: URL = WhisperTranscriber.defaultBaseDir) {
         self.model = model
@@ -62,10 +79,23 @@ actor WhisperTranscriber: Transcriber {
     var isLoaded: Bool { kit != nil }
 
     func prepare(progress: @escaping @Sendable (TranscriberProgress) -> Void) async throws {
+        touch()
         _ = try await loadedKit(progress: progress)
+        touch()
+    }
+
+    func setKeepLoaded(_ keep: Bool) {
+        keepLoaded = keep
+        touch()
     }
 
     func transcribe(_ samples: [Float], hint: String?) async throws -> String {
+        busy += 1
+        touch()
+        defer {
+            busy -= 1
+            touch()
+        }
         let kit = try await loadedKit(progress: { _ in })
         var options = DecodingOptions(
             task: .transcribe, language: "zh", temperature: 0, usePrefillPrompt: true, detectLanguage: false,
@@ -109,5 +139,36 @@ actor WhisperTranscriber: Transcriber {
             preparing = nil
             throw error
         }
+    }
+
+    // MARK: 空闲卸载
+
+    private func touch() {
+        lastUsed = ProcessInfo.processInfo.systemUptime
+        if idleTask == nil, kit != nil || preparing != nil {
+            idleTask = Task { [weak self] in await self?.idleLoop() }
+        }
+    }
+
+    /// 模型在内存里时每到空闲满 10 分钟检查一次（一次唤醒 / 10 分钟）；满足条件就卸载并结束。
+    private func idleLoop() async {
+        while kit != nil || preparing != nil {
+            let idle = ProcessInfo.processInfo.systemUptime - lastUsed
+            if ModelIdlePolicy.shouldUnload(idleFor: idle, keepLoaded: keepLoaded, busy: busy > 0 || preparing != nil) {
+                await unload()
+                break
+            }
+            let wait = ModelIdlePolicy.nextCheck(idleFor: idle)
+            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+        }
+        idleTask = nil
+    }
+
+    /// 卸载模型，释放内存；之后的 prepare / transcribe 会重新加载。
+    func unload() async {
+        guard let loaded = kit else { return }
+        kit = nil
+        await loaded.unloadModels()
+        DispatchQueue.main.async { NotificationCenter.default.post(name: .transcriberDidUnload, object: nil) }
     }
 }

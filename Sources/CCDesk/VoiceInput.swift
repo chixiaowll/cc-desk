@@ -38,6 +38,7 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
     private var hintWork: DispatchWorkItem?
     private var monitor: Any?
     private var resignObserver: NSObjectProtocol?
+    private var unloadObserver: NSObjectProtocol?
     private var transcribing = false
     /// 模型已加载；之后迟到的进度回调一律忽略，避免浮层卡在「加载中」。
     private var modelReady = false
@@ -61,6 +62,12 @@ final class VoiceInput: ObservableObject, @unchecked Sendable {
         ) { [weak self] event in
             guard let self else { return event }
             return self.handle(event)
+        }
+        // 模型因空闲被卸载：下次使用时重新显示下载 / 加载进度。
+        unloadObserver = NotificationCenter.default.addObserver(
+            forName: .transcriberDidUnload, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.modelReady = false
         }
         resignObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
