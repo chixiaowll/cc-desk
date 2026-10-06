@@ -199,6 +199,7 @@ extension AppModel {
         if events.contains(where: { $0.kind == .finished }) {
             usageRefresher.refresh(fetchedAt: claudeUsage?.fetchedAt, reason: .taskFinished) { [weak self] in self?.refreshUsage() }
         }
+        refreshTokens(force: events.contains(where: { $0.kind == .finished }))
         updateBadge()
         conversation.observe(terminalID: selectedTerminalID,
                              status: selectedTerminalID.flatMap { status(ofTerminal: $0) })

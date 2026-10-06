@@ -42,6 +42,7 @@ struct UsageFooterLine: View {
     let usage: ClaudeUsage
     let now: Date
     let theme: Theme
+    var tokens: TokenOverview? = nil
     var onOpen: () -> Void = {}
     @State private var showDetail = false
 
@@ -60,7 +61,7 @@ struct UsageFooterLine: View {
         .buttonStyle(.plain)
         .help(usage.summary(now: now, calendar: .current))
         .popover(isPresented: $showDetail, arrowEdge: .top) {
-            UsagePopover(usage: usage, now: now, theme: theme).uiScaleRoot()
+            UsagePopover(usage: usage, now: now, theme: theme, tokens: tokens).uiScaleRoot()
         }
     }
 
@@ -92,6 +93,7 @@ struct UsagePopover: View {
     let usage: ClaudeUsage
     let now: Date
     let theme: Theme
+    var tokens: TokenOverview? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -119,6 +121,10 @@ struct UsagePopover: View {
                         .uiFont(size: 11)
                         .foregroundStyle(theme.fg3)
                 }
+            }
+            if let tokens, !tokens.isEmpty {
+                theme.line.frame(height: 1)
+                TokenSection(tokens: tokens, theme: theme)
             }
         }
         .padding(14)

@@ -41,7 +41,8 @@ struct SidebarView: View {
                 }
             }
             SidebarFooter(rows: groups.flatMap(\.rows), usage: model.claudeUsage, now: clock.now, theme: theme,
-                          onOpenUsage: { model.refreshUsageNow() })
+                          tokens: model.tokenOverview,
+                          onOpenUsage: { model.refreshUsageNow(); model.refreshTokens(force: true) })
         }
         .background(theme.side.ignoresSafeArea())
         .toolbar {
@@ -86,7 +87,8 @@ struct GroupSectionView: View {
                                        showAgentLabel: showAgentLabel,
                                        showModel: showModel,
                                        detached: row.session.host.terminalID.map(model.isDetached) ?? false,
-                                       shortcut: model.commandHeld ? model.shortcutNumber(of: row.id) : nil)
+                                       shortcut: model.commandHeld ? model.shortcutNumber(of: row.id) : nil,
+                                       tokens: model.tokenTooltip(for: row))
                             .onTapGesture { model.activate(row) }
                             .contextMenu {
                                 RowMenu(model: model, row: row)
@@ -255,13 +257,20 @@ struct SidebarFooter: View {
     let usage: ClaudeUsage?
     let now: Date
     let theme: Theme
+    var tokens: TokenOverview? = nil
     var onOpenUsage: () -> Void = {}
     @Environment(\.uiScale) private var uiScale
 
     var body: some View {
         VStack(spacing: 0) {
             if let usage, !usage.footerLimits.isEmpty {
-                UsageFooterLine(usage: usage, now: now, theme: theme, onOpen: onOpenUsage)
+                UsageFooterLine(usage: usage, now: now, theme: theme, tokens: tokens, onOpen: onOpenUsage)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 9)
+                    .frame(height: uiScale.metric(26))
+            } else if let tokens, !tokens.isEmpty {
+                // 没有 Claude 订阅用量（只用 Codex / pi 等）时，底部只显示 token 汇总。
+                TokenFooterLine(tokens: tokens, theme: theme, onOpen: onOpenUsage)
                     .padding(.horizontal, 18)
                     .padding(.top, 9)
                     .frame(height: uiScale.metric(26))

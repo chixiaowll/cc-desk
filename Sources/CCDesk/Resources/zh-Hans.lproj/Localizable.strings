@@ -615,3 +615,13 @@
 "settings.companion.clear.message" = "它会忘掉之前聊过的所有内容，助手结果里的问答记录也一并删除。";
 "settings.companion.note" = "语音助手把与 CC Desk、写代码无关的问题（生活、常识、新闻天气、心情、闲聊）交给通用助手，它的回答直接朗读；说「算了」取消，说「继续说」接着念。用 Claude Code 时是 Sonnet，比 Haiku 占用更多订阅额度。";
 "settings.companion.privacy" = "问题与对话发给 Anthropic（Claude Code）或你配置的接口；上网搜索经由它们进行。对话记忆在 ~/.cc-desk/companion（仅本用户可读）。";
+
+"tokens.title" = "Token";
+"tokens.today" = "今天";
+"tokens.week" = "近 7 天";
+"tokens.byProject" = "按项目";
+"tokens.byModel" = "按模型";
+"tokens.byAgent" = "按 Agent";
+"tokens.none" = "还没有记录";
+"tokens.note" = "统计自本机 Claude Code / Codex / pi 的会话记录；缓存读取的计费远低于普通输入。";
+"tokens.footer" = "今天 %1$@ · 7 天 %2$@";

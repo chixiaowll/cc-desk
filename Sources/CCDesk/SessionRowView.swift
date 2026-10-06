@@ -24,6 +24,8 @@ struct SessionRowView: View {
     var detached: Bool = false
     /// 按住 ⌘ 时显示的编号（⌘1–9 切换到这一行）；nil 不显示。
     var shortcut: Int? = nil
+    /// 悬停提示里追加的 token 用量（设计 §27）；nil 不显示。
+    var tokens: String? = nil
     @State private var hovering = false
     @Environment(\.uiScale) private var uiScale
 
@@ -118,7 +120,7 @@ struct SessionRowView: View {
         .opacity(RelativeTime.isStale(row.session.statusChangedAt, now: now) ? 0.55 : 1)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
-        .help(row.tooltip)
+        .help(tokens.map { row.tooltip.isEmpty ? $0 : row.tooltip + "\n" + $0 } ?? row.tooltip)
     }
 
     /// 第二行：状态文字（状态色）+ 可选的「 · <agent>」「 · <模型>」（次要灰色）。目录缺失显示路径，不带 agent。

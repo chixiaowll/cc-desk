@@ -134,3 +134,11 @@
 "push.error.missingTopic" = "请填写 ntfy 主题";
 "push.error.missingWebhookURL" = "请填写 Webhook 地址";
 "push.error.invalidURL" = "地址无效（需要 http:// 或 https:// 开头）";
+
+"tokens.input" = "输入 %@";
+"tokens.output" = "输出 %@";
+"tokens.cacheRead" = "缓存读 %@";
+"tokens.cacheWrite" = "缓存写 %@";
+"tokens.sessionLine" = "Token %1$@（%2$@）";
+"tokens.cacheHit" = "缓存命中 %d%%";
+"tokens.context" = "上下文已用 %d%%";

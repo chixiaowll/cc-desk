@@ -134,3 +134,11 @@
 "push.error.missingTopic" = "Enter an ntfy topic";
 "push.error.missingWebhookURL" = "Enter a webhook URL";
 "push.error.invalidURL" = "Invalid URL (must start with http:// or https://)";
+
+"tokens.input" = "in %@";
+"tokens.output" = "out %@";
+"tokens.cacheRead" = "cache read %@";
+"tokens.cacheWrite" = "cache write %@";
+"tokens.sessionLine" = "Tokens %1$@ (%2$@)";
+"tokens.cacheHit" = "cache hit %d%%";
+"tokens.context" = "context %d%% used";

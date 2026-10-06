@@ -104,6 +104,14 @@ final class AppModel: ObservableObject {
     let usageSource = ClaudeUsageSource()
     var refreshingUsage = false
     let usageRefresher = UsageRefresher()
+    /// token 统计（设计 §27）：只在 `tokenQueue` 上使用；首次扫描约 1 秒 CPU，单独的低优先级队列，不拖慢轮询。
+    let tokenLedger = TokenLedger()
+    let tokenQueue = DispatchQueue(label: "cc-desk.tokens", qos: .utility)
+    var tokenRefreshing = false
+    var tokenLastRefresh: TimeInterval = -.infinity
+    /// sessionId -> 累计用量（侧栏行的悬停提示）。
+    @Published var sessionTokens: [String: SessionTokenSummary] = [:]
+    @Published var tokenOverview: TokenOverview?
     var sidebarOrder = SidebarOrder.load() ?? SidebarOrder()
     /// Codex / pi 状态集成的安装状态；nil 键表示尚未检测。
     @Published var integrationStatus: [AgentKind: IntegrationStatus] = [:]

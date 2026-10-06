@@ -788,3 +788,13 @@ CC Desk 常驻（登录启动 + 菜单栏），大部分时间没人看着。原
 - **终端回滚**：tmux 托管的终端里，tmux 客户端使用备用屏幕，SwiftTerm 自己不积累回滚（历史在 tmux 里，复制模式滚动是 tmux 的），每个终端只占一屏缓冲；直连 PTY（没有 tmux 时的退路）沿用 SwiftTerm 默认的 500 行。不做修改。
 
 **限制**：慢速档时纯进程表变化最多晚 4 秒；FSEvents 不可用时退回定时轮询（状态变化最多晚一个间隔）；屏幕锁定 / 解锁用的是系统的分布式通知 `com.apple.screenIsLocked` / `screenIsUnlocked`（未公开文档）；其他用户进程的 comm 与 ps 不同（取可执行文件路径），不影响识别。
+
+## 27. Token 用量统计（v1.17）
+
+- 数据来源：本机会话记录，不调接口。Claude：`~/.claude/projects/<目录>/<sessionId>.jsonl` 及子 agent `<sessionId>/subagents/agent-*.jsonl`（归到父会话），每条回复的 `message.usage`；同一 `message.id` 会分几行写入、续接会话会重放旧回复，按 id 去重（取最后一行）。Codex：`event_msg / token_count` 的 `total_token_usage` 累计值取增量（重复上报同一累计值时为 0），模型取最近的 `turn_context.model`，并记下最后一次请求的上下文占用与 `model_context_window`。pi：assistant 消息的 `usage`，按条目 id 去重。
+- 统一口径：输入（未命中缓存）、输出（含思考 / 推理）、缓存读、缓存写；Codex 的 `input_tokens` 含缓存，换算时减去 `cached_input_tokens`。
+- `TokenLedger`（CCDeskCore）：只看最近 7 天内写过的文件，按 (路径, 读到的位置) 增量读取，只处理完整的行（还在写的半行留到下次）；文件变小则从头重读。按字节预筛（memmem）跳过不含用量的行；Claude 的回复行只截出 `"usage":{…}` 小段解析，id / 模型 / 时间按键名直接取值；时间用固定格式快速解析。每 4MB 一块、每块一个 autoreleasepool。
+- 实测（本机 7 天约 600MB 记录、2.8 万条回复）：首次扫描约 1 秒 CPU、内存增加约 2MB；之后无变化时一次扫描约 9 毫秒，汇总约 11 毫秒（`--perf-selftest` 输出）。
+- 刷新：独立的 utility 队列；有处理中的会话时每 15 秒、否则每 60 秒；有会话完成一轮、打开用量详情时立即刷新。结果没变化时不发布，不触发侧栏重绘。
+- 界面：会话行悬停提示追加「Token 总量（输入 · 输出 · 缓存读 · 缓存写）」与「缓存命中 % · 上下文已用 %」（上下文只有 Codex 有）。用量详情弹窗下方加 Token 段：今天 / 近 7 天切换，总量与构成，按项目（cwd 所属项目根目录的最后一级）、按模型、按 agent（多于一种时）的前几名。没有 Claude 订阅用量时，侧栏底部改为显示「Token 今天 X · 7 天 Y」，点击弹出同一段。
+- 不做费用估算：订阅用户的 token 不直接对应费用。

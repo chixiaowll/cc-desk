@@ -615,3 +615,13 @@
 "settings.companion.clear.message" = "It forgets everything you talked about, and its entries in Assistant Results are deleted too.";
 "settings.companion.note" = "The voice assistant hands questions that aren't about CC Desk or coding (daily life, general knowledge, news and weather, feelings, chit-chat) to the companion and its answer is read aloud; say \"never mind\" to cancel or \"continue\" to hear more. With Claude Code it uses Sonnet, which takes more of your plan's quota than Haiku.";
 "settings.companion.privacy" = "Questions and the conversation go to Anthropic (Claude Code) or the API you configured; web searches happen through them. Its memory is kept in ~/.cc-desk/companion (readable only by you).";
+
+"tokens.title" = "Tokens";
+"tokens.today" = "Today";
+"tokens.week" = "Last 7 days";
+"tokens.byProject" = "By project";
+"tokens.byModel" = "By model";
+"tokens.byAgent" = "By agent";
+"tokens.none" = "No records yet";
+"tokens.note" = "Counted from local Claude Code / Codex / pi session logs; cache reads are billed far below regular input.";
+"tokens.footer" = "Today %1$@ · 7d %2$@";

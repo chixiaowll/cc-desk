@@ -7,6 +7,7 @@ import CCDeskCore
 /// - 一次时钟前进让侧栏重绘的 CPU 时间（屏幕外窗口里渲染 10 行会话 + 底部用量）；
 /// - 一次轮询的进程表耗时（原生 vs ps）与每分钟的轮询次数（看着 / 不看着）；
 /// - 轮询节奏器实测：不在前台时按慢速档排、临时目录里写文件后立即补一次轮询；
+/// - token 统计：首次扫描最近 7 天会话记录的 CPU / 内存，之后无变化时一次扫描与一次汇总的耗时；
 /// - 加 `--whisper` 时加载 → 卸载 → 再加载本机语音模型，对比内存与重新加载耗时（需已下载模型；新进程第一次加载
 ///   要编译 ANE 程序，可能需要几分钟）。
 enum PerfSelfTest {
@@ -31,6 +32,7 @@ enum PerfSelfTest {
                      renderMS, renderMS * 60, renderMS * ticks))
         pollCost()
         pacerLive()
+        tokenLedgerCost()
         if whisper { whisperMemory() }
         print(ok ? "perf selftest passed" : "perf selftest FAILED")
         return ok
@@ -207,6 +209,37 @@ enum PerfSelfTest {
     }
 
     // MARK: 语音模型
+
+    // MARK: token 统计
+
+    private static func tokenLedgerCost() {
+        let ledger = TokenLedger()
+        let mem0 = memoryMB().footprint
+        var cpu = cpuMilliseconds()
+        var wall = Date()
+        ledger.refresh()
+        let firstCPU = cpuMilliseconds() - cpu
+        let firstWall = Date().timeIntervalSince(wall) * 1000
+        let mem1 = memoryMB().footprint
+        print(String(format: "token ledger first scan: %.0f ms CPU, %.0f ms wall, footprint +%.1f MB",
+                     firstCPU, firstWall, mem1 - mem0))
+        cpu = cpuMilliseconds()
+        wall = Date()
+        ledger.refresh()
+        let again = cpuMilliseconds() - cpu
+        print(String(format: "token ledger rescan (unchanged): %.1f ms CPU, %.1f ms wall", again, Date().timeIntervalSince(wall) * 1000))
+        cpu = cpuMilliseconds()
+        let week = ledger.summary(since: Date().addingTimeInterval(-TokenLedger.window)) { $0.map { ($0 as NSString).lastPathComponent } ?? "?" }
+        let summaryMS = cpuMilliseconds() - cpu
+        print(String(format: "token ledger 7d summary: %.1f ms CPU; total %@ (in %@, out %@, cache read %@, cache write %@)",
+                     summaryMS, TokenUsage.compact(week.total.total), TokenUsage.compact(week.total.input),
+                     TokenUsage.compact(week.total.output), TokenUsage.compact(week.total.cacheRead),
+                     TokenUsage.compact(week.total.cacheWrite)))
+        for slice in week.byModel.prefix(5) { print("  model \(slice.name): \(TokenUsage.compact(slice.usage.total))") }
+        for slice in week.byProject.prefix(5) { print("  project \(slice.name): \(TokenUsage.compact(slice.usage.total))") }
+        check(again < 200, "token ledger rescan without changes stays cheap")
+        check(summaryMS < 200, "token ledger summary stays cheap")
+    }
 
     /// (phys_footprint, resident_size) MB。模型权重多为文件映射（resident 里有、footprint 里没有），ANE 上的程序在系统进程里。
     private static func memoryMB() -> (footprint: Double, resident: Double) {
