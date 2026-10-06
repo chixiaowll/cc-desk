@@ -63,6 +63,7 @@ final class NaturalVoiceInstaller: ObservableObject, @unchecked Sendable {
             guard let self else { return }
             hint(self.status())
         }
+        timer.tolerance = 0.5
         RunLoop.main.add(timer, forMode: .common)
         queue.async { [self] in
             let result = runSteps()

@@ -36,7 +36,12 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// 同时通过 NSDockTile 和 UserNotifications 设置角标（后者受系统「标记」设置控制）。
+    /// 最近一次设置的角标；相同时不再设置（每次轮询都会调用，避免每秒一次 Dock / 通知中心的跨进程调用）。
+    private var lastBadge: Int?
+
     func setBadge(_ count: Int) {
+        guard count != lastBadge else { return }
+        lastBadge = count
         NSApp.dockTile.badgeLabel = count > 0 ? "\(count)" : nil
         guard available else { return }
         UNUserNotificationCenter.current().setBadgeCount(count) { _ in }

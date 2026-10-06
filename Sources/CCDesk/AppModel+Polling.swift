@@ -108,7 +108,10 @@ extension AppModel {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.refreshingUsage = false
-                if self.claudeUsage != usage { self.claudeUsage = usage }
+                if self.claudeUsage != usage {
+                    self.claudeUsage = usage
+                    self.displayDirty = true
+                }
                 if let usage { self.postUsageAlerts(usage) }
             }
         }
@@ -131,7 +134,7 @@ extension AppModel {
                        projects: [String: ProjectRef], titles: [String: TranscriptMeta]) {
         polling = false
         let registry = registryStatus.resolve(raw)
-        clock.now = Date()
+        now = Date()
         lastProcesses = processes
         let agents = mergeAgentStatus(snapshots, processes: processes)
         var built = SessionBuilder.build(registry: registry, processes: processes,
@@ -211,7 +214,19 @@ extension AppModel {
             // 有会话从侧栏消失（如关闭了已结束的终端）：立即刷新，让它回到历史列表。
             refreshHistory()
         }
+        updateDisplayClock()
         pacer.pollFinished()
+    }
+
+    /// 侧栏显示时钟：内容变过、或到了某个相对时间 / 用量文字会变的时刻才前进（相同的值不发布），
+    /// 否则不动，侧栏不因时钟重绘。精度为轮询间隔（看着时 1 秒，否则 4 秒）。
+    func updateDisplayClock() {
+        let wall = now
+        guard displayDirty || nextDisplayChange.map({ wall >= $0 }) == true else { return }
+        displayDirty = false
+        if clock.now != wall { clock.now = wall }
+        let dates = groups.flatMap { $0.rows.map(\.session.statusChangedAt) }
+        nextDisplayChange = DisplayClock.nextChange(dates: dates, usage: claudeUsage, after: wall, calendar: .current)
     }
 
     /// Codex / pi：hook 状态 + 内嵌终端的屏幕规则状态按 §4.2 合并；同时告诉各内嵌终端是否需要做屏幕检测。
@@ -243,7 +258,10 @@ extension AppModel {
         // 固定顺序：按第一次出现的先后排列，重启后保持，状态变化不再改变位置。
         let ordered = sidebarOrder.apply(built)
         // 没变时不重新赋值：@Published 每次赋值都会让所有观察 AppModel 的视图重绘。
-        if groups != ordered.groups { groups = ordered.groups }
+        if groups != ordered.groups {
+            groups = ordered.groups
+            displayDirty = true
+        }
         if ordered.changed {
             let snapshot = sidebarOrder
             queue.async { snapshot.save() }

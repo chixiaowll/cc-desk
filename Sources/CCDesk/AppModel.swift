@@ -5,10 +5,15 @@ import CCDeskCore
 /// 状态中心。只在主线程访问；后台队列只做文件读取和子进程调用。
 final class AppModel: ObservableObject {
     @Published var groups: [SessionGroup] = []
-    /// 每秒走一次的时钟（侧栏的相对时间）。单独的对象：只有观察它的视图每秒重绘，详情区 / 工具栏不跟着重绘。
+    /// 侧栏的显示时钟（相对时间、用量文字）。单独的对象：只有观察它的视图跟着重绘；
+    /// 只在某个可见文字真的会变的时刻（或侧栏内容变了时）前进，不每秒发布（设计 §26.3）。
     let clock = AppClock()
-    /// 最近一次轮询的时刻。
-    var now: Date { clock.now }
+    /// 最近一次轮询的时刻（状态合并、历史面板用；不发布，不引起重绘）。
+    var now = Date()
+    /// 侧栏上随时间变化的文字下一次会变的时刻；nil 表示没有会变的文字。
+    var nextDisplayChange: Date?
+    /// 侧栏内容（分组 / 用量）变过，下次轮询时让显示时钟对齐并重新计算 `nextDisplayChange`。
+    var displayDirty = true
     /// 每个会话当前这次等批准的编号与开始时刻（通知按钮 / 语音批准核对仍是同一次等待）。
     var waitingEpisodes = WaitingEpisodes(base: Int(Date().timeIntervalSince1970) * 1000)
     /// 注册表出现未知 / 缺失 status 时沿用该会话上一次的已知状态。
@@ -250,7 +255,7 @@ final class AppModel: ObservableObject {
     }
 }
 
-/// 每秒走一次的时钟（AppModel 每次轮询时更新）。
+/// 侧栏的显示时钟（AppModel 在显示文字会变时更新，见 `updateDisplayClock`）。
 final class AppClock: ObservableObject {
     @Published var now = Date()
 }

@@ -6,6 +6,7 @@ import CCDeskCore
 /// 回到前台 / 窗口重新可见 / 解锁 / hook 状态或 Claude 注册表文件变化时立即补一次。只在主线程使用。
 final class PollPacer {
     private let poll: () -> Void
+    private let watchPaths: [String]
     private var timer: Timer?
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var watcher: StateFilesWatcher?
@@ -18,7 +19,10 @@ final class PollPacer {
     private var pendingChange = false
     private(set) var running = false
 
-    init(poll: @escaping () -> Void) {
+    /// watchPaths：变化时立即轮询的目录（默认 hook 状态目录与 Claude 注册表目录；自检时换成临时目录）。
+    init(watchPaths: [String] = [HookStateReader.defaultDirectory.path, RegistryReader.defaultDirectory.path],
+         poll: @escaping () -> Void) {
+        self.watchPaths = watchPaths
         self.poll = poll
     }
 
@@ -36,9 +40,7 @@ final class PollPacer {
         guard !running else { return }
         running = true
         observe()
-        let watcher = StateFilesWatcher(paths: [HookStateReader.defaultDirectory.path, RegistryReader.defaultDirectory.path]) {
-            [weak self] in self?.changed()
-        }
+        let watcher = StateFilesWatcher(paths: watchPaths) { [weak self] in self?.changed() }
         watcher.start()
         self.watcher = watcher
         fire()

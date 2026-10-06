@@ -210,6 +210,7 @@ final class CompanionWork: ObservableObject {
         drainSpeech()
         guard pendingSpeech != nil, speechTimer == nil else { return }
         let timer = Timer(timeInterval: 0.3, repeats: true) { [weak self] _ in self?.drainSpeech() }
+        timer.tolerance = 0.05
         RunLoop.main.add(timer, forMode: .common)
         speechTimer = timer
     }

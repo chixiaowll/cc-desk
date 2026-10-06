@@ -302,6 +302,7 @@ final class AssistantWork: ObservableObject {
         drain()
         guard !gate.isEmpty, drainTimer == nil else { return }
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in self?.drain() }
+        timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
         drainTimer = timer
     }
