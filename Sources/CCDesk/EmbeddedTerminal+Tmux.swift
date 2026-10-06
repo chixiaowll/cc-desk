@@ -77,15 +77,10 @@ extension EmbeddedTerminal {
         view.terminate()
     }
 
-    /// 窗格 shell 所在 tty 上的所有进程组（不含 CC Desk 自己的进程组）。
+    /// 窗格 shell 所在 tty 上的所有进程组（不含 CC Desk 自己的进程组）。用内核进程表，不起 ps 子进程。
     private static func processGroups(onTTYOf pid: Int32) -> [Int32] {
-        guard let tty = SystemProbe.run("/bin/ps", ["-o", "tty=", "-p", String(pid)])?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-              !tty.isEmpty, tty != "??",
-              let output = SystemProbe.run("/bin/ps", ["-o", "pgid=", "-t", tty]) else { return [] }
         let own = getpgrp()
-        let groups = Set(output.split(whereSeparator: \.isWhitespace).compactMap { Int32($0) })
-        return groups.filter { $0 > 1 && $0 != own }.sorted()
+        return NativeProcessReader.shared.processGroups(onTTYOf: pid).filter { $0 > 1 && $0 != own }
     }
 
     /// 助手 read_screen 要的行数超过一屏时，从 tmux 历史里取（去掉行尾空白与末尾空行，与 bottomText 一致）。

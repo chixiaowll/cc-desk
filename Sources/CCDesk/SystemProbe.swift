@@ -34,8 +34,14 @@ enum SystemProbe {
         return String(data: dataBox.withLock { $0 }, encoding: .utf8)
     }
 
-    /// comm 必须在行尾（路径可能含空格），命令行另用一次 `ps -axo pid=,args=` 取得并按 pid 合并。
+    /// 进程表：原生接口（`NativeProcessReader`，约 1 ms，不起子进程）；系统调用失败时退回 ps。
     static func processTable() -> ProcessTable {
+        NativeProcessReader.shared.table() ?? psProcessTable()
+    }
+
+    /// 用 `/bin/ps` 构建的进程表（约 100 ms，两次子进程）：原生接口失败时兜底，`--proc-selftest` 用来对照。
+    /// comm 必须在行尾（路径可能含空格），命令行另用一次 `ps -axo pid=,args=` 取得并按 pid 合并。
+    static func psProcessTable() -> ProcessTable {
         let comm = run("/bin/ps", ["-axo", "pid=,ppid=,tty=,comm="], timeout: 5) ?? ""
         let args = run("/bin/ps", ["-axo", "pid=,args="], timeout: 5)
         return ProcessTable.parse(comm, args: args)

@@ -258,7 +258,7 @@ enum TmuxSelfTest {
             _ = panes.map { table.tty(of: $0.panePID) }
             total += Date().timeIntervalSince(start)
         }
-        print(String(format: "poll tty mapping for 8 tmux terminals: %.1f ms per tick (ps only, 0 tmux spawns)", total / 5 * 1000))
+        print(String(format: "poll tty mapping for 8 tmux terminals: %.1f ms per tick (native process table, 0 tmux spawns)", total / 5 * 1000))
         // 13. 会话状态：区分会话在 / 会话不在 / 服务器不在（客户端退出后据此决定重新附着、移除或转为已结束）。
         check(host.sessionState(terminalID: ids[0]) == .alive, "session state: alive")
         check(host.sessionState(terminalID: UUID()) == .missing, "session state: missing session on a live server")
