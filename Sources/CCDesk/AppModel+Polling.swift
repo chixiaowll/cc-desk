@@ -1,11 +1,12 @@
 import AppKit
 import CCDeskCore
 
-/// 轮询：每秒在后台读注册表、进程表、hook 状态与记录标题，回到主线程合并成侧栏；未读、角标、历史与用量的刷新。
+/// 轮询（节奏见 PollPacer：看着时每秒、否则每 4 秒、状态文件变化时立即）：在后台读注册表、进程表、hook 状态与记录标题，回到主线程合并成侧栏；未读、角标、历史与用量的刷新。
 extension AppModel {
     func poll() {
         guard !polling else { return }
         polling = true
+        pacer.pollStarted()
         let cwds = pool.terminals.map(\.cwd) + missing.map(\.cwd)
         let ended = endedSessionIDs.values.map { ($0.id, $0.kind) }
         // 内嵌终端 shell pid -> 预期运行的 agent 会话（恢复 / 接管时发出的命令），供后台在其他来源缺失时兜底。
@@ -199,9 +200,9 @@ extension AppModel {
         conversation.observe(terminalID: selectedTerminalID,
                              status: selectedTerminalID.flatMap { status(ofTerminal: $0) })
 
-        tick += 1
-        if tick % 600 == 1 { queue.async { HookStateReader.prune() } }
-        if tick % 30 == 0 {
+        let uptime = ProcessInfo.processInfo.systemUptime
+        if periodicPrune.due(now: uptime, fireFirst: true) { queue.async { HookStateReader.prune() } }
+        if periodicRefresh.due(now: uptime) {
             saveWorkspace()
             refreshHistory()
             refreshUsage()
@@ -210,6 +211,7 @@ extension AppModel {
             // 有会话从侧栏消失（如关闭了已结束的终端）：立即刷新，让它回到历史列表。
             refreshHistory()
         }
+        pacer.pollFinished()
     }
 
     /// Codex / pi：hook 状态 + 内嵌终端的屏幕规则状态按 §4.2 合并；同时告诉各内嵌终端是否需要做屏幕检测。

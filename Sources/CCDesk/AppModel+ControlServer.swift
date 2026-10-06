@@ -27,8 +27,7 @@ extension AppModel {
     func suspendForRelaunch() {
         saveWorkspace()
         relaunchSuspended = true
-        timer?.invalidate()
-        timer = nil
+        pacer.stop()
         stopControlServer()
     }
 
@@ -36,7 +35,6 @@ extension AppModel {
     func resumeAfterFailedRelaunch() {
         relaunchSuspended = false
         startControlServer()
-        guard timer == nil else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.poll() }
+        pacer.start()
     }
 }

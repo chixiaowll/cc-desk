@@ -92,6 +92,8 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     var reattachPolicy = TmuxReattachPolicy()
     /// tmux 服务器崩溃 / 被结束，会话里的进程都没了（终端保留会话信息，由 AppModel 转为「已结束」）。
     var onServerLost: ((UUID) -> Void)?
+    /// 屏幕检测得出的状态变了（AppModel 据此立即补一次轮询，慢速档时通知也不延迟）。
+    var onScreenStatusChange: (() -> Void)?
     /// 可能处于 tmux 复制模式（用户向上滚过）：输入前先退出复制模式，屏幕检测先确认。
     var mayBeInCopyMode = false
 
@@ -302,7 +304,9 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
     private func apply(_ detection: ScreenDetection, kind: AgentKind) {
         guard detectionKind == kind, !detection.skipStateUpdate,
               let status = detection.state.agentStatus() else { return }
-        if screenStatus?.status != status { screenStatus = StatusObservation(status: status, at: Date()) }
+        guard screenStatus?.status != status else { return }
+        screenStatus = StatusObservation(status: status, at: Date())
+        onScreenStatusChange?()
     }
 
     /// 必须在主线程调用（SwiftTerm 在主线程写缓冲区）。
@@ -371,6 +375,8 @@ final class EmbeddedTerminal: NSObject, LocalProcessTerminalViewDelegate {
 /// 只在主线程使用。
 final class TerminalPool {
     private(set) var terminals: [EmbeddedTerminal] = []
+    /// 任一终端的屏幕检测状态变了。
+    var onScreenStatusChange: (() -> Void)?
     /// 当前终端配色；nil 时按 App 当前外观取。
     private var theme: TerminalTheme?
 
@@ -424,6 +430,7 @@ final class TerminalPool {
         let theme = self.theme ?? ThemeStore.shared.terminalTheme(for: NSApp.effectiveAppearance)
         let terminal = EmbeddedTerminal(id: id, cwd: cwd, title: title, launch: launch, host: tmux, theme: theme,
                                         font: TerminalFont.current())
+        terminal.onScreenStatusChange = { [weak self] in self?.onScreenStatusChange?() }
         terminals.append(terminal)
         return terminal
     }

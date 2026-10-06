@@ -108,7 +108,11 @@ final class AppModel: ObservableObject {
     /// 侧栏上已有对应行的 Claude sessionId（运行中的 + 内嵌终端里已结束、可原地恢复的）；
     /// 历史列表排除这些，并据此在主线程上再过滤一次（后台结果可能已过时）。
     var liveSessionIDs: Set<String> = []
-    var timer: Timer?
+    /// 轮询节奏：看着 CC Desk 时每秒一次，否则每 4 秒，状态文件变化时立即补一次（设计 §26.2）。
+    private(set) lazy var pacer = PollPacer { [weak self] in self?.poll() }
+    /// 按真实时间的低频任务（轮询变慢后仍按秒计）：每 30 秒存 workspace / 刷新历史与用量，每 10 分钟清理旧 hook 状态。
+    var periodicRefresh = PeriodicGate(period: 30)
+    var periodicPrune = PeriodicGate(period: 600)
     /// 正在为重启交接（不再写 workspace、不再启动控制接口）。
     var relaunchSuspended = false
     var polling = false
@@ -131,7 +135,6 @@ final class AppModel: ObservableObject {
     @Published var resumingEnded: [UUID: Date] = [:]
     /// 最近一次 poll 的进程表，供「激活 .other 宿主」时查找宿主 App。
     var lastProcesses: ProcessTable?
-    var tick = 0
     /// 「测试通知与角标」期间暂时显示示例角标，到期后恢复真实计数。
     var badgePreviewUntil: Date?
     /// 「已完成·未读」的行 id：Claude 完成一轮（working → idle）时用户没在看它。仅内存中保存。
@@ -184,8 +187,8 @@ final class AppModel: ObservableObject {
         pool.tmux = TmuxHost.shared
         restore()
         if pool.tmux == nil { TerminalRestore.showUnavailableHintOnce() }
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.poll() }
-        poll()
+        pool.onScreenStatusChange = { [weak self] in self?.pacer.changed() }
+        pacer.start()
         refreshHistory()
         refreshUsage()
         voice.start()
