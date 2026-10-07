@@ -140,58 +140,81 @@ struct TouchedFilesSlot: View {
     }
 }
 
-/// 终端与「改动的文件」之间的分隔线：可拖动调整面板宽度，拖得很窄时收起面板。
+/// 终端与右侧面板之间的分隔线：可拖动调整面板宽度，拖得很窄时收起面板。
+/// 拖动条占实际宽度（不叠在两侧内容上）：两侧的终端与滚动列表都是 AppKit 视图，叠在上面的 SwiftUI 手势抢不到鼠标。
 struct PanelDivider: View {
     @ObservedObject var files: TouchedFilesModel
     let theme: Theme
     @State private var startWidth: CGFloat?
 
+    static let handleWidth: CGFloat = 7
+
     var body: some View {
-        theme.line
-            .frame(width: 1)
-            .overlay {
-                // 实际可拖动的区域比 1pt 宽，方便抓取。光标用 AppKit 的光标区域（不用 push / pop，不会失衡）。
-                Color.clear
-                    .frame(width: 9)
-                    .contentShape(Rectangle())
-                    .background(ResizeCursorArea())
-                    .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                        .onChanged { value in
-                            let start = startWidth ?? files.panelWidth
-                            if startWidth == nil { startWidth = start }
-                            let proposed = start - value.translation.width
-                            files.panelWidth = min(max(proposed, TouchedFilesModel.minWidth), TouchedFilesModel.maxWidth)
-                        }
-                        .onEnded { value in
-                            let proposed = (startWidth ?? files.panelWidth) - value.translation.width
-                            startWidth = nil
-                            if proposed < TouchedFilesModel.collapseWidth {
-                                withAnimation(.easeInOut(duration: 0.18)) { files.isShown = false }
-                            }
-                        })
-            }
+        ZStack {
+            theme.side
+            theme.line.frame(width: 1)
+            ResizeHandle(
+                onDrag: { dx in
+                    let start = startWidth ?? files.panelWidth
+                    if startWidth == nil { startWidth = start }
+                    files.panelWidth = min(max(start - dx, TouchedFilesModel.minWidth), TouchedFilesModel.maxWidth)
+                },
+                onEnd: { dx in
+                    let proposed = (startWidth ?? files.panelWidth) - dx
+                    startWidth = nil
+                    if proposed < TouchedFilesModel.collapseWidth {
+                        withAnimation(.easeInOut(duration: 0.18)) { files.isShown = false }
+                    }
+                })
+        }
+        .frame(width: Self.handleWidth)
     }
 }
 
-/// 左右调整大小的光标区域：NSView 的 cursor rect 由窗口管理，进出 / 视图消失都不需要配对的 push / pop。
-/// 不接收鼠标事件（hitTest 返回 nil），拖动仍由 SwiftUI 的手势处理。
-struct ResizeCursorArea: NSViewRepresentable {
-    var cursor: NSCursor = .resizeLeftRight
+/// 左右拖动的 AppKit 拖动条：自己处理鼠标按下 / 拖动 / 松开，回调相对按下时的水平位移（屏幕坐标，不受视图跟着移动影响），
+/// 并显示左右调整大小的光标（cursor rect 由窗口管理，不需要配对的 push / pop）。
+struct ResizeHandle: NSViewRepresentable {
+    let onDrag: (CGFloat) -> Void
+    let onEnd: (CGFloat) -> Void
 
-    final class CursorView: NSView {
-        var cursor: NSCursor = .resizeLeftRight
+    final class HandleView: NSView {
+        var onDrag: ((CGFloat) -> Void)?
+        var onEnd: ((CGFloat) -> Void)?
+        private var startX: CGFloat?
 
         override func resetCursorRects() {
-            addCursorRect(bounds, cursor: cursor)
+            addCursorRect(bounds, cursor: .resizeLeftRight)
         }
 
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func mouseDown(with event: NSEvent) {
+            startX = NSEvent.mouseLocation.x
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let startX else { return }
+            onDrag?(NSEvent.mouseLocation.x - startX)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard let startX else { return }
+            self.startX = nil
+            onEnd?(NSEvent.mouseLocation.x - startX)
+        }
     }
 
-    func makeNSView(context: Context) -> CursorView { CursorView() }
+    func makeNSView(context: Context) -> HandleView {
+        let view = HandleView()
+        view.onDrag = onDrag
+        view.onEnd = onEnd
+        return view
+    }
 
-    func updateNSView(_ view: CursorView, context: Context) {
-        view.cursor = cursor
+    func updateNSView(_ view: HandleView, context: Context) {
+        view.onDrag = onDrag
+        view.onEnd = onEnd
         view.window?.invalidateCursorRects(for: view)
     }
 }
