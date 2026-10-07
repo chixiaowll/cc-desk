@@ -815,3 +815,14 @@ CC Desk 常驻（登录启动 + 菜单栏），大部分时间没人看着。原
 - 自然语音安装：先检查芯片（`hw.optional.arm64`，Rosetta 下也算 Apple 芯片；MLX 只支持 Apple 芯片）与 uv，再检查下载源，都通过才询问安装。缺 uv 时提醒里可一键复制安装命令。安装步骤的环境加 `HF_ENDPOINT`；用镜像时 uv 的 PyPI 与 Python 也换国内源（`UV_DEFAULT_INDEX` 清华源、`UV_PYTHON_INSTALL_MIRROR` npmmirror）。
 - Intel Mac：自然语音显示「需要 Apple 芯片」不提供安装；语音识别处提示可能很慢。
 - 设置 › 语音 › 检查环境：一键列出芯片、uv、官方 / 镜像连通性（不用缓存），缺 uv 时可复制安装命令。
+
+## 30. OpenCode（v1.20）
+
+- 启动 `opencode`（带第一句话时 `opencode --prompt '<话>'`，位置参数是项目目录）；恢复 `opencode --session <id>`。与 Codex / pi 一样由 tmux 托管、检测是否安装（登录 shell 里 `command -v opencode`）。
+- 进程识别：可执行名 `opencode`（或 node / bun 跑 `.../opencode`），且有 tty；`run` / `serve` / `web` / `acp` / `mcp` / `models` / `stats` / `export` / `session` / `db` 等子命令不是交互会话。命令行 `-s` / `--session <id>`（不带 `--fork`）作为会话提示。
+- 会话数据在 SQLite（`~/.local/share/opencode/opencode.db`：session / message / part，data 列为 JSON）。`OpenCodeMirror` 只读打开数据库，把每个顶层会话增量同步成 pi 格式的 jsonl 镜像（`~/.cc-desk/opencode/<会话 id>.jsonl`），之后标题、模型、改动 / 提到的文件、token、助手用的上下文摘要都复用 pi 的解析器：
+  - 首行 `session`（id、cwd、创建时间）；OpenCode 生成的标题（不是默认的「New session - …」）写成 `session_info`；
+  - 用户消息的文字；助手消息的文字、工具调用（`filePath` 改名 `path`）、patch 片段里的文件（按 edit）、token（output = output + reasoning）；助手消息完成后才写入；
+  - 子 agent 会话的消息并入顶层会话；进度记在 `state.json`（丢了就重建）。
+  - 轮询时同步：数据库与 WAL 的修改时间没变时只做两次 stat。
+- 状态：屏幕规则取自 herdr 的 opencode.toml（实测 1.18.35）：处理中＝底栏进度条与「esc interrupt」，等批准＝「△ Permission required」与「Allow once / Allow always / Reject」；回车 = 允许一次，Esc = 拒绝，与通知上的批准 / 拒绝按键一致。CC Desk 之外的终端里运行的 OpenCode 读不到屏幕，状态为未知（有标题、模型、改动的文件）。

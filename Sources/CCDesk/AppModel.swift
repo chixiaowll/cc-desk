@@ -96,6 +96,8 @@ final class AppModel: ObservableObject {
     let transcripts = TranscriptIndex()
     /// Codex / pi 会话文件索引；只在 `queue` 上使用。
     let agentIndex = AgentSessionIndex()
+    /// OpenCode 会话的 jsonl 镜像（设计 §30）；只在 `queue` 上使用。数据库没变时一次同步只是两次 stat。
+    let openCodeMirror = OpenCodeMirror()
     /// pid -> (启动时间, cwd) 缓存；只在 `queue` 上使用。
     var processDetails: [Int32: ProcessDetails] = [:]
     /// Claude 套餐与用量（来自 Claude Code 写在 ~/.claude.json 的缓存，只读）；nil 时不显示。

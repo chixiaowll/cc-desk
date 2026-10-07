@@ -1,8 +1,8 @@
 # CC Desk
 
-**A macOS desk for your coding agents.** CC Desk lists every Claude Code, Codex and pi session on your Mac — grouped by project, with live status — and hosts them in embedded terminals that keep running even when the app quits. It notifies you when an agent needs approval or finishes, lets you approve from the notification (or your phone), and comes with a local voice assistant.
+**A macOS desk for your coding agents.** CC Desk lists every Claude Code, Codex, pi and OpenCode session on your Mac — grouped by project, with live status — and hosts them in embedded terminals that keep running even when the app quits. It notifies you when an agent needs approval or finishes, lets you approve from the notification (or your phone), and comes with a local voice assistant.
 
-> 一个管理本机 coding agent 会话的 macOS 应用：左侧按项目列出所有 Claude Code / Codex / pi 会话和实时状态，右侧内嵌终端；会话由 tmux 托管，App 退出、重启也不中断。需要批准或任务完成时提醒你，可以直接在通知里批准，还带一个本地语音助手。
+> 一个管理本机 coding agent 会话的 macOS 应用：左侧按项目列出所有 Claude Code / Codex / pi / OpenCode 会话和实时状态，右侧内嵌终端；会话由 tmux 托管，App 退出、重启也不中断。需要批准或任务完成时提醒你，可以直接在通知里批准，还带一个本地语音助手。
 
 ![CC Desk 主界面：左侧按项目分组的会话和状态，中间是内嵌终端，右侧是「改动的文件」面板](docs/images/main-window.png)
 
@@ -11,7 +11,7 @@
 ## 功能
 
 **会话管理**
-- 自动发现本机所有 Claude Code、Codex、pi 会话（包括在 Terminal、VS Code 里启动的），按项目目录分组；git worktree 单独成组并显示分支。
+- 自动发现本机所有 Claude Code、Codex、pi、OpenCode 会话（包括在 Terminal、VS Code 里启动的），按项目目录分组；git worktree 单独成组并显示分支。
 - 状态一目了然：处理中 / 等你批准 / 已完成未读 / 空闲 / 已结束；Claude 这一轮结束但后台 shell 还在跑时显示「空闲 · 后台任务」。状态来自 agent 的 hook、会话记录和屏幕规则三路合并。
 - 内嵌终端（SwiftTerm）托管在独立的 tmux 服务器里：**退出、重启、更新甚至崩溃都不会中断 agent**，重开后直接接回。
 - 外部终端里的会话可以一键（或用语音）接管到 CC Desk。
@@ -55,7 +55,7 @@
 ## 系统要求
 
 - macOS 14 或更高，Apple 芯片或 Intel。
-- 至少装了一个 agent：[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、[Codex CLI](https://github.com/openai/codex) 或 [pi](https://github.com/earendil-works/pi)。
+- 至少装了一个 agent：[Claude Code](https://docs.anthropic.com/en/docs/claude-code)、[Codex CLI](https://github.com/openai/codex)、[pi](https://github.com/earendil-works/pi) 或 [OpenCode](https://opencode.ai)。
 - 语音助手可以用 Claude Code（你自己的 Claude 订阅），也可以用任意支持函数调用的 OpenAI 兼容接口（自己的 API 密钥，或本机 Ollama / LM Studio）；都没有时只有本地语音指令。
 
 ## 安装

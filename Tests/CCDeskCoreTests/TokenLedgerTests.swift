@@ -15,7 +15,7 @@ final class TokenLedgerTests: ZhHansTestCase {
 
     private var roots: TokenLedger.Roots {
         TokenLedger.Roots(claude: root.appendingPathComponent("claude"), codex: root.appendingPathComponent("codex"),
-                          pi: root.appendingPathComponent("pi"))
+                          pi: root.appendingPathComponent("pi"), openCode: root.appendingPathComponent("opencode"))
     }
 
     private func write(_ path: String, _ lines: [String], append: Bool = false) throws {

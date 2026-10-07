@@ -156,14 +156,59 @@ any = [
 ]
 """#
 
+    /// OpenCode：取自 herdr 的 opencode.toml（实测 opencode 1.18.35：处理中底栏是进度条 `⬝⬝⬝■■` 与「esc interrupt」，
+    /// 等批准是「△ Permission required」+「Allow once / Allow always / Reject」，空闲时都没有）。
+    public static let openCodeSource = #"""
+id = "opencode"
+version = "2026.06.10.1"
+min_engine_version = 1
+updated_at = "2026-06-10T00:00:00Z"
+aliases = ["open-code", "herdr:opencode"]
+
+[[rules]]
+id = "permission_required"
+state = "blocked"
+priority = 300
+region = "whole_recent"
+visible_blocker = true
+any = [
+  { contains = ["△ Permission required"] },
+  { contains = ["esc dismiss"], any = [{ contains = ["enter confirm"] }, { contains = ["enter submit"] }, { contains = ["enter toggle"] }], all = [{ any = [{ contains = ["↑↓ select"] }, { contains = ["⇆ tab"] }] }] },
+]
+
+[[rules]]
+id = "interrupt_hint_working"
+state = "working"
+priority = 110
+region = "whole_recent"
+visible_working = true
+any = [
+  { contains = ["esc to interrupt"] },
+  { contains = ["esc interrupt"] },
+  { contains = ["ctrl+c to interrupt"] },
+  { contains = ["press esc to interrupt"] },
+  { line_regex = ['(?i).*opencode.*esc (again to )?interrupt'] },
+]
+
+[[rules]]
+id = "progress_bar_working"
+state = "working"
+priority = 100
+region = "whole_recent"
+visible_working = true
+regex = ['(■|⬝){4,}']
+"""#
+
     /// 解析后的清单；解析失败时为 nil（屏幕检测随之关闭，不影响其他状态来源）。
     public static let codex: DetectionManifest? = try? DetectionManifest.parse(codexSource)
     public static let pi: DetectionManifest? = try? DetectionManifest.parse(piSource)
+    public static let openCode: DetectionManifest? = try? DetectionManifest.parse(openCodeSource)
 
     public static func manifest(for kind: AgentKind) -> DetectionManifest? {
         switch kind {
         case .codex: return codex
         case .pi: return pi
+        case .opencode: return openCode
         case .claude, .other: return nil
         }
     }

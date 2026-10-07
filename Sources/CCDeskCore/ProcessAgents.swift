@@ -14,6 +14,12 @@ public enum AgentProcessMatcher {
         "stdio-to-uds", "generate-ts", "generate-json-schema",
     ]
 
+    /// opencode 的非交互子命令（首个非选项参数）；`opencode [目录]`、`attach`、`pr` 是交互界面。
+    static let openCodeNonInteractive: Set<String> = [
+        "completion", "acp", "mcp", "run", "debug", "providers", "auth", "agent", "upgrade", "uninstall", "serve",
+        "web", "models", "stats", "export", "import", "github", "session", "plugin", "plug", "db",
+    ]
+
     /// pi 的非交互参数。
     static let piNonInteractiveFlags: Set<String> = ["-p", "--print", "--mode", "--export", "--help", "-h", "--version", "-v"]
 
@@ -29,6 +35,13 @@ public enum AgentProcessMatcher {
                 return nil
             }
             return .codex
+        }
+        if exe == "opencode" || ((exe == "node" || exe == "bun") && argv.count >= 2
+                                  && (argv[1].hasSuffix("/opencode") || argv[1] == "opencode")) {
+            let rest = exe == "opencode" ? Array(argv.dropFirst()) : Array(argv.dropFirst(2))
+            if let sub = rest.first(where: { !$0.hasPrefix("-") }), openCodeNonInteractive.contains(sub) { return nil }
+            if rest.contains(where: { ["-h", "--help", "-v", "--version"].contains($0) }) { return nil }
+            return .opencode
         }
         let isPi: Bool
         if exe == "pi" {
@@ -70,6 +83,10 @@ public enum AgentProcessMatcher {
             return candidate.hasPrefix("-") ? nil : candidate
         case .pi:
             guard let i = rest.firstIndex(of: "--session"), i + 1 < rest.count else { return nil }
+            return rest[i + 1]
+        case .opencode:
+            guard let i = rest.firstIndex(where: { $0 == "--session" || $0 == "-s" }), i + 1 < rest.count,
+                  !rest.contains("--fork") else { return nil }
             return rest[i + 1]
         case .claude, .other:
             return nil

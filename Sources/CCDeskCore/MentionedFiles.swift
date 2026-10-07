@@ -18,7 +18,7 @@ public enum MentionedFiles {
     /// 一行里可能有 agent 回复文字的特征字节；不含这些的行不做 JSON 解析。
     static func markers(for kind: AgentKind) -> [Data] {
         switch kind {
-        case .claude, .pi: return [Data(#""type":"text""#.utf8)]
+        case .claude, .pi, .opencode: return [Data(#""type":"text""#.utf8)]
         case .codex: return [Data(#""output_text""#.utf8), Data(#""agent_message""#.utf8)]
         case .other: return []
         }
@@ -41,7 +41,7 @@ public enum MentionedFiles {
             default:
                 return []
             }
-        case .pi:
+        case .pi, .opencode:
             guard obj["type"] as? String == "message", let message = obj["message"] as? [String: Any],
                   message["role"] as? String == "assistant" else { return [] }
             return textBlocks(message["content"], type: "text")

@@ -35,7 +35,7 @@ public enum AgentTranscriptReader {
                 guard let sid, let cwd = (p["cwd"] as? String).flatMap(nonEmpty) else { return nil }
                 let ts = (p["timestamp"] as? String) ?? (obj["timestamp"] as? String)
                 return AgentSessionHeader(sessionID: sid, cwd: cwd, startedAt: ts.flatMap(parseISODate))
-            case .pi:
+            case .pi, .opencode:
                 guard obj["type"] as? String == "session" else { continue }
                 guard let sid = (obj["id"] as? String).flatMap(nonEmpty),
                       let cwd = (obj["cwd"] as? String).flatMap(nonEmpty) else { return nil }
@@ -59,12 +59,12 @@ public enum AgentTranscriptReader {
         for line in TranscriptReader.lines(in: tail) {
             guard let obj = TranscriptReader.jsonObject(line) else { continue }
             if let prompt = userPrompt(kind: kind, obj: obj) { last = prompt }
-            if kind == .pi, obj["type"] as? String == "session_info" {
+            if kind == .pi || kind == .opencode, obj["type"] as? String == "session_info" {
                 name = (obj["name"] as? String).flatMap(trimmedNonEmpty)
             }
             models.consume(obj)
         }
-        if kind == .pi, name == nil {
+        if kind == .pi || kind == .opencode, name == nil {
             for line in headLines {
                 guard let obj = TranscriptReader.jsonObject(line), obj["type"] as? String == "session_info" else { continue }
                 name = (obj["name"] as? String).flatMap(trimmedNonEmpty)
@@ -98,7 +98,7 @@ public enum AgentTranscriptReader {
                 return (p["message"] as? String).flatMap(cleanPrompt)
             }
             return nil
-        case .pi:
+        case .pi, .opencode:
             guard obj["type"] as? String == "message", let m = obj["message"] as? [String: Any],
                   m["role"] as? String == "user" else { return nil }
             if let s = m["content"] as? String { return cleanPrompt(s) }
@@ -239,6 +239,8 @@ public final class AgentSessionIndex {
 
     private let codexRoot: URL
     private let piRoot: URL
+    /// OpenCode 会话的 jsonl 镜像目录（`OpenCodeMirror`，一个会话一个文件，文件名即会话 id）。
+    private let openCodeRoot: URL
     private let fileManager: FileManager
     private let calendar: Calendar
     private var cache: [String: CacheEntry] = [:]
@@ -250,9 +252,11 @@ public final class AgentSessionIndex {
     private let now: () -> Date
 
     public init(codexRoot: URL = AgentSessionIndex.defaultCodexRoot, piRoot: URL = AgentSessionIndex.defaultPiRoot,
+                openCodeRoot: URL = OpenCodeMirror.defaultRoot,
                 fileManager: FileManager = .default, calendar: Calendar = .current, now: @escaping () -> Date = Date.init) {
         self.codexRoot = codexRoot
         self.piRoot = piRoot
+        self.openCodeRoot = openCodeRoot
         self.fileManager = fileManager
         self.calendar = calendar
         self.now = now
@@ -276,6 +280,9 @@ public final class AgentSessionIndex {
             for dir in codexDayDirectories(from: earliest, to: now) {
                 for url in jsonlFiles(in: dir) { paths[url.path] = .codex }
             }
+        }
+        if processes.contains(where: { $0.kind == .opencode }) {
+            for url in jsonlFiles(in: openCodeRoot) { paths[url.path] = .opencode }
         }
         for cwd in Set(processes.filter { $0.kind == .pi }.compactMap(\.cwd)) {
             let dir = piRoot.appendingPathComponent(Self.piDirectoryName(cwd: cwd), isDirectory: true)
@@ -320,7 +327,7 @@ public final class AgentSessionIndex {
     /// 所有 Codex / pi 会话按 mtime 倒序，排除 live 会话。
     public func history(excluding live: Set<String>, limit: Int = 300) -> [HistoryItem] {
         var items: [HistoryItem] = []
-        for kind in [AgentKind.codex, .pi] {
+        for kind in [AgentKind.codex, .pi, .opencode] {
             for url in allFiles(kind: kind) {
                 guard let e = entry(path: url.path, kind: kind), let header = e.header else { continue }
                 sessionPaths[header.sessionID] = url.path
@@ -379,6 +386,8 @@ public final class AgentSessionIndex {
             return files
         case .pi:
             return subdirectories(of: piRoot).flatMap(jsonlFiles)
+        case .opencode:
+            return jsonlFiles(in: openCodeRoot)
         case .claude, .other:
             return []
         }

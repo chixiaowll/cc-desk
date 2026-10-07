@@ -93,7 +93,7 @@ public struct TokenUsageParser: Sendable {
         switch kind {
         case .claude: return ByteScan.find(line, "\"usage\":{") != nil
         case .codex: return ByteScan.find(line, "\"token_count\"") != nil || ByteScan.find(line, "\"turn_context\"") != nil
-        case .pi: return ByteScan.find(line, "\"usage\"") != nil
+        case .pi, .opencode: return ByteScan.find(line, "\"usage\"") != nil
         case .other: return false
         }
     }
@@ -173,7 +173,7 @@ public struct TokenUsageParser: Sendable {
                                    cacheWrite: max(total.cacheWrite - base.cacheWrite, 0))
             guard !delta.isZero else { return nil }
             return TokenRecord(key: nil, date: date(obj["timestamp"]), model: codexModel, usage: delta)
-        case .pi:
+        case .pi, .opencode:
             guard obj["type"] as? String == "message", let m = obj["message"] as? [String: Any],
                   m["role"] as? String == "assistant", let u = m["usage"] as? [String: Any] else { return nil }
             let usage = TokenUsage(input: int(u["input"]), output: int(u["output"]),

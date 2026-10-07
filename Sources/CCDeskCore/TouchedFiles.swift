@@ -166,7 +166,7 @@ public enum TouchedFiles {
         switch kind {
         case .claude: return ["\"file_path\"", "\"notebook_path\"", "\"filePath\""].map { Data($0.utf8) }
         case .codex: return ["*** Add File", "*** Update File", "*** Delete File"].map { Data($0.utf8) }
-        case .pi: return ["\"toolCall\""].map { Data($0.utf8) }
+        case .pi, .opencode: return ["\"toolCall\""].map { Data($0.utf8) }
         case .other: return []
         }
     }
@@ -176,7 +176,7 @@ public enum TouchedFiles {
         switch kind {
         case .claude: return claude(obj, cwd: cwd)
         case .codex: return codex(obj, cwd: cwd)
-        case .pi: return pi(obj, cwd: cwd)
+        case .pi, .opencode: return pi(obj, cwd: cwd)
         case .other: return []
         }
     }

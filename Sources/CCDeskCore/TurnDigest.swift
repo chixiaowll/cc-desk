@@ -39,7 +39,7 @@ public enum TurnDigest {
             switch kind {
             case .claude: out += claude(obj)
             case .codex: out += codex(obj)
-            case .pi: out += pi(obj)
+            case .pi, .opencode: out += pi(obj)
             case .other: break
             }
         }

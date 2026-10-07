@@ -60,12 +60,14 @@ public final class TokenLedger {
         public var claude: URL
         public var codex: URL
         public var pi: URL
+        public var openCode: URL
 
         public init(claude: URL = TranscriptIndex.defaultRoot, codex: URL = AgentSessionIndex.defaultCodexRoot,
-                    pi: URL = AgentSessionIndex.defaultPiRoot) {
+                    pi: URL = AgentSessionIndex.defaultPiRoot, openCode: URL = OpenCodeMirror.defaultRoot) {
             self.claude = claude
             self.codex = codex
             self.pi = pi
+            self.openCode = openCode
         }
     }
 
@@ -227,7 +229,7 @@ public final class TokenLedger {
         guard ByteScan.find(line, "\"cwd\"") != nil,
               let obj = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any] else { return nil }
         switch kind {
-        case .claude, .pi: return (obj["cwd"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        case .claude, .pi, .opencode: return (obj["cwd"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         case .codex: return ((obj["payload"] as? [String: Any])?["cwd"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         case .other: return nil
         }
@@ -245,7 +247,7 @@ public final class TokenLedger {
         case .codex, .pi:
             // rollout-2026-10-03T13-03-11-<uuid> / 2026-10-03T06-01-30-000Z_<uuid>：uuid 是最后 36 个字符。
             return name.count >= 36 ? String(name.suffix(36)) : name
-        case .other:
+        case .opencode, .other:
             return name
         }
     }
@@ -271,6 +273,7 @@ public final class TokenLedger {
         for dir in subdirectories(of: roots.pi) {
             for url in jsonl(in: dir) { out.append((url, .pi, Self.sessionID(kind: .pi, url: url))) }
         }
+        for url in jsonl(in: roots.openCode) { out.append((url, .opencode, Self.sessionID(kind: .opencode, url: url))) }
         return out
     }
 

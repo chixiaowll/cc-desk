@@ -15,7 +15,7 @@ extension AppModel {
             switch kind {
             case .codex: try CodexIntegration().install()
             case .pi: try PiIntegration().install()
-            case .claude, .other: break
+            case .claude, .opencode, .other: break
             }
         }
     }
@@ -27,7 +27,7 @@ extension AppModel {
             switch kind {
             case .codex: try CodexIntegration().uninstall()
             case .pi: try PiIntegration().uninstall()
-            case .claude, .other: break
+            case .claude, .opencode, .other: break
             }
         }
     }

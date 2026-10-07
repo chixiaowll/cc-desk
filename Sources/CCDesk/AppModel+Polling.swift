@@ -24,6 +24,7 @@ extension AppModel {
             let registry = RegistryReader.readAll()
             let processes = SystemProbe.processTable()
             let hooks = HookStateReader.readAll()
+            self.openCodeMirror.sync()
             var fallback: [String: (kind: AgentKind, sessionID: String)] = [:]
             for (shellPID, value) in expected {
                 if let tty = processes.tty(of: shellPID) { fallback[tty] = value }
@@ -79,6 +80,7 @@ extension AppModel {
         let transcripts = self.transcripts
         queue.async { [weak self] in
             guard let self else { return }
+            self.openCodeMirror.sync()
             let items = (transcripts.history(excluding: live) + self.agentIndex.history(excluding: live))
                 .sorted { $0.modifiedAt > $1.modifiedAt }
             let entries = items.map { item -> HistoryEntry in

@@ -168,7 +168,8 @@ final class AgentsTests: ZhHansTestCase {
         XCTAssertEqual(AgentProbe.parse("pi\n"), [.pi])
         XCTAssertEqual(AgentProbe.parse(" \nbogus\n"), [])
         XCTAssertTrue(AgentProbe.script.contains("command -v"))
-        XCTAssertEqual(AgentProbe.commands, ["codex", "pi"])
+        XCTAssertEqual(AgentProbe.commands, ["codex", "pi", "opencode"])
+        XCTAssertEqual(AgentProbe.parse("opencode\n"), [.opencode])
     }
 
     func testAdapterOnlyForClaude() {

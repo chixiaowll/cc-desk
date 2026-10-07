@@ -9,6 +9,7 @@ public enum AgentKind: String, Codable, Sendable, CaseIterable {
     case claude
     case codex
     case pi
+    case opencode
     /// 普通 shell（内嵌终端里没有运行任何 agent）。
     case other
 
@@ -18,6 +19,7 @@ public enum AgentKind: String, Codable, Sendable, CaseIterable {
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .pi: return "pi"
+        case .opencode: return "OpenCode"
         case .other: return L("agent.terminal")
         }
     }
@@ -26,7 +28,7 @@ public enum AgentKind: String, Codable, Sendable, CaseIterable {
     public var isAgent: Bool { self != .other }
 
     /// 新建会话时可选的 agent，按显示顺序。
-    public static let launchable: [AgentKind] = [.claude, .codex, .pi]
+    public static let launchable: [AgentKind] = [.claude, .codex, .pi, .opencode]
 }
 
 public enum AgentStatus: Equatable, Sendable {

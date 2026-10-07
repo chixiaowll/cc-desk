@@ -49,7 +49,7 @@ public struct AgentModelScanner: Sendable {
         switch kind {
         case .claude: consumeClaude(obj)
         case .codex: consumeCodex(obj)
-        case .pi: consumePi(obj)
+        case .pi, .opencode: consumePi(obj)
         case .other: break
         }
     }

@@ -18,6 +18,8 @@ public protocol AgentAdapter: Sendable {
     var kind: AgentKind { get }
     func launchCommand() -> String
     func resumeCommand(sessionID: String) -> String
+    /// 带第一句话启动（默认实现见下方扩展；opencode 用 `--prompt`）。
+    func launchCommand(prompt: String?) -> String
 }
 
 extension AgentAdapter {
@@ -53,6 +55,22 @@ public struct PiAdapter: AgentAdapter {
     public func resumeCommand(sessionID: String) -> String { "pi --session \(ShellQuote.quote(sessionID))" }
 }
 
+/// OpenCode：`opencode --session <id>`（会话存在 ~/.local/share/opencode/opencode.db，按 id 恢复）。
+public struct OpenCodeAdapter: AgentAdapter {
+    public init() {}
+    public var kind: AgentKind { .opencode }
+    public func launchCommand() -> String { "opencode" }
+    public func resumeCommand(sessionID: String) -> String { "opencode --session \(ShellQuote.quote(sessionID))" }
+
+    /// opencode 的第一句话要用 `--prompt`（位置参数是项目目录）。
+    public func launchCommand(prompt: String?) -> String {
+        let text = (prompt ?? "").components(separatedBy: .newlines).joined(separator: " ")
+            .trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return launchCommand() }
+        return launchCommand() + " --prompt " + ShellQuote.quote(text)
+    }
+}
+
 public enum AgentAdapters {
     /// 可启动的 agent 适配器；普通 shell 返回 nil。
     public static func adapter(for kind: AgentKind) -> AgentAdapter? {
@@ -60,6 +78,7 @@ public enum AgentAdapters {
         case .claude: return ClaudeAdapter()
         case .codex: return CodexAdapter()
         case .pi: return PiAdapter()
+        case .opencode: return OpenCodeAdapter()
         case .other: return nil
         }
     }
@@ -93,7 +112,7 @@ public enum AgentAvailability: Equatable, Sendable {
 
 /// 检测本机安装了哪些 agent 命令：在登录 shell 里执行 `command -v`，输出找到的命令名，每行一个。
 public enum AgentProbe {
-    public static let commands = ["codex", "pi"]
+    public static let commands = ["codex", "pi", "opencode"]
 
     public static var script: String {
         "for c in \(commands.joined(separator: " ")); do command -v \"$c\" >/dev/null 2>&1 && echo \"$c\"; done; true"
