@@ -268,6 +268,8 @@ extension AppModel {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
+        // 允许在面板里新建文件夹（左下角「新建文件夹」按钮），给新项目开目录不用先去访达。
+        panel.canCreateDirectories = true
         panel.message = L("panel.relocate.message", entry.name)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let cwd = ProjectResolver.canonical(url.path)
@@ -314,6 +316,8 @@ extension AppModel {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
+        // 允许在面板里新建文件夹（左下角「新建文件夹」按钮），给新项目开目录不用先去访达。
+        panel.canCreateDirectories = true
         panel.message = L("panel.chooseDirectory.message", kind.displayName)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         showNewSession = false
