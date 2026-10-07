@@ -149,7 +149,7 @@ final class AgentTranscriptsTests: XCTestCase {
         try FileManager.default.createDirectory(at: piDir, withIntermediateDirectories: true)
         try data(piLines).write(to: piDir.appendingPathComponent("2026_01a1-pi.jsonl"))
 
-        let index = AgentSessionIndex(codexRoot: codexRoot, piRoot: piRoot, calendar: cal)
+        let index = AgentSessionIndex(codexRoot: codexRoot, piRoot: piRoot, openCodeRoot: piRoot.appendingPathComponent("no-opencode"), calendar: cal)
         let matched = index.match(processes: [
             AgentProcessCandidate(pid: 1, kind: .codex, cwd: "/w/proj", startedAt: now.addingTimeInterval(-3600), sessionHint: nil),
             AgentProcessCandidate(pid: 2, kind: .pi, cwd: "/w/pi", startedAt: now.addingTimeInterval(-3600), sessionHint: nil),

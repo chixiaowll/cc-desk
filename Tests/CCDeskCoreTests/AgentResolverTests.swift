@@ -24,7 +24,7 @@ final class AgentResolverTests: XCTestCase {
             HookState(agent: .codex, sessionID: "cx-1", tty: nil, pid: nil, cwd: "/w/c", status: .working, updatedAt: now),
             HookState(agent: .pi, sessionID: "pi-1", tty: "ttys002", pid: 20, cwd: "/w/p", status: .idle, updatedAt: now),
         ])
-        let index = AgentSessionIndex(codexRoot: codexRoot, piRoot: piRoot)
+        let index = AgentSessionIndex(codexRoot: codexRoot, piRoot: piRoot, openCodeRoot: piRoot.appendingPathComponent("no-opencode"))
         let snaps = AgentResolver.resolve(processes: table, details: { pid in
             (pid == 10 ? "/w/c" : "/w/p", start)
         }, hooks: hooks, index: index, now: now)
@@ -41,7 +41,7 @@ final class AgentResolverTests: XCTestCase {
 
     func testFallbackSessionUsedOnlyWhenNothingElseKnown() {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let index = AgentSessionIndex(codexRoot: root.appendingPathComponent("c"), piRoot: root.appendingPathComponent("p"))
+        let index = AgentSessionIndex(codexRoot: root.appendingPathComponent("c"), piRoot: root.appendingPathComponent("p"), openCodeRoot: root.appendingPathComponent("o"))
         let table = ProcessTable(byPID: [
             20: ProcInfo(pid: 20, ppid: 1, tty: "ttys002", command: "pi", args: "pi"),
             21: ProcInfo(pid: 21, ppid: 1, tty: "ttys003", command: "pi", args: "pi"),

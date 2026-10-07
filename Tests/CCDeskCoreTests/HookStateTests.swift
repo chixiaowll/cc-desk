@@ -101,8 +101,22 @@ final class HookStateTests: XCTestCase {
     func obs(_ s: AgentStatus, _ t: TimeInterval) -> StatusObservation { StatusObservation(status: s, at: Date(timeIntervalSince1970: t)) }
 
     func testHookWinsOverScreenWhenFresh() {
-        let r = StatusMerger.merge(hook: obs(.working, 1000), screen: obs(.idle, 1100), now: Date(timeIntervalSince1970: 1200))
+        let r = StatusMerger.merge(hook: obs(.working, 1000), screen: obs(.idle, 1100), now: Date(timeIntervalSince1970: 1110))
         XCTAssertEqual(r?.status, .working)
+    }
+
+    /// 请求报错 / Esc 打断：hook 停在处理中，屏幕回到空闲 15 秒后按空闲算（从 hook 与屏幕较晚的时间算起）。
+    func testWorkingHookWithLastingIdleScreenEnds() {
+        // 处理中阶段太短，屏幕没来得及变：屏幕的空闲比 hook 还早，从 hook 时间算。
+        XCTAssertEqual(StatusMerger.merge(hook: obs(.working, 1000), screen: obs(.idle, 900), now: Date(timeIntervalSince1970: 1010))?.status,
+                       .working)
+        XCTAssertEqual(StatusMerger.merge(hook: obs(.working, 1000), screen: obs(.idle, 900), now: Date(timeIntervalSince1970: 1016)),
+                       obs(.idle, 1000))
+        XCTAssertEqual(StatusMerger.merge(hook: obs(.working, 1000), screen: obs(.idle, 1020), now: Date(timeIntervalSince1970: 1040)),
+                       obs(.idle, 1020))
+        // 屏幕显示处理中：hook 照常。
+        XCTAssertEqual(StatusMerger.merge(hook: obs(.working, 1000), screen: obs(.working, 1001), now: Date(timeIntervalSince1970: 1300))?.status,
+                       .working)
     }
 
     func testStaleHookFallsBackToNewerScreen() {

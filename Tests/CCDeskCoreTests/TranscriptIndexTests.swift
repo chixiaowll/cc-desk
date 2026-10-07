@@ -182,7 +182,7 @@ final class TranscriptNegativeCacheTests: XCTestCase {
     func testAgentMissIsCachedPerKindUntilTTL() throws {
         let clock = Clock()
         let codexRoot = root.appendingPathComponent("codex"), piRoot = root.appendingPathComponent("pi")
-        let index = AgentSessionIndex(codexRoot: codexRoot, piRoot: piRoot, now: { clock.now })
+        let index = AgentSessionIndex(codexRoot: codexRoot, piRoot: piRoot, openCodeRoot: piRoot.appendingPathComponent("no-opencode"), now: { clock.now })
         XCTAssertNil(index.locate(kind: .codex, sessionID: "abc-123"))
         let day = codexRoot.appendingPathComponent("2026/10/03")
         try FileManager.default.createDirectory(at: day, withIntermediateDirectories: true)

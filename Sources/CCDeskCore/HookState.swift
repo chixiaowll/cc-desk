@@ -124,6 +124,9 @@ public struct StatusObservation: Equatable, Sendable {
 public enum StatusMerger {
     /// hook 超过这么久没更新、而屏幕有更新时，改用屏幕。
     public static let hookStaleAfter: TimeInterval = 600
+    /// hook 停在「处理中」、屏幕却持续这么久都是空闲：这一轮已结束（请求报错、被 Esc 打断时没有结束事件）。
+    /// Codex / pi 处理中屏幕上一直有计时 / 转圈，持续这么久看不到就不是在处理。
+    public static let workingHookIdleScreenAfter: TimeInterval = 15
     /// 进程启动时间与 hook 时间戳比较的容差（hook 由子进程写入，时间可能略早于 ps 看到的启动时间取整）。
     static let startSlack: TimeInterval = 2
 
@@ -139,6 +142,7 @@ public enum StatusMerger {
     /// 返回合并后的状态；两者都没有时为 nil（调用方显示为未知）。
     /// - 屏幕上检测到等批准、且晚于 hook 的最近一次上报：显示等批准（Codex 的批准对话框不一定有 hook 事件）。
     /// - hook 停在等批准、屏幕在那之后显示不再等批准：用屏幕（批准后到下一个 hook 事件之前）。
+    /// - hook 是处理中、屏幕从 hook 那时起持续 15 秒都是空闲：用屏幕（报错 / 打断后 agent 不发结束事件）。
     /// - hook 超过 10 分钟未更新、屏幕在那之后有更新：用屏幕。
     /// - 其余情况 hook 优先。
     public static func merge(hook: StatusObservation?, screen: StatusObservation?, now: Date) -> StatusObservation? {
@@ -146,6 +150,10 @@ public enum StatusMerger {
         guard let screen else { return hook }
         if screen.status.isWaiting, !hook.status.isWaiting, screen.at >= hook.at { return screen }
         if hook.status.isWaiting, !screen.status.isWaiting, screen.at > hook.at { return screen }
+        if hook.status == .working, screen.status == .idle,
+           now.timeIntervalSince(max(hook.at, screen.at)) >= workingHookIdleScreenAfter {
+            return StatusObservation(status: .idle, at: max(hook.at, screen.at))
+        }
         if now.timeIntervalSince(hook.at) > hookStaleAfter, screen.at > hook.at { return screen }
         return hook
     }
