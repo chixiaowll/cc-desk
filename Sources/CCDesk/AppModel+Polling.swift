@@ -239,7 +239,8 @@ extension AppModel {
                 detecting[terminal.id] = snap.kind
                 if terminal.detectionKind == snap.kind { screen = terminal.screenStatus }
             }
-            let merged = AgentResolver.status(hook: snap.hook, screen: screen, startedAt: snap.startedAt, now: now)
+            let merged = AgentResolver.status(hook: snap.hook, screen: screen, startedAt: snap.startedAt, now: now,
+                                              lastActivity: snap.lastActivity)
             return AgentProcessInfo(pid: snap.pid, kind: snap.kind, tty: snap.tty, cwd: snap.cwd,
                                     sessionID: snap.sessionID, status: merged.status, statusChangedAt: merged.at)
         }

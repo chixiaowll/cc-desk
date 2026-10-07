@@ -66,4 +66,19 @@ final class AgentResolverTests: XCTestCase {
                              updatedAt: Date(timeIntervalSince1970: 60))
         XCTAssertEqual(AgentResolver.status(hook: hook, screen: nil, startedAt: start, now: Date()).status, .working)
     }
+
+    /// 重启 CC Desk 后屏幕规则重新识别出「空闲」：从会话文件最后写入的时间算起，而不是从识别的那一刻。
+    func testIdleSinceLastSessionFileWrite() {
+        let now = Date()
+        let lastWrite = now.addingTimeInterval(-3 * 86400)
+        let screenIdle = StatusObservation(status: .idle, at: now.addingTimeInterval(-30))
+        let idle = AgentResolver.status(hook: nil, screen: screenIdle, startedAt: nil, now: now, lastActivity: lastWrite)
+        XCTAssertEqual(idle, StatusObservation(status: .idle, at: lastWrite))
+        // 处理中不改时间；文件比状态还新（正在写）时也不改。
+        let screenWorking = StatusObservation(status: .working, at: now.addingTimeInterval(-30))
+        XCTAssertEqual(AgentResolver.status(hook: nil, screen: screenWorking, startedAt: nil, now: now, lastActivity: lastWrite),
+                       screenWorking)
+        XCTAssertEqual(AgentResolver.status(hook: nil, screen: screenIdle, startedAt: nil, now: now, lastActivity: now),
+                       screenIdle)
+    }
 }

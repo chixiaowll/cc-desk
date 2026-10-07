@@ -11,9 +11,11 @@ public struct AgentProcessSnapshot: Equatable, Sendable {
     /// 会话文件路径（已配对时）。
     public let sessionPath: String?
     public let hook: HookState?
+    /// 会话文件最后写入的时间（agent 最后一次活动）；空闲状态从这时算起。
+    public let lastActivity: Date?
 
     public init(pid: Int32, kind: AgentKind, tty: String?, cwd: String, startedAt: Date?,
-                sessionID: String?, sessionPath: String?, hook: HookState?) {
+                sessionID: String?, sessionPath: String?, hook: HookState?, lastActivity: Date? = nil) {
         self.pid = pid
         self.kind = kind
         self.tty = tty
@@ -22,6 +24,7 @@ public struct AgentProcessSnapshot: Equatable, Sendable {
         self.sessionID = sessionID
         self.sessionPath = sessionPath
         self.hook = hook
+        self.lastActivity = lastActivity
     }
 }
 
@@ -62,23 +65,35 @@ public enum AgentResolver {
             var file = matched[p.proc.pid]
             var sessionID = file?.sessionID ?? p.ttyHook?.sessionID ?? p.hint
             var path = file?.path
+            var lastActivity = file?.modifiedAt
             if sessionID == nil, let tty = p.proc.tty, let fallback = fallbackSessions[tty], fallback.kind == p.kind {
                 sessionID = fallback.sessionID
                 path = index.locate(kind: p.kind, sessionID: fallback.sessionID)
                 file = nil
+                lastActivity = path.flatMap {
+                    (try? FileManager.default.attributesOfItem(atPath: $0))?[.modificationDate] as? Date
+                }
             }
             let hook = p.ttyHook ?? hooks.state(kind: p.kind, pid: p.proc.pid, tty: p.proc.tty,
                                                 sessionID: sessionID, processStart: p.start)
             return AgentProcessSnapshot(pid: p.proc.pid, kind: p.kind, tty: p.proc.tty,
                                         cwd: p.cwd ?? file?.cwd ?? hook?.cwd ?? NSHomeDirectory(),
-                                        startedAt: p.start, sessionID: sessionID, sessionPath: path, hook: hook)
+                                        startedAt: p.start, sessionID: sessionID, sessionPath: path, hook: hook,
+                                        lastActivity: lastActivity)
         }
     }
 
     /// 合并 hook 与屏幕状态；都没有时为未知（时间取进程启动时间）。
-    public static func status(hook: HookState?, screen: StatusObservation?, startedAt: Date?, now: Date) -> StatusObservation {
+    /// 空闲时从会话文件最后写入的时间算起（lastActivity 更早时）：屏幕规则只在 App 启动后才开始观察，
+    /// 不然重启 CC Desk 后一直空闲的会话会显示「1 分钟」，像是刚重新连上。
+    public static func status(hook: HookState?, screen: StatusObservation?, startedAt: Date?, now: Date,
+                              lastActivity: Date? = nil) -> StatusObservation {
         let hookObs = hook.map { StatusObservation(status: $0.status, at: $0.updatedAt) }
-        return StatusMerger.merge(hook: hookObs, screen: screen, now: now)
+        var merged = StatusMerger.merge(hook: hookObs, screen: screen, now: now)
             ?? StatusObservation(status: .unknown, at: startedAt ?? .distantPast)
+        if merged.status == .idle, let last = lastActivity, last < merged.at {
+            merged = StatusObservation(status: .idle, at: last)
+        }
+        return merged
     }
 }
