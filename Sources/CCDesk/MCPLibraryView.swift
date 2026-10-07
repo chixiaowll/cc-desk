@@ -195,7 +195,7 @@ struct MCPLibraryView: View {
     @ViewBuilder
     private var detail: some View {
         if let id = selectedID, let entry = library.entries.first(where: { $0.id == id }) {
-            MCPDetailView(entry: entry, theme: theme).id(entry.id)
+            MCPDetailView(entry: entry, library: library, theme: theme).id(entry.id)
         } else {
             Text(library.entries.isEmpty ? "" : L("mcp.selectHint")).uiFont(size: 12).foregroundStyle(theme.fg3)
         }
@@ -266,6 +266,7 @@ struct MCPRow: View {
 /// 右侧详情：名字、agent、来源、传输、命令 / 地址、环境变量 / 请求头（只有名字）、配置文件、连接状态。
 struct MCPDetailView: View {
     let entry: MCPServerEntry
+    @ObservedObject var library: MCPLibrary
     let theme: Theme
 
     var body: some View {
@@ -280,6 +281,15 @@ struct MCPDetailView: View {
                         if !entry.enabled { SkillBadge(text: L("skills.badge.disabled"), theme: theme, warning: true) }
                         if let health = entry.health { MCPHealthBadge(health: health, theme: theme) }
                     }
+                }
+                if MCPPromotion.canPromote(entry) {
+                    HStack(spacing: 8) {
+                        Button(L("mcp.promote.button")) { library.confirmPromote(entry) }
+                            .disabled(library.promoting != nil)
+                        if library.promoting == entry.id { ProgressView().controlSize(.small) }
+                    }
+                    Text(L("mcp.promote.hint")).uiFont(size: 11).foregroundStyle(theme.fg3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if case .failed(let why) = entry.health, !why.isEmpty {
                     field(L("mcp.field.error"), why)

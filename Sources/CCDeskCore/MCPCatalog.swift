@@ -466,3 +466,54 @@ public enum MCPScanner {
         return (try? JSONSerialization.jsonObject(with: Data(MCPCatalog.stripJSONC(text).utf8))) as? [String: Any]
     }
 }
+
+/// 「移到全局」（设计 §31.1）：从原配置里取出某个 Claude MCP 的完整配置（含密钥，只交给 `claude mcp add-json`，
+/// 不显示、不记日志）。只支持 Claude 的本地范围与项目范围。
+public enum MCPPromotion {
+    public static func canPromote(_ entry: MCPServerEntry) -> Bool {
+        switch entry.source {
+        case .claudeLocal, .claudeProject: return true
+        default: return false
+        }
+    }
+
+    /// 本地范围可以删掉原配置；项目范围的 .mcp.json 是团队共享文件，只复制。
+    public static func canRemoveOriginal(_ entry: MCPServerEntry) -> Bool {
+        if case .claudeLocal = entry.source { return true }
+        return false
+    }
+
+    /// 原始配置（JSON 对象）；找不到时为 nil。
+    public static func rawConfig(for entry: MCPServerEntry, home: URL = URL(fileURLWithPath: NSHomeDirectory())) -> [String: Any]? {
+        switch entry.source {
+        case .claudeLocal(let project):
+            let root = MCPScanner.readJSON(home.appendingPathComponent(".claude.json"))
+            let projects = root?["projects"] as? [String: Any]
+            let servers = (projects?[project] as? [String: Any])?["mcpServers"] as? [String: Any]
+            return servers?[entry.name] as? [String: Any]
+        case .claudeProject(let project):
+            let root = MCPScanner.readJSON(URL(fileURLWithPath: project).appendingPathComponent(".mcp.json"))
+            return (root?["mcpServers"] as? [String: Any])?[entry.name] as? [String: Any]
+        default:
+            return nil
+        }
+    }
+
+    /// 全局（用户范围）里是否已有同名 MCP。
+    public static func existsInUserScope(_ name: String, home: URL = URL(fileURLWithPath: NSHomeDirectory())) -> Bool {
+        let root = MCPScanner.readJSON(home.appendingPathComponent(".claude.json"))
+        return (root?["mcpServers"] as? [String: Any])?[name] != nil
+    }
+
+    /// `claude mcp add-json -s user <名字> <json>` 的参数。
+    public static func addArguments(name: String, config: [String: Any]) -> [String]? {
+        guard let data = try? JSONSerialization.data(withJSONObject: config, options: [.sortedKeys, .withoutEscapingSlashes])
+        else { return nil }
+        return ["mcp", "add-json", "-s", "user", name, String(decoding: data, as: UTF8.self)]
+    }
+
+    /// 删除本地范围的那份：在原项目目录下 `claude mcp remove -s local <名字>`。
+    public static func removeArguments(name: String) -> [String] {
+        ["mcp", "remove", "-s", "local", name]
+    }
+}

@@ -688,3 +688,16 @@
 "mcp.field.config" = "Config file";
 "mcp.note.secrets" = "Read-only. Environment and header values are hidden; secret-looking arguments and URL parts are masked. Edit the config file or use the agent's command (e.g. claude mcp add / remove) to change it.";
 "mcp.note.connector" = "A connector added to your claude.ai account, managed in claude.ai Settings › Connectors; sign in to ones that need it with /mcp in Claude Code.";
+
+"mcp.promote.button" = "Make Global…";
+"mcp.promote.hint" = "Adds it to Claude Code's user config so Claude sessions in every folder can use it (new sessions).";
+"mcp.promote.title" = "Make “%@” global?";
+"mcp.promote.message.local" = "Move: add it to the user config and remove this project's local copy.\nCopy: add it to the user config and keep the local copy (it still takes precedence in this project).\nThe config, including credentials, is copied as is and never shown.";
+"mcp.promote.message.project" = "It will be added to the user config; the project's .mcp.json is a shared team file and stays unchanged. The config is copied as is and never shown.";
+"mcp.promote.move" = "Move to Global";
+"mcp.promote.copy" = "Copy to Global";
+"mcp.promote.exists.title" = "“%@” already exists globally";
+"mcp.promote.exists.message" = "Nothing was changed to avoid overwriting it. To replace it, remove the global one first with claude mcp remove -s user.";
+"mcp.promote.failed" = "Couldn't make “%@” global";
+"mcp.promote.notFound" = "This MCP is no longer in its original config. Refresh and try again.";
+"mcp.promote.removeFailed" = "Added globally, but removing the local copy failed: %@";

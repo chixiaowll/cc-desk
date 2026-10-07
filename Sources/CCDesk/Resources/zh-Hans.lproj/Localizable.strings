@@ -688,3 +688,16 @@
 "mcp.field.config" = "配置文件";
 "mcp.note.secrets" = "只读。环境变量、请求头的值不显示，参数和地址里像密钥的部分已打码。要修改请编辑配置文件，或用对应 agent 的命令（如 claude mcp add / remove）。";
 "mcp.note.connector" = "这是 claude.ai 账号里添加的连接器，在 claude.ai 的「设置 › 连接器」里管理；「需要登录」的在 Claude Code 里用 /mcp 完成授权。";
+
+"mcp.promote.button" = "设为全局…";
+"mcp.promote.hint" = "加到 Claude Code 的全局配置后，所有目录的 Claude 会话都能用（新开的会话生效）。";
+"mcp.promote.title" = "把「%@」设为全局？";
+"mcp.promote.message.local" = "移到全局：加到全局配置并删掉这个项目里的本地那份。\n复制到全局：加到全局配置，本地那份保留（在这个项目里仍优先用本地的）。\n配置原样转过去（包括鉴权信息），不会显示出来。";
+"mcp.promote.message.project" = "会加到全局配置；项目里的 .mcp.json 是团队共享文件，保持不动。配置原样转过去，不会显示出来。";
+"mcp.promote.move" = "移到全局";
+"mcp.promote.copy" = "复制到全局";
+"mcp.promote.exists.title" = "全局已有「%@」";
+"mcp.promote.exists.message" = "为免覆盖，没有修改。如需替换，请先在 Claude Code 里用 claude mcp remove -s user 删掉全局那份。";
+"mcp.promote.failed" = "「%@」没能设为全局";
+"mcp.promote.notFound" = "在原配置里找不到这个 MCP，可能已被修改，请刷新后重试。";
+"mcp.promote.removeFailed" = "已加到全局，但删除本地那份失败：%@";

@@ -102,3 +102,38 @@ final class MCPCatalogTests: ZhHansTestCase {
         XCTAssertEqual(MCPCatalog.maskURL("https://user:pw@h.com/x?token=1&a=2"), "https://••••:••••@h.com/x?token=••••&a=••••")
     }
 }
+
+final class MCPPromotionTests: XCTestCase {
+    func testRawConfigAndArguments() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent("mcp-home-\(UUID().uuidString)")
+        let project = home.appendingPathComponent("proj")
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let claude: [String: Any] = [
+            "mcpServers": ["existing": ["type": "http", "url": "https://a"]],
+            "projects": [project.path: ["mcpServers": ["nav": ["type": "http", "url": "https://nav/mcp",
+                                                               "headers": ["Authorization": "Bearer s3cret"]]]]],
+        ]
+        try JSONSerialization.data(withJSONObject: claude).write(to: home.appendingPathComponent(".claude.json"))
+        try JSONSerialization.data(withJSONObject: ["mcpServers": ["team": ["command": "npx", "args": ["x"]]]])
+            .write(to: project.appendingPathComponent(".mcp.json"))
+
+        let local = MCPServerEntry(name: "nav", source: .claudeLocal(project: project.path), transport: .http)
+        let config = try XCTUnwrap(MCPPromotion.rawConfig(for: local, home: home))
+        XCTAssertEqual((config["headers"] as? [String: String])?["Authorization"], "Bearer s3cret", "原样带上密钥")
+        let args = try XCTUnwrap(MCPPromotion.addArguments(name: "nav", config: config))
+        XCTAssertEqual(Array(args.prefix(5)), ["mcp", "add-json", "-s", "user", "nav"])
+        XCTAssertTrue(args[5].contains("\"url\":\"https://nav/mcp\""))
+        XCTAssertTrue(MCPPromotion.canRemoveOriginal(local))
+
+        let team = MCPServerEntry(name: "team", source: .claudeProject(project: project.path), transport: .stdio)
+        XCTAssertEqual(MCPPromotion.rawConfig(for: team, home: home)?["command"] as? String, "npx")
+        XCTAssertTrue(MCPPromotion.canPromote(team))
+        XCTAssertFalse(MCPPromotion.canRemoveOriginal(team))
+
+        XCTAssertTrue(MCPPromotion.existsInUserScope("existing", home: home))
+        XCTAssertFalse(MCPPromotion.existsInUserScope("nav", home: home))
+        XCTAssertFalse(MCPPromotion.canPromote(MCPServerEntry(name: "x", source: .claudeUser, transport: .http)))
+        XCTAssertEqual(MCPPromotion.removeArguments(name: "nav"), ["mcp", "remove", "-s", "local", "nav"])
+    }
+}
