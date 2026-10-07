@@ -263,7 +263,6 @@
 "naturalVoice.hint.downloading" = "Natural voice: downloading model %d%%";
 "naturalVoice.hint.ready" = "Natural voice is ready";
 "naturalVoice.hint.failed" = "Natural voice install failed, keeping the system voice: %@";
-"naturalVoice.error.noUV" = "uv not found (install it with brew install uv)";
 "naturalVoice.error.timeout" = "timed out";
 "sidebar.move" = "Move";
 "sidebar.move.top" = "Move to Top";
@@ -641,3 +640,26 @@
 "tree.empty.tooBroad" = "This folder is too broad (like your home folder) to list";
 "tree.empty.loading" = "Reading files…";
 "tree.empty.none" = "No files";
+
+"naturalVoice.hint.checking" = "Checking requirements…";
+"naturalVoice.problem.title" = "Natural voice can't be installed yet";
+"naturalVoice.problem.copyUV" = "Copy Install Command";
+"settings.voice.hub" = "Model download source";
+"settings.voice.hub.auto" = "Automatic (mirror if Hugging Face is unreachable)";
+"settings.voice.hub.official" = "Hugging Face";
+"settings.voice.hub.mirror" = "Mirror (hf-mirror.com)";
+"settings.voice.hub.note" = "Speech recognition and natural voice models download from here; with the mirror, natural voice's Python packages also use mirrors in China.";
+"settings.voice.check" = "Environment";
+"settings.voice.check.run" = "Check";
+"settings.voice.check.running" = "Checking…";
+"settings.voice.check.chip.apple" = "Apple silicon: local speech recognition and natural voice both work";
+"settings.voice.check.chip.intel" = "Intel chip: natural voice unavailable; local speech recognition may be slow";
+"settings.voice.check.uv.ok" = "uv: installed (%@)";
+"settings.voice.check.uv.missing" = "uv: not installed (only needed for natural voice)";
+"settings.voice.check.official.ok" = "Hugging Face: reachable";
+"settings.voice.check.official.fail" = "Hugging Face: unreachable";
+"settings.voice.check.mirror.ok" = "Mirror: reachable";
+"settings.voice.check.mirror.fail" = "Mirror: unreachable";
+"settings.voice.check.copyUV" = "Copy uv Install Command";
+"settings.voice.model.intelNote" = "This Mac has an Intel chip; local speech recognition may be slow.";
+"settings.voice.speech.needsAppleSilicon" = "Needs Apple silicon";

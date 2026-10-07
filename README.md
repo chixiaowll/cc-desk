@@ -79,7 +79,24 @@ open build/CCDesk.app
 ./scripts/dmg.sh             # 生成 build/CCDesk-<version>.dmg（通用二进制，内置静态链接的 tmux）
 ```
 
-DMG 未经苹果公证，首次打开请在「应用程序」里**右键 → 打开**。
+DMG 未经苹果公证，首次打开会被系统拦下：
+
+- macOS 14：在「应用程序」里**右键 → 打开**，再点「打开」。
+- macOS 15 及以上：先双击打开一次（会提示无法打开），再到「系统设置 › 隐私与安全性」底部点「仍要打开」。
+- 或者在终端执行：`xattr -dr com.apple.quarantine /Applications/CCDesk.app`
+
+### 语音功能的额外条件
+
+语音模型不随 DMG 安装，第一次用到时才下载到 `~/Library/Application Support/CC Desk/`：
+
+| 功能 | 大小 | 条件 |
+|---|---|---|
+| 本地语音识别（Whisper large-v3 turbo） | 约 630 MB | Apple 芯片最佳；Intel Mac 可用但可能很慢 |
+| 自然朗读声音（Qwen3-TTS） | 约 2.5 GB（含 Python 依赖） | 只支持 Apple 芯片；需要先装 [uv](https://docs.astral.sh/uv/)（`brew install uv`） |
+
+- 模型从 Hugging Face 下载。国内网络连不上时，「设置 › 语音 › 模型下载源」默认的「自动」会改用镜像 hf-mirror.com（自然语音的 Python 依赖也改用国内源），也可以手动指定。
+- 「设置 › 语音 › 检查环境」可以一键检查芯片、uv 与两个下载源能否连上；条件不满足时，下载或安装前会直接提醒原因。
+- 不下载模型也能用其他所有功能，朗读会使用系统自带的声音。
 
 ## 使用
 

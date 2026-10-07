@@ -142,3 +142,9 @@
 "tokens.sessionLine" = "Token %1$@（%2$@）";
 "tokens.cacheHit" = "缓存命中 %d%%";
 "tokens.context" = "上下文已用 %d%%";
+
+"support.natural.appleSilicon" = "自然语音只能在 Apple 芯片（M 系列）的 Mac 上使用，这台 Mac 是 Intel 芯片。朗读会继续使用系统声音。";
+"support.natural.uv" = "安装自然语音需要先装 uv（Python 工具）。在终端运行：curl -LsSf https://astral.sh/uv/install.sh | sh（或 brew install uv），装好后再试。";
+"support.hub.unreachable" = "连不上 Hugging Face，也连不上国内镜像 hf-mirror.com，模型无法下载。请检查网络或代理后再试。";
+"support.hub.officialUnreachable" = "连不上 Hugging Face 官方。可以在「设置 › 语音」把模型下载源改为「自动」或「国内镜像」。";
+"support.hub.mirrorUnreachable" = "连不上国内镜像 hf-mirror.com。可以在「设置 › 语音」把模型下载源改为「自动」或「Hugging Face 官方」。";

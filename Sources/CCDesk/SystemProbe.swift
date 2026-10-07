@@ -64,7 +64,7 @@ enum SystemProbe {
 }
 
 /// 简单的互斥锁包装，供后台读取线程与等待线程之间安全共享数据。
-private final class Locked<Value>: @unchecked Sendable {
+final class Locked<Value>: @unchecked Sendable {
     private var value: Value
     private let lock = NSLock()
 

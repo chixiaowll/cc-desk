@@ -14,9 +14,49 @@ final class NaturalVoiceInstaller: ObservableObject, @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "cc-desk.tts.install")
 
-    /// 询问后安装；hint：显示提示条；completion(true)：已装好。
+    /// 先检查本机（芯片、uv）与下载源，有问题就提醒并停下；没问题再询问后安装。
+    /// hint：显示提示条；completion(true)：已装好。
     func confirmAndInstall(hint: @escaping (String) -> Void, completion: @escaping (Bool) -> Void) {
         guard !installing else { return hint(L("naturalVoice.hint.installing")) }
+        if let problem = VoiceSupport.naturalVoiceProblem(appleSilicon: ModelHubProbe.isAppleSilicon, hasUV: true) {
+            Self.showProblem(problem)
+            return completion(false)
+        }
+        hint(L("naturalVoice.hint.checking"))
+        queue.async { [self] in
+            let uv = Self.locateUV()
+            let hub = uv == nil ? nil : ModelHubProbe.resolve()
+            DispatchQueue.main.async { [self] in
+                if uv == nil {
+                    Self.showProblem(.naturalVoiceNeedsUV)
+                    return completion(false)
+                }
+                if case .failure(let problem)? = hub {
+                    Self.showProblem(problem)
+                    return completion(false)
+                }
+                confirm(hint: hint, completion: completion)
+            }
+        }
+    }
+
+    /// 检查没通过时的提醒：缺 uv 时可以复制安装命令。
+    static func showProblem(_ problem: VoiceSupport.Problem) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L("naturalVoice.problem.title")
+        alert.informativeText = problem.message
+        if problem == .naturalVoiceNeedsUV {
+            alert.addButton(withTitle: L("naturalVoice.problem.copyUV"))
+            alert.addButton(withTitle: L("action.cancel"))
+            if alert.runModal() == .alertFirstButtonReturn { FileActions.copy(VoiceSupport.uvInstallCommand) }
+        } else {
+            alert.addButton(withTitle: L("action.ok"))
+            alert.runModal()
+        }
+    }
+
+    private func confirm(hint: @escaping (String) -> Void, completion: @escaping (Bool) -> Void) {
         let alert = NSAlert()
         alert.messageText = L("naturalVoice.install.title")
         alert.informativeText = L("naturalVoice.install.message")
@@ -92,7 +132,13 @@ final class NaturalVoiceInstaller: ObservableObject, @unchecked Sendable {
     /// 只在 queue 上调用。
     private func runSteps() -> StepResult {
         guard let script = NaturalVoice.serverScript else { return .failure("tts_server.py missing") }
-        guard let uv = Self.locateUV() else { return .failure(L("naturalVoice.error.noUV")) }
+        guard let uv = Self.locateUV() else { return .failure(VoiceSupport.Problem.naturalVoiceNeedsUV.message) }
+        let endpoint: String
+        switch ModelHubProbe.resolve() {
+        case .success(let value): endpoint = value
+        case .failure(let problem): return .failure(problem.message)
+        }
+        let hubEnv = ModelHub.environment(endpoint: endpoint)
         let fm = FileManager.default
         do {
             try fm.createDirectory(at: NaturalVoice.hfHome, withIntermediateDirectories: true)
@@ -104,6 +150,7 @@ final class NaturalVoiceInstaller: ObservableObject, @unchecked Sendable {
         env["VIRTUAL_ENV"] = NaturalVoice.venv.path
         env.removeValue(forKey: "PYTHONPATH")
         env.removeValue(forKey: "PYTHONHOME")
+        env.merge(hubEnv) { _, new in new }
 
         if !fm.isExecutableFile(atPath: NaturalVoice.python.path) {
             if case .failure(let message) = run(uv, ["venv", "-p", "3.12", NaturalVoice.venv.path], env: env, timeout: 600) {
@@ -117,6 +164,7 @@ final class NaturalVoiceInstaller: ObservableObject, @unchecked Sendable {
         setStep(.download)
         var downloadEnv = NaturalVoice.serverEnvironment()
         downloadEnv.removeValue(forKey: "HF_HUB_OFFLINE")
+        downloadEnv.merge(hubEnv) { _, new in new }
         let download = [script.path, "--download", NaturalVoice.modelDir.path]
         if case .failure(let message) = run(NaturalVoice.python.path, download, env: downloadEnv, timeout: 3 * 3600) {
             return .failure(message)

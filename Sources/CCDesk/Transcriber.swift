@@ -117,7 +117,16 @@ actor WhisperTranscriber: Transcriber {
             var folder = modelFolder
             if !isDownloaded {
                 progress(.downloading(0))
-                folder = try await WhisperKit.download(variant: model, downloadBase: baseDir, from: Self.repo) { p in
+                // 先选下载源（官方连不上时用镜像），都连不上就直接说明，不下到一半才报错。
+                let endpoint: String
+                switch ModelHubProbe.resolve() {
+                case .success(let value): endpoint = value
+                case .failure(let problem): throw VoiceSupportError(problem: problem)
+                }
+                // 分词器在加载时由 WhisperKit 另行下载，它只认环境变量 HF_ENDPOINT。
+                setenv("HF_ENDPOINT", endpoint, 1)
+                folder = try await WhisperKit.download(variant: model, downloadBase: baseDir, from: Self.repo,
+                                                       endpoint: endpoint) { p in
                     progress(.downloading(p.fractionCompleted))
                 }
                 FileManager.default.createFile(atPath: folder.appendingPathComponent(Self.completeMarker).path,

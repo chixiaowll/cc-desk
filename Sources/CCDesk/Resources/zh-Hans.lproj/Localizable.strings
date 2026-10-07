@@ -263,7 +263,6 @@
 "naturalVoice.hint.downloading" = "自然语音：正在下载模型 %d%%";
 "naturalVoice.hint.ready" = "自然语音已就绪";
 "naturalVoice.hint.failed" = "自然语音安装失败，继续使用系统声音：%@";
-"naturalVoice.error.noUV" = "找不到 uv（可用 brew install uv 安装）";
 "naturalVoice.error.timeout" = "超时";
 "sidebar.move" = "移动";
 "sidebar.move.top" = "移到最上";
@@ -641,3 +640,26 @@
 "tree.empty.tooBroad" = "这个目录太大（如家目录），不列出文件";
 "tree.empty.loading" = "正在读取文件…";
 "tree.empty.none" = "没有文件";
+
+"naturalVoice.hint.checking" = "正在检查安装条件…";
+"naturalVoice.problem.title" = "暂时无法安装自然语音";
+"naturalVoice.problem.copyUV" = "复制安装命令";
+"settings.voice.hub" = "模型下载源";
+"settings.voice.hub.auto" = "自动（官方连不上时用镜像）";
+"settings.voice.hub.official" = "Hugging Face 官方";
+"settings.voice.hub.mirror" = "国内镜像 hf-mirror.com";
+"settings.voice.hub.note" = "语音识别与自然语音的模型从这里下载；用镜像时自然语音的 Python 依赖也改用国内源。";
+"settings.voice.check" = "检查环境";
+"settings.voice.check.run" = "检查";
+"settings.voice.check.running" = "正在检查…";
+"settings.voice.check.chip.apple" = "Apple 芯片：本地语音识别与自然语音都可用";
+"settings.voice.check.chip.intel" = "Intel 芯片：不能用自然语音；本地语音识别可能很慢";
+"settings.voice.check.uv.ok" = "uv：已安装（%@）";
+"settings.voice.check.uv.missing" = "uv：未安装（只有安装自然语音时需要）";
+"settings.voice.check.official.ok" = "Hugging Face 官方：能连上";
+"settings.voice.check.official.fail" = "Hugging Face 官方：连不上";
+"settings.voice.check.mirror.ok" = "国内镜像：能连上";
+"settings.voice.check.mirror.fail" = "国内镜像：连不上";
+"settings.voice.check.copyUV" = "复制 uv 安装命令";
+"settings.voice.model.intelNote" = "这台 Mac 是 Intel 芯片，本地语音识别可能很慢。";
+"settings.voice.speech.needsAppleSilicon" = "需要 Apple 芯片";

@@ -25,6 +25,9 @@ struct SettingsVoiceTab: View {
                 }
                 SettingsNote(text: L("settings.voice.pushToTalk.note"))
                 LabeledContent(L("settings.voice.model")) { modelStatus }
+                if !ModelHubProbe.isAppleSilicon {
+                    SettingsNote(text: L("settings.voice.model.intelNote"), tone: .warning)
+                }
             }
             Section(L("settings.voice.conversation")) {
                 Toggle(L("settings.voice.autoStart"), isOn: $autoStart)
@@ -55,6 +58,7 @@ struct SettingsVoiceTab: View {
                     }
                 }
             }
+            SettingsModelSection()
             SettingsAssistantSection(conversation: conversation)
             SettingsCompanionSection(companion: model.companion)
             Section(L("settings.voice.assistant")) {
@@ -146,6 +150,8 @@ struct SettingsVoiceTab: View {
             }
         } else if NaturalVoice.isInstalled {
             SettingsStatus(text: L("settings.voice.speech.installed"), tone: .success)
+        } else if !ModelHubProbe.isAppleSilicon {
+            SettingsStatus(text: L("settings.voice.speech.needsAppleSilicon"), tone: .secondary)
         } else {
             HStack(spacing: 8) {
                 SettingsStatus(text: L("settings.voice.speech.notInstalled"), tone: .secondary)
