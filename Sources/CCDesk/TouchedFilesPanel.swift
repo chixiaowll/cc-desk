@@ -24,6 +24,22 @@ struct TouchedFilesPanel: View {
         let extra = list.filter { $0.origin != .tool }
         VStack(spacing: 0) {
             header
+            if files.tab == .files {
+                ProjectFilesView(project: files.project, theme: theme,
+                                 quickLook: { files.quickLook(path: $0, window: window) },
+                                 insertIntoTerminal: { files.model?.insertPathIntoSelectedTerminal($0) })
+            } else {
+                changesList(list: list, documents: documents, code: code, extra: extra)
+            }
+        }
+        .frame(width: files.panelWidth)
+        .background(theme.side)
+        .background(WindowReader(window: $window))
+    }
+
+    @ViewBuilder
+    private func changesList(list: [TouchedFile], documents: [TouchedFile], code: [TouchedFile],
+                             extra: [TouchedFile]) -> some View {
             if files.allFiles.count > Self.filterThreshold { filterField }
             theme.line.opacity(0.7).frame(height: 1)
             ScrollViewReader { proxy in
@@ -69,37 +85,16 @@ struct TouchedFilesPanel: View {
                 FileActions.open(path)
                 return .handled
             }
-        }
-        .frame(width: files.panelWidth)
-        .background(theme.side)
-        .background(WindowReader(window: $window))
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
-            Text(L("files.title"))
-                .uiFont(size: 12, weight: .semibold)
-                .foregroundStyle(theme.fg1)
-            if !files.allFiles.isEmpty {
-                Text("\(files.allFiles.count)")
-                    .uiFont(size: 10.5, weight: .semibold, monospacedDigit: true)
-                    .foregroundStyle(theme.fg2)
-                    .padding(.horizontal, 6)
-                    .frame(height: uiScale.metric(16))
-                    .background(Capsule().fill(theme.chip))
-            }
+        HStack(spacing: 2) {
+            tabButton(.changes, title: L("files.tab.changes"), count: files.allFiles.count)
+            tabButton(.files, title: L("files.tab.files"), count: nil)
             Spacer(minLength: 0)
-            Button {
-                files.toggleQuickLook(window: window)
-            } label: {
-                Image(systemName: "eye").uiFont(size: 12)
-                    .foregroundStyle(files.selection == nil ? theme.fg3 : theme.fg2)
-                    .frame(width: uiScale.metric(22), height: uiScale.metric(22))
-                    .contentShape(Rectangle())
+            if files.tab == .changes {
+                quickLookButton
             }
-            .buttonStyle(.plain)
-            .disabled(files.selection == nil)
-            .help(L("files.quickLook.help"))
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) { files.isShown = false }
             } label: {
@@ -111,9 +106,51 @@ struct TouchedFilesPanel: View {
             .buttonStyle(.plain)
             .help(L("files.collapse.help"))
         }
-        .padding(.leading, 14)
+        .padding(.leading, 8)
         .padding(.trailing, 8)
         .frame(height: uiScale.metric(36))
+    }
+
+    private var quickLookButton: some View {
+        Button {
+            files.toggleQuickLook(window: window)
+        } label: {
+            Image(systemName: "eye").uiFont(size: 12)
+                .foregroundStyle(files.selection == nil ? theme.fg3 : theme.fg2)
+                .frame(width: uiScale.metric(22), height: uiScale.metric(22))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(files.selection == nil)
+        .help(L("files.quickLook.help"))
+    }
+
+    /// 标题栏里的页签：「改动 12」/「文件」，选中的加浅底。
+    private func tabButton(_ tab: TouchedFilesModel.Tab, title: String, count: Int?) -> some View {
+        let on = files.tab == tab
+        return Button {
+            files.tab = tab
+        } label: {
+            HStack(spacing: 5) {
+                Text(title)
+                    .uiFont(size: 12, weight: on ? .semibold : .medium)
+                    .foregroundStyle(on ? theme.fg1 : theme.fg2)
+                if let count, count > 0 {
+                    Text("\(count)")
+                        .uiFont(size: 10.5, weight: .semibold, monospacedDigit: true)
+                        .foregroundStyle(theme.fg2)
+                        .padding(.horizontal, 5)
+                        .frame(height: uiScale.metric(15))
+                        .background(Capsule().fill(on ? theme.main : theme.chip))
+                }
+            }
+            .padding(.horizontal, 7)
+            .frame(height: uiScale.metric(24))
+            .background(RoundedRectangle(cornerRadius: 6).fill(on ? theme.chip : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tab == .changes ? L("files.tab.changes.help") : L("files.tab.files.help"))
     }
 
     private var filterField: some View {

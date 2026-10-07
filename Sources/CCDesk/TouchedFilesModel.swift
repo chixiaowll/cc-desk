@@ -33,8 +33,25 @@ final class TouchedFilesModel: ObservableObject {
             if isShown { markSeen() } else { preview.close() }
             reschedule()
             if isShown { refresh(force: true) }
+            project.isActive = isShown && tab == .files
         }
     }
+
+    /// 面板的两页：选中会话改动的文件 / 项目里的全部文件（设计 §28）。
+    enum Tab: String {
+        case changes, files
+    }
+
+    static let tabKey = "touchedFilesPanelTab"
+    @Published var tab: Tab = Tab(rawValue: UserDefaults.standard.string(forKey: TouchedFilesModel.tabKey) ?? "") ?? .changes {
+        didSet {
+            UserDefaults.standard.set(tab.rawValue, forKey: Self.tabKey)
+            project.isActive = isShown && tab == .files
+        }
+    }
+
+    /// 「文件」页的项目文件树。
+    let project = ProjectFilesModel()
     /// 工具写入的文件（文档在前、代码在后）。
     @Published private(set) var files: [TouchedFile] = []
     /// 只被提到 / 生成的文件（不与 `files` 重复；文档与图片 / 视频在前）。
@@ -109,12 +126,15 @@ final class TouchedFilesModel: ObservableObject {
             return Target(kind: row.session.kind, sessionID: sid, cwd: row.session.cwd)
         }
         root = row.flatMap { model?.projectRoot(forCwd: $0.session.cwd) } ?? row?.session.cwd
+        project.setRoot(root)
+        project.isActive = isShown && tab == .files
         guard next != target else { return }
         stopWatcher()  // 先按旧会话存下监视记录
         target = next
         generation += 1
         files = []
         extraFiles = []
+        project.setChangedFiles([])
         toolSnapshot = []
         mentionSnapshot = []
         generatedSnapshot = []
@@ -199,6 +219,7 @@ final class TouchedFilesModel: ObservableObject {
         guard merged.tool != files || merged.extra != extraFiles else { return }
         files = merged.tool
         extraFiles = merged.extra
+        project.setChangedFiles(allFiles.filter { $0.exists && $0.origin != .mentioned }.map(\.path))
         if let selection, !allFiles.contains(where: { $0.path == selection }) { self.selection = nil }
         updateUnseen()
         syncPreview()

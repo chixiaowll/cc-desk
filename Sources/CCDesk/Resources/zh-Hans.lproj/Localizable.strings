@@ -402,7 +402,6 @@
 
 /* 改动的文件（§17） */
 "menu.touchedFiles" = "改动的文件";
-"files.title" = "改动的文件";
 "files.section.documents" = "文档与产出";
 "files.section.code" = "代码";
 "files.section.extra" = "提到 / 生成的文件";
@@ -625,3 +624,20 @@
 "tokens.none" = "还没有记录";
 "tokens.note" = "统计自本机 Claude Code / Codex / pi 的会话记录；缓存读取的计费远低于普通输入。";
 "tokens.footer" = "今天 %1$@ · 7 天 %2$@";
+
+"files.tab.changes" = "改动";
+"files.tab.files" = "文件";
+"files.tab.changes.help" = "选中会话改动、生成、提到的文件";
+"files.tab.files.help" = "项目里的全部文件";
+"tree.search.placeholder" = "搜索文件名";
+"tree.search.clear" = "清除搜索";
+"tree.collapseAll" = "全部收起";
+"tree.reload" = "刷新";
+"tree.truncated" = "文件太多，只列出了一部分；可以用搜索查找。";
+"tree.menu.showInTree" = "在树中显示";
+"tree.menu.insert" = "插入到终端";
+"tree.changed.help" = "这个会话改动过";
+"tree.empty.noSession" = "选中一个会话，浏览它所在项目的文件";
+"tree.empty.tooBroad" = "这个目录太大（如家目录），不列出文件";
+"tree.empty.loading" = "正在读取文件…";
+"tree.empty.none" = "没有文件";

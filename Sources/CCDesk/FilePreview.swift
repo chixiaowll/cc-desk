@@ -132,6 +132,19 @@ enum FileActions {
     }
 
     private static var iconCache: [String: NSImage] = [:]
+    private static var typeIconCache: [String: NSImage] = [:]
+
+    /// 文件夹图标（文件树里用）。
+    static let folderIcon = NSWorkspace.shared.icon(for: .folder)
+
+    /// 按扩展名的类型图标（文件树里每行一个，不读文件；按扩展名缓存，只在主线程）。
+    static func typeIcon(for path: String) -> NSImage {
+        let ext = (path as NSString).pathExtension.lowercased()
+        if let cached = typeIconCache[ext] { return cached }
+        let image = NSWorkspace.shared.icon(for: UTType(filenameExtension: ext) ?? .data)
+        typeIconCache[ext] = image
+        return image
+    }
 
     /// 文件图标：存在时取实际文件的图标，否则按扩展名；按路径缓存（只在主线程）。
     static func icon(for path: String, exists: Bool) -> NSImage {

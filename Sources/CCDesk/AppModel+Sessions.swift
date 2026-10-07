@@ -33,6 +33,17 @@ extension AppModel {
         terminal.view.window?.makeFirstResponder(terminal.view)
     }
 
+    /// 右侧「文件」页的「插入到终端」：把路径（在会话目录下时用相对路径，含空白等时加单引号）加一个空格写进
+    /// 选中的内嵌终端的输入行，不回车，并把焦点交给终端。没有选中的内嵌终端时提示音。
+    func insertPathIntoSelectedTerminal(_ path: String) {
+        guard let id = selectedTerminalID, let terminal = pool.terminal(id) else { return NSSound.beep() }
+        let cwd = selectedRow?.session.cwd
+        let base = cwd.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        let text = base.flatMap { path.hasPrefix($0) ? String(path.dropFirst($0.count)) : nil } ?? path
+        terminal.send(text: ShellQuote.quoteIfNeeded(text) + " ", submit: false)
+        focusSelectedTerminal()
+    }
+
     /// ⌘1–9：按侧栏从上到下的顺序（与按住 ⌘ 时侧栏上显示的编号一致）。
     func selectNumbered(index: Int) {
         let rows = numberedRows

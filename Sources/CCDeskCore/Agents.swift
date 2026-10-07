@@ -4,6 +4,13 @@ public enum ShellQuote {
     public static func quote(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
+
+    /// 只含安全字符（字母数字、中文等非 ASCII、`/._-+@%=:,~`）时原样返回，否则加单引号。
+    public static func quoteIfNeeded(_ s: String) -> String {
+        let safe = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "/._-+@%=:,~"))
+        let plain = !s.isEmpty && s.unicodeScalars.allSatisfy { $0.value > 0x7F ? !CharacterSet.whitespacesAndNewlines.contains($0) : safe.contains($0) }
+        return plain ? s : quote(s)
+    }
 }
 
 /// 各 agent 的启动 / 恢复命令。

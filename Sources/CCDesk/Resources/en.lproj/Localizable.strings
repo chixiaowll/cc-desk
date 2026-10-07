@@ -402,7 +402,6 @@
 
 /* Files the agent touched (§17) */
 "menu.touchedFiles" = "Changed Files";
-"files.title" = "Changed Files";
 "files.section.documents" = "Documents & outputs";
 "files.section.code" = "Code";
 "files.section.extra" = "Mentioned / generated";
@@ -625,3 +624,20 @@
 "tokens.none" = "No records yet";
 "tokens.note" = "Counted from local Claude Code / Codex / pi session logs; cache reads are billed far below regular input.";
 "tokens.footer" = "Today %1$@ · 7d %2$@";
+
+"files.tab.changes" = "Changes";
+"files.tab.files" = "Files";
+"files.tab.changes.help" = "Files the selected session changed, generated or mentioned";
+"files.tab.files.help" = "All files in the project";
+"tree.search.placeholder" = "Search file names";
+"tree.search.clear" = "Clear search";
+"tree.collapseAll" = "Collapse all";
+"tree.reload" = "Refresh";
+"tree.truncated" = "Too many files — only some are listed. Use search to find others.";
+"tree.menu.showInTree" = "Show in Tree";
+"tree.menu.insert" = "Insert into Terminal";
+"tree.changed.help" = "Changed in this session";
+"tree.empty.noSession" = "Select a session to browse its project files";
+"tree.empty.tooBroad" = "This folder is too broad (like your home folder) to list";
+"tree.empty.loading" = "Reading files…";
+"tree.empty.none" = "No files";
