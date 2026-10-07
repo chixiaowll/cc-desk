@@ -120,6 +120,15 @@ public struct StatusObservation: Equatable, Sendable {
     }
 }
 
+/// 启动缓冲（设计 §4.2）：App 启动后这么久之内，「处理中 → 空闲」不算完成一轮。
+public enum StartupGrace {
+    public static let seconds: TimeInterval = 20
+
+    public static func suppressesFinished(uptime: TimeInterval, launchedAt: TimeInterval) -> Bool {
+        uptime - launchedAt < seconds
+    }
+}
+
 /// 多来源状态合并（设计 §4.2）：hook > 屏幕规则 > 进程。
 public enum StatusMerger {
     /// hook 超过这么久没更新、而屏幕有更新时，改用屏幕。
@@ -147,7 +156,14 @@ public enum StatusMerger {
     /// - 其余情况 hook 优先。
     public static func merge(hook: StatusObservation?, screen: StatusObservation?, now: Date) -> StatusObservation? {
         guard let hook else { return screen }
-        guard let screen else { return hook }
+        guard let screen else {
+            // 停在「处理中」很久、又没有屏幕可以确认（如 CC Desk 刚重启、屏幕还没识别）：多半是报错 / 打断后没发结束事件，
+            // 不当作处理中，免得屏幕识别到空闲时被当成「完成了一轮」。
+            if hook.status == .working, now.timeIntervalSince(hook.at) > hookStaleAfter {
+                return StatusObservation(status: .unknown, at: hook.at)
+            }
+            return hook
+        }
         if screen.status.isWaiting, !hook.status.isWaiting, screen.at >= hook.at { return screen }
         if hook.status.isWaiting, !screen.status.isWaiting, screen.at > hook.at { return screen }
         if hook.status == .working, screen.status == .idle,

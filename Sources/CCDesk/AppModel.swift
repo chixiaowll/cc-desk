@@ -94,6 +94,8 @@ final class AppModel: ObservableObject {
     var controlServer: ControlServer?
     let resolver = ProjectResolver(git: SystemProbe.git)
     let queue = DispatchQueue(label: "cc-desk.poll")
+    /// App 启动的时刻（单调时钟）：启动后一小段时间里状态从各来源陆续到齐，「处理中 → 空闲」不算完成一轮。
+    let launchedUptime = ProcessInfo.processInfo.systemUptime
     /// 只在 `queue` 上使用（非线程安全）。
     let transcripts = TranscriptIndex()
     /// Codex / pi 会话文件索引；只在 `queue` 上使用。

@@ -105,6 +105,17 @@ final class HookStateTests: XCTestCase {
         XCTAssertEqual(r?.status, .working)
     }
 
+    /// 重启后屏幕还没识别：停在处理中超过 10 分钟的 hook 当作未知；新鲜的照常。
+    func testStaleWorkingHookWithoutScreenIsUnknown() {
+        XCTAssertEqual(StatusMerger.merge(hook: obs(.working, 1000), screen: nil, now: Date(timeIntervalSince1970: 1700)),
+                       obs(.unknown, 1000))
+        XCTAssertEqual(StatusMerger.merge(hook: obs(.working, 1000), screen: nil, now: Date(timeIntervalSince1970: 1100))?.status,
+                       .working)
+        XCTAssertEqual(StatusMerger.merge(hook: obs(.idle, 1000), screen: nil, now: Date(timeIntervalSince1970: 9000))?.status, .idle)
+        XCTAssertTrue(StartupGrace.suppressesFinished(uptime: 110, launchedAt: 100))
+        XCTAssertFalse(StartupGrace.suppressesFinished(uptime: 130, launchedAt: 100))
+    }
+
     /// 请求报错 / Esc 打断：hook 停在处理中，屏幕回到空闲 15 秒后按空闲算（从 hook 与屏幕较晚的时间算起）。
     func testWorkingHookWithLastingIdleScreenEnds() {
         // 处理中阶段太短，屏幕没来得及变：屏幕的空闲比 hook 还早，从 hook 时间算。

@@ -175,7 +175,12 @@ extension AppModel {
         let rows = groups.flatMap(\.rows)
         let statuses = Dictionary(rows.map { ($0.id, $0.session.status) }, uniquingKeysWith: { a, _ in a })
         waitingEpisodes.update(statuses: statuses, now: ProcessInfo.processInfo.systemUptime)
-        let events = waitingEpisodes.stamp(TransitionDetector.events(previous: lastStatuses, rows: rows))
+        var events = waitingEpisodes.stamp(TransitionDetector.events(previous: lastStatuses, rows: rows))
+        // 启动缓冲：重启后先用的是上次留下的 hook 状态（可能停在处理中），几秒后屏幕识别才到；
+        // 这时的「处理中 → 空闲」是状态补齐，不是新完成的一轮，不标未读、不发通知。
+        if StartupGrace.suppressesFinished(uptime: ProcessInfo.processInfo.systemUptime, launchedAt: launchedUptime) {
+            events.removeAll { $0.kind == .finished }
+        }
         lastStatuses = statuses
         // 系统通知 / 未读不发给正看着的会话；推送对它只在用户离开 Mac 时发（EventRouting）。
         var presence: PushPresence?

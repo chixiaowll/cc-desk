@@ -64,7 +64,8 @@ final class AgentResolverTests: XCTestCase {
         XCTAssertEqual(s, StatusObservation(status: .unknown, at: start))
         let hook = HookState(agent: .pi, sessionID: nil, tty: "t", pid: 1, cwd: nil, status: .working,
                              updatedAt: Date(timeIntervalSince1970: 60))
-        XCTAssertEqual(AgentResolver.status(hook: hook, screen: nil, startedAt: start, now: Date()).status, .working)
+        XCTAssertEqual(AgentResolver.status(hook: hook, screen: nil, startedAt: start, now: Date(timeIntervalSince1970: 70)).status,
+                       .working)
     }
 
     /// 重启 CC Desk 后屏幕规则重新识别出「空闲」：从会话文件最后写入的时间算起，而不是从识别的那一刻。
