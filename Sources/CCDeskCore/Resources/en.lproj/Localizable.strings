@@ -148,3 +148,10 @@
 "support.hub.unreachable" = "Can't reach Hugging Face or the hf-mirror.com mirror, so models can't be downloaded. Check your network or proxy and try again.";
 "support.hub.officialUnreachable" = "Can't reach Hugging Face. In Settings › Voice, set the model download source to Automatic or Mirror.";
 "support.hub.mirrorUnreachable" = "Can't reach the hf-mirror.com mirror. In Settings › Voice, set the model download source to Automatic or Hugging Face.";
+
+"mcp.source.claudeUser" = "Claude Code · User";
+"mcp.source.claudeLocal" = "Claude Code · Local (%@)";
+"mcp.source.claudeProject" = "Claude Code · Project (%@)";
+"mcp.source.claudePlugin" = "Claude Code · Plugins";
+"mcp.source.claudeConnector" = "Claude · claude.ai connectors";
+"mcp.source.openCodeProject" = "OpenCode · Project (%@)";

@@ -79,7 +79,8 @@ final class SkillLibrary: ObservableObject {
             window.identifier = NSUserInterfaceItemIdentifier("skills")
             window.title = L("skills.title")
             window.minSize = NSSize(width: 760, height: 460)
-            let content = NSHostingView(rootView: SkillsLibraryView(library: self).uiScaleRoot())
+            let content = NSHostingView(rootView: LibraryRootView(skills: self, mcp: model?.mcp ?? MCPLibrary(model: nil))
+                .uiScaleRoot())
             content.sizingOptions = []
             window.contentView = content
             if !window.setFrameUsingName("CCDeskSkillsLibrary") { window.center() }

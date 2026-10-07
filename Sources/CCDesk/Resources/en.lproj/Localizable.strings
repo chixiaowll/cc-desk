@@ -494,7 +494,7 @@
 /* 技能库（设计 §21） */
 "menu.skills" = "Skills Library";
 "toolbar.skills.help" = "Skills Library ⇧⌘K";
-"skills.title" = "Skills Library";
+"skills.title" = "Skills & MCP";
 "skills.search" = "Search skills by name or description…";
 "skills.clearSearch" = "Clear search";
 "skills.refresh" = "Scan again";
@@ -663,3 +663,28 @@
 "settings.voice.check.copyUV" = "Copy uv Install Command";
 "settings.voice.model.intelNote" = "This Mac has an Intel chip; local speech recognition may be slow.";
 "settings.voice.speech.needsAppleSilicon" = "Needs Apple silicon";
+
+"library.tab.skills" = "Skills";
+"library.tab.mcp" = "MCP";
+"mcp.search" = "Search MCP names, commands or URLs";
+"mcp.check" = "Check Connections";
+"mcp.check.help" = "Runs claude mcp list: lists claude.ai connectors and checks whether each Claude MCP connects (takes a few seconds)";
+"mcp.check.running" = "Checking…";
+"mcp.check.timeout" = "Check timed out";
+"mcp.check.noClaude" = "claude command not found";
+"mcp.empty" = "No MCP servers found";
+"mcp.empty.hint" = "Reads ~/.claude.json, project .mcp.json files, Claude plugins, ~/.codex/config.toml and OpenCode config; Check Connections lists claude.ai connectors.";
+"mcp.connectorsHint" = "Connectors added to your claude.ai account aren't in local config; click Check Connections to list them and see whether each MCP connects.";
+"mcp.selectHint" = "Select an MCP server to see details";
+"mcp.health.connected" = "Connected";
+"mcp.health.needsAuth" = "Needs sign-in";
+"mcp.health.failed" = "Failed";
+"mcp.field.error" = "Error";
+"mcp.field.url" = "URL";
+"mcp.field.command" = "Command";
+"mcp.field.args" = "Arguments";
+"mcp.field.env" = "Environment variables (names only)";
+"mcp.field.headers" = "Headers (names only)";
+"mcp.field.config" = "Config file";
+"mcp.note.secrets" = "Read-only. Environment and header values are hidden; secret-looking arguments and URL parts are masked. Edit the config file or use the agent's command (e.g. claude mcp add / remove) to change it.";
+"mcp.note.connector" = "A connector added to your claude.ai account, managed in claude.ai Settings › Connectors; sign in to ones that need it with /mcp in Claude Code.";

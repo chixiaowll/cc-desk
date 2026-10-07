@@ -89,6 +89,8 @@ final class AppModel: ObservableObject {
     private(set) lazy var touchedFiles = TouchedFilesModel(model: self)
     /// 技能库（设计 §21）。
     private(set) lazy var skills = SkillLibrary(model: self)
+    /// MCP 一览（设计 §31），在技能库窗口的「MCP」页。
+    private(set) lazy var mcp = MCPLibrary(model: self)
     var controlServer: ControlServer?
     let resolver = ProjectResolver(git: SystemProbe.git)
     let queue = DispatchQueue(label: "cc-desk.poll")

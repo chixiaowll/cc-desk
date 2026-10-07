@@ -826,3 +826,14 @@ CC Desk 常驻（登录启动 + 菜单栏），大部分时间没人看着。原
   - 子 agent 会话的消息并入顶层会话；进度记在 `state.json`（丢了就重建）。
   - 轮询时同步：数据库与 WAL 的修改时间没变时只做两次 stat。
 - 状态：屏幕规则取自 herdr 的 opencode.toml（实测 1.18.35）：处理中＝底栏进度条与「esc interrupt」，等批准＝「△ Permission required」与「Allow once / Allow always / Reject」；回车 = 允许一次，Esc = 拒绝，与通知上的批准 / 拒绝按键一致。CC Desk 之外的终端里运行的 OpenCode 读不到屏幕，状态为未知（有标题、模型、改动的文件）。
+
+## 31. MCP 一览（v1.21）
+
+- 技能库窗口（⇧⌘K，标题改为「技能与 MCP」）顶部加「技能 / MCP」页签（记住上次的选择）。MCP 页布局与技能页一致：左侧按来源分组的列表（可折叠、带数量）、搜索、agent 过滤（全部 / Claude / Codex / OpenCode），右侧详情。只读。
+- 来源（`MCPScanner`，只读）：
+  - Claude Code：`~/.claude.json` 顶层 `mcpServers`（全局）与 `projects[目录].mcpServers`（本地，只在该目录生效）；侧栏各项目根目录的 `.mcp.json`（项目）；已安装插件根目录的 `.mcp.json` 与 `.claude-plugin/plugin.json` 的 `mcpServers`（插件，标出停用）。
+  - Codex：`~/.codex/config.toml` 的 `[mcp_servers.<名字>]`（只截出这些表解析，不碰其他配置），`enabled = false` 标为停用。
+  - OpenCode：`~/.config/opencode/opencode.json[c]` 与项目里 `opencode.json[c]` 的 `mcp`（JSONC 去注释与末尾逗号），`enabled: false` 标为停用。
+  - pi 没有内置 MCP，不列。
+- 「检查连接」：在家目录下跑一次 `claude mcp list`（要联网，约十几秒），列出 claude.ai 账号里的连接器（本机配置里没有），并给每个 Claude MCP 标上已连接 / 需要登录 / 连接失败（附原因）。
+- 密钥：环境变量、请求头只显示名字；参数里 `--token xxx`、`KEY=xxx`、长得像密钥的值（sk-、ghp_ 等前缀或长随机串）与地址里的查询参数值、用户名密码一律打码。详情给出配置文件路径（可在访达中显示），修改请用配置文件或 agent 自己的命令。
